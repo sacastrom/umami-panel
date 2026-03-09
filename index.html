@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UMAMI PANEL</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0a0a0f; --surface:#13131a; --surface2:#1c1c27; --border:#2a2a3d;
+    --accent:#ffe033; --green:#2ecc71; --red:#e74c3c; --blue:#4a9eff;
+    --orange:#ff6b35; --text:#e8e8f0; --muted:#6b6b8a;
+    --font-head:"Syne",sans-serif; --font-mono:"DM Mono",monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:var(--font-mono);min-height:100vh;}
+
+  /* LOGIN */
+  #loginScreen{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:100vh;gap:32px;padding:24px;
+  }
+  .login-logo{font-family:var(--font-head);font-size:36px;font-weight:800;letter-spacing:-1px;}
+  .login-logo span{color:var(--accent);}
+  .login-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:16px;
+    padding:40px;max-width:400px;width:100%;text-align:center;display:flex;flex-direction:column;gap:20px;
+  }
+  .login-card h2{font-family:var(--font-head);font-size:20px;font-weight:700;}
+  .login-card p{color:var(--muted);font-size:12px;line-height:1.6;}
+  .btn-ml{
+    background:var(--accent);color:#000;border:none;padding:14px 24px;
+    border-radius:10px;font-family:var(--font-head);font-weight:700;font-size:15px;
+    cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:10px;
+  }
+  .btn-ml:hover{background:#ffd000;transform:translateY(-1px);}
+  .login-note{font-size:10px;color:var(--muted);}
+
+  /* HEADER */
+  header{
+    background:var(--surface);border-bottom:1px solid var(--border);
+    padding:0 24px;display:flex;align-items:center;justify-content:space-between;
+    height:56px;position:sticky;top:0;z-index:100;
+  }
+  .logo{font-family:var(--font-head);font-weight:800;font-size:18px;}
+  .logo span{color:var(--accent);}
+  .header-right{display:flex;align-items:center;gap:12px;}
+  .user-badge{
+    display:flex;align-items:center;gap:8px;background:var(--surface2);
+    border:1px solid var(--border);border-radius:8px;padding:5px 12px;font-size:11px;color:var(--muted);
+  }
+  .user-dot{width:7px;height:7px;background:var(--green);border-radius:50%;animation:pulse 2s infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .btn-logout{
+    background:transparent;border:1px solid var(--border);color:var(--muted);
+    padding:5px 12px;border-radius:6px;font-family:var(--font-mono);font-size:11px;cursor:pointer;transition:all .2s;
+  }
+  .btn-logout:hover{border-color:var(--red);color:var(--red);}
+  .btn-sync{
+    background:var(--surface2);border:1px solid var(--border);color:var(--text);
+    padding:5px 12px;border-radius:6px;font-family:var(--font-mono);font-size:11px;cursor:pointer;transition:all .2s;
+    display:flex;align-items:center;gap:6px;
+  }
+  .btn-sync:hover{border-color:var(--accent);color:var(--accent);}
+  .btn-sync.syncing .sync-icon{animation:spin .8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* STATS */
+  .stats-bar{padding:14px 24px;display:flex;gap:12px;border-bottom:1px solid var(--border);background:var(--surface);}
+  .stat-card{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;}
+  .stat-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .stat-value{font-family:var(--font-head);font-size:20px;font-weight:700;}
+  .sv-green{color:var(--green);} .sv-yellow{color:var(--accent);} .sv-orange{color:var(--orange);}
+
+  /* TOOLBAR */
+  .toolbar{padding:12px 24px;display:flex;align-items:center;gap:10px;background:var(--bg);border-bottom:1px solid var(--border);flex-wrap:wrap;}
+  .search-wrap{flex:1;min-width:200px;position:relative;}
+  .search-wrap input{
+    width:100%;background:var(--surface);border:1px solid var(--border);
+    border-radius:8px;padding:8px 12px 8px 34px;color:var(--text);
+    font-family:var(--font-mono);font-size:12px;outline:none;
+  }
+  .search-wrap input:focus{border-color:var(--accent);}
+  .search-wrap input::placeholder{color:var(--muted);}
+  .s-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px;}
+  .filter-btn{
+    background:var(--surface);border:1px solid var(--border);color:var(--muted);
+    padding:7px 13px;border-radius:7px;font-family:var(--font-mono);font-size:11px;
+    cursor:pointer;transition:all .2s;white-space:nowrap;
+  }
+  .filter-btn:hover,.filter-btn.active{background:var(--accent);color:var(--bg);border-color:var(--accent);}
+
+  /* TABLE */
+  .table-wrap{padding:16px 24px;overflow-x:auto;}
+  .hint{font-size:9px;color:var(--muted);padding:0 24px 8px;}
+  table{width:100%;border-collapse:separate;border-spacing:0 3px;font-size:11px;}
+  thead th{text-align:left;padding:6px 10px;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;}
+  tbody tr{background:var(--surface);transition:background .15s;}
+  tbody tr:hover{background:var(--surface2);}
+  tbody td{padding:8px 10px;}
+  tbody td:first-child{border-radius:7px 0 0 7px;}
+  tbody td:last-child{border-radius:0 7px 7px 0;}
+
+  .mla-code{font-size:9px;color:var(--muted);background:var(--bg);padding:2px 5px;border-radius:3px;border:1px solid var(--border);}
+  .sku-code{font-size:9px;color:var(--blue);}
+  .product-name{font-size:11px;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+  .status-badge{
+    display:inline-flex;align-items:center;gap:4px;padding:2px 7px;
+    border-radius:20px;font-size:9px;cursor:pointer;border:none;
+    font-family:var(--font-mono);transition:all .2s;
+  }
+  .s-active{background:rgba(46,204,113,.1);color:var(--green);border:1px solid rgba(46,204,113,.25);}
+  .s-active:hover{background:rgba(231,76,60,.1);color:var(--red);border-color:rgba(231,76,60,.25);}
+  .s-paused{background:rgba(231,76,60,.1);color:var(--red);border:1px solid rgba(231,76,60,.25);}
+  .s-paused:hover{background:rgba(46,204,113,.1);color:var(--green);border-color:rgba(46,204,113,.25);}
+  .s-dot{width:5px;height:5px;border-radius:50%;background:currentColor;}
+
+  .stock-val{font-family:var(--font-mono);font-size:12px;cursor:pointer;padding:3px 6px;border-radius:4px;border:1px solid transparent;transition:all .15s;display:inline-block;}
+  .stock-val:hover{border-color:var(--border);background:var(--bg);}
+  .stock-low{color:var(--red);} .stock-mid{color:var(--accent);} .stock-ok{color:var(--text);}
+
+  .select-cell{
+    background:var(--bg);border:1px solid var(--border);color:var(--text);
+    font-family:var(--font-mono);font-size:10px;padding:3px 20px 3px 6px;
+    border-radius:5px;cursor:pointer;outline:none;transition:border-color .15s;
+    appearance:none;-webkit-appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%236b6b8a'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 6px center;
+  }
+  .select-cell:focus{border-color:var(--accent);}
+  .desc-I{color:var(--blue);} .desc-N{color:var(--green);} .desc-F{color:var(--muted);}
+  .tipo-FULL{color:var(--accent);} .tipo-NOFULL{color:var(--muted);}
+
+  .cell-value{
+    font-family:var(--font-mono);font-size:12px;cursor:pointer;
+    padding:3px 5px;border-radius:4px;border:1px solid transparent;
+    transition:all .15s;display:inline-block;min-width:70px;
+  }
+  .cell-value:hover{border-color:var(--border);background:var(--bg);}
+  .cv-price{color:var(--accent);font-weight:500;} .cv-costo{color:var(--muted);}
+  .cv-margen{color:var(--blue);} .cv-gan{color:var(--green);}
+  .cv-ro{cursor:default;} .cv-ro:hover{border-color:transparent!important;background:transparent!important;}
+
+  .cell-input{
+    font-family:var(--font-mono);font-size:12px;background:var(--bg);
+    border:1px solid var(--accent);color:var(--accent);
+    padding:3px 5px;border-radius:4px;width:85px;outline:none;display:none;
+  }
+  .ci-margen{color:var(--blue);border-color:var(--blue);}
+  .ci-stock{color:var(--text);border-color:var(--blue);width:70px;}
+
+  .spin{display:none;width:10px;height:10px;border:1.5px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;margin-left:4px;vertical-align:middle;}
+  .semaforo{font-size:14px;}
+
+  /* SAVING INDICATOR */
+  .saving-row{opacity:.6;pointer-events:none;}
+
+  /* PAGINATION */
+  .pagination{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-top:1px solid var(--border);font-size:10px;color:var(--muted);}
+  .page-btns{display:flex;gap:4px;flex-wrap:wrap;}
+  .page-btn{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:4px 9px;border-radius:5px;cursor:pointer;font-family:var(--font-mono);font-size:10px;transition:all .2s;}
+  .page-btn:hover,.page-btn.active{background:var(--accent);color:var(--bg);border-color:var(--accent);}
+  .page-btn:disabled{opacity:.3;cursor:not-allowed;}
+
+  /* LOADING */
+  #loadingScreen{
+    display:none;flex-direction:column;align-items:center;justify-content:center;
+    min-height:60vh;gap:16px;color:var(--muted);font-size:13px;
+  }
+  .loader{width:32px;height:32px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
+
+  /* TOAST */
+  #toast{
+    position:fixed;bottom:20px;right:20px;background:var(--surface2);
+    border:1px solid var(--border);border-radius:8px;padding:10px 16px;
+    font-size:11px;display:flex;align-items:center;gap:8px;
+    transform:translateY(60px);opacity:0;
+    transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:999;max-width:320px;
+  }
+  #toast.show{transform:translateY(0);opacity:1;}
+  #toast.t-success{border-color:var(--green);}
+  #toast.t-error{border-color:var(--red);}
+
+  .empty{text-align:center;padding:40px;color:var(--muted);}
+
+  #app{display:none;}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <div class="login-logo">UMAMI <span>PANEL</span></div>
+  <div class="login-card">
+    <h2>Gestión de publicaciones</h2>
+    <p>Conectate con tu cuenta de Mercado Libre para ver y editar tus publicaciones, stock y precios en tiempo real.</p>
+    <button class="btn-ml" onclick="loginML()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+      Conectar con Mercado Libre
+    </button>
+    <div class="login-note">🔒 Autenticación oficial OAuth 2.0 de Mercado Libre</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <header>
+    <div class="logo">UMAMI <span>PANEL</span></div>
+    <div class="header-right">
+      <button class="btn-sync" onclick="syncAll()" id="syncBtn">
+        <span class="sync-icon">↻</span> Sincronizar ML
+      </button>
+      <div class="user-badge"><div class="user-dot"></div><span id="userName">—</span></div>
+      <button class="btn-logout" onclick="logout()">⏻ Salir</button>
+    </div>
+  </header>
+
+  <div class="stats-bar">
+    <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value" id="sTotal">—</div></div>
+    <div class="stat-card"><div class="stat-label">Activas</div><div class="stat-value sv-green" id="sActivas">—</div></div>
+    <div class="stat-card"><div class="stat-label">Pausadas</div><div class="stat-value sv-orange" id="sPausadas">—</div></div>
+    <div class="stat-card"><div class="stat-label">🟢 ≥60%</div><div class="stat-value sv-green" id="sVerde">—</div></div>
+    <div class="stat-card"><div class="stat-label">🟡 50–60%</div><div class="stat-value sv-yellow" id="sAmarillo">—</div></div>
+    <div class="stat-card"><div class="stat-label">🔴 &lt;50%</div><div class="stat-value sv-orange" id="sRojo">—</div></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="search-wrap">
+      <span class="s-icon">🔍</span>
+      <input type="text" placeholder="Buscar por nombre, MLA o SKU..." id="searchInput" oninput="doFilter()">
+    </div>
+    <button class="filter-btn active" onclick="setFilter('all',this)">Todos</button>
+    <button class="filter-btn" onclick="setFilter('active',this)">Activas</button>
+    <button class="filter-btn" onclick="setFilter('paused',this)">Pausadas</button>
+    <button class="filter-btn" onclick="setFilter('verde',this)">🟢 Verde</button>
+    <button class="filter-btn" onclick="setFilter('amarillo',this)">🟡 Amarillo</button>
+    <button class="filter-btn" onclick="setFilter('rojo',this)">🔴 Rojo</button>
+    <button class="filter-btn" onclick="setFilter('full',this)">FULL</button>
+    <button class="filter-btn" onclick="setFilter('nofull',this)">NO FULL</button>
+  </div>
+
+  <div id="loadingScreen" style="display:flex;">
+    <div class="loader"></div>
+    <span id="loadingMsg">Cargando publicaciones...</span>
+  </div>
+
+  <div id="panelContent" style="display:none;">
+    <div class="hint">✏️ Hacé click en cualquier celda para editar · Precio ML, Stock y Estado se actualizan en Mercado Libre</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Código ML</th><th>SKU</th><th>Producto</th><th>Estado</th><th>Stock</th>
+            <th>Desc.</th><th>Tipo</th><th>Precio ASIA ✏️</th><th>Costo</th>
+            <th>% Gan. ✏️</th><th>Precio ML ✏️</th><th>Gan. $</th><th>Gan. %</th><th>🚦</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty" id="empty" style="display:none;">📭 No se encontraron productos</div>
+    </div>
+    <div class="pagination">
+      <span id="pInfo">—</span>
+      <div class="page-btns" id="pBtns"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"><span id="tMsg"></span></div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────
+const ML_APP_ID    = '2267364561876653';
+const ML_SECRET    = 'SH6AB7qpZmbSIRuZJkSeBNbHDv3BIFmP';
+const SUPA_URL     = 'https://rartbrcmdotholpwcqtc.supabase.co';
+const SUPA_KEY     = 'sb_publishable_FbtldZ8X-Mnlb3tyk2C0lg_bqCNd27w';
+const REDIRECT_URI = window.location.origin + window.location.pathname;
+
+// ─── ML VARIABLES ─────────────────────────────────────────
+const V = {
+  costoFijo:1115, costoFijoMayor:2810,
+  comisionFull:0.175, comisionNF:0.14,
+  precioEnvioGratis:33000, costoEnvioGratis:12000,
+  descuentos:{I:0.25,N:0.20,F:0.0}
+};
+
+// ─── STATE ────────────────────────────────────────────────
+let accessToken = localStorage.getItem('ml_token') || null;
+let mlUserId    = localStorage.getItem('ml_user_id') || null;
+let products    = [];
+let filtered    = [];
+let currentFilter = 'all';
+let currentPage   = 1;
+const PAGE = 30;
+let toastTimer;
+
+// ─── FORMULAS ─────────────────────────────────────────────
+function calcPrecioML(costo, margen, tipo) {
+  let p_base;
+  if (tipo === 'FULL') {
+    p_base = (costo*(1+margen)) / (1-V.comisionFull);
+  } else {
+    const p1 = ((costo*(1+margen)) + V.costoFijo) / (1-V.comisionNF);
+    const p2 = ((costo*(1+margen)) + V.costoFijoMayor) / (1-V.comisionNF);
+    p_base = p1 <= 15000 ? p1 : p2;
+  }
+  if (p_base >= V.precioEnvioGratis) {
+    const extra = tipo==='FULL' ? V.costoEnvioGratis/(1-V.comisionFull) : V.costoEnvioGratis/(1-V.comisionNF);
+    p_base += extra;
+  }
+  return Math.round(p_base/5)*5;
+}
+
+function calcGanReal(precio_ml, costo, tipo) {
+  const envio = precio_ml >= V.precioEnvioGratis ? V.costoEnvioGratis : 0;
+  if (tipo==='FULL') return (precio_ml*0.825) - costo - envio;
+  const cf = precio_ml <= 15000 ? V.costoFijo : V.costoFijoMayor;
+  return (precio_ml*0.86 - cf) - costo - envio;
+}
+
+function recalc(p) {
+  p.costo     = p.precio_asia * (1-(V.descuentos[p.descuento]||0));
+  p.precio_ml = calcPrecioML(p.costo, p.margen, p.tipo);
+  p.gan_pesos = calcGanReal(p.precio_ml, p.costo, p.tipo);
+  p.gan_pct   = p.costo>0 ? Math.round((p.gan_pesos/p.costo)*1000)/10 : 0;
+  p.semaforo  = p.gan_pct>=60?'🟢':p.gan_pct>=50?'🟡':'🔴';
+}
+
+function fmt(n)    { return '$'+Math.round(n).toLocaleString('es-AR'); }
+function fmtP(n)   { return n.toFixed(1)+'%'; }
+function scClass(s){ return s<=3?'stock-low':s<=8?'stock-mid':'stock-ok'; }
+
+// ─── AUTH ─────────────────────────────────────────────────
+function loginML() {
+  const url = `https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${ML_APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+  window.location.href = url;
+}
+
+async function handleCallback(code) {
+  showLoading('Autenticando con Mercado Libre...');
+  try {
+    const resp = await fetch('https://api.mercadolibre.com/oauth/token', {
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json'},
+      body: new URLSearchParams({
+        grant_type:'authorization_code',
+        client_id: ML_APP_ID,
+        client_secret: ML_SECRET,
+        code, redirect_uri: REDIRECT_URI
+      })
+    });
+    const data = await resp.json();
+    if (!data.access_token) throw new Error(data.message || 'Auth failed');
+    accessToken = data.access_token;
+    mlUserId    = data.user_id;
+    localStorage.setItem('ml_token', accessToken);
+    localStorage.setItem('ml_user_id', mlUserId);
+    window.history.replaceState({}, '', window.location.pathname);
+    await initApp();
+  } catch(e) {
+    showToast('❌ Error al autenticar: '+e.message, 'error');
+    document.getElementById('loginScreen').style.display='flex';
+    hideLoading();
+  }
+}
+
+function logout() {
+  localStorage.removeItem('ml_token');
+  localStorage.removeItem('ml_user_id');
+  accessToken = null; mlUserId = null; products = [];
+  document.getElementById('app').style.display='none';
+  document.getElementById('loginScreen').style.display='flex';
+}
+
+// ─── SUPABASE ─────────────────────────────────────────────
+async function supaFetch(path, method='GET', body=null) {
+  const opts = {
+    method,
+    headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=representation'}
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(SUPA_URL+'/rest/v1/'+path, opts);
+  if (!r.ok) { const t=await r.text(); throw new Error(t); }
+  return r.status===204 ? null : r.json();
+}
+
+async function loadInternos() {
+  try {
+    return await supaFetch('productos_internos?select=*');
+  } catch(e) { console.error('Supabase error:', e); return []; }
+}
+
+async function upsertInterno(p) {
+  return supaFetch('productos_internos?on_conflict=mla', 'POST', {
+    mla: p.mla, sku: p.sku,
+    precio_asia: p.precio_asia, descuento: p.descuento,
+    margen: p.margen, tipo: p.tipo, costo: p.costo,
+    updated_at: new Date().toISOString()
+  });
+}
+
+// ─── MERCADO LIBRE API ────────────────────────────────────
+async function mlFetch(path) {
+  const r = await fetch('https://api.mercadolibre.com'+path, {
+    headers:{'Authorization':'Bearer '+accessToken}
+  });
+  if (r.status===401) { logout(); throw new Error('Token expirado'); }
+  return r.json();
+}
+
+async function mlUpdate(itemId, body) {
+  const r = await fetch(`https://api.mercadolibre.com/items/${itemId}`, {
+    method:'PUT',
+    headers:{'Authorization':'Bearer '+accessToken,'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+  if (r.status===401) { logout(); throw new Error('Token expirado'); }
+  return r.json();
+}
+
+async function fetchAllItems() {
+  showLoading('Trayendo publicaciones de ML...');
+  let all = [], offset = 0, limit = 50;
+  while(true) {
+    const res = await mlFetch(`/users/${mlUserId}/items/search?limit=${limit}&offset=${offset}&status=active`);
+    const ids = res.results || [];
+    if (!ids.length) break;
+    // fetch details in batches of 20
+    for (let i=0; i<ids.length; i+=20) {
+      const batch = ids.slice(i,i+20).join(',');
+      const items = await mlFetch(`/items?ids=${batch}&attributes=id,title,price,available_quantity,status,seller_sku`);
+      items.forEach(it => { if(it.code===200) all.push(it.body); });
+    }
+    offset += limit;
+    if (ids.length < limit) break;
+    showLoading(`Cargando publicaciones... (${all.length})`);
+  }
+  // also fetch paused
+  offset = 0;
+  while(true) {
+    const res = await mlFetch(`/users/${mlUserId}/items/search?limit=${limit}&offset=${offset}&status=paused`);
+    const ids = res.results || [];
+    if (!ids.length) break;
+    for (let i=0; i<ids.length; i+=20) {
+      const batch = ids.slice(i,i+20).join(',');
+      const items = await mlFetch(`/items?ids=${batch}&attributes=id,title,price,available_quantity,status,seller_sku`);
+      items.forEach(it => { if(it.code===200) all.push(it.body); });
+    }
+    offset += limit;
+    if (ids.length < limit) break;
+  }
+  return all;
+}
+
+// ─── INIT ─────────────────────────────────────────────────
+async function initApp() {
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('panelContent').style.display='none';
+  showLoading('Iniciando panel...');
+
+  try {
+    // Get user info
+    const user = await mlFetch('/users/me');
+    document.getElementById('userName').textContent = user.nickname || 'Usuario ML';
+
+    // Load ML items + Supabase internals in parallel
+    const [mlItems, internos] = await Promise.all([fetchAllItems(), loadInternos()]);
+
+    // Build internos map
+    const internosMap = {};
+    internos.forEach(i => { internosMap[i.mla] = i; });
+
+    // Merge
+    products = mlItems.map((item, idx) => {
+      const interno = internosMap[item.id] || {};
+      const tipo        = interno.tipo || 'NO FULL';
+      const descuento   = interno.descuento || 'N';
+      const precio_asia = interno.precio_asia || 0;
+      const margen      = interno.margen != null ? interno.margen : 0.7;
+      const costo       = precio_asia > 0 ? precio_asia*(1-(V.descuentos[descuento]||0)) : (interno.costo||0);
+      const precio_ml   = item.price || 0;
+      const gan_pesos   = calcGanReal(precio_ml, costo, tipo);
+      const gan_pct     = costo>0 ? Math.round((gan_pesos/costo)*1000)/10 : 0;
+      return {
+        id: idx,
+        mla: item.id,
+        sku: item.seller_sku || interno.sku || '',
+        name: item.title || '',
+        status: item.status === 'active' ? 'active' : 'paused',
+        stock: item.available_quantity || 0,
+        tipo, descuento, precio_asia, margen, costo,
+        precio_ml, gan_pesos, gan_pct,
+        semaforo: gan_pct>=60?'🟢':gan_pct>=50?'🟡':'🔴'
+      };
+    });
+
+    hideLoading();
+    doFilter();
+    showToast(`✅ ${products.length} publicaciones cargadas`, 'success');
+  } catch(e) {
+    hideLoading();
+    showToast('❌ Error: '+e.message, 'error');
+    console.error(e);
+  }
+}
+
+async function syncAll() {
+  const btn = document.getElementById('syncBtn');
+  btn.classList.add('syncing');
+  showToast('🔄 Sincronizando con ML...', 'success');
+  try {
+    const [mlItems, internos] = await Promise.all([fetchAllItems(), loadInternos()]);
+    const internosMap = {};
+    internos.forEach(i => { internosMap[i.mla] = i; });
+    products = mlItems.map((item, idx) => {
+      const interno = internosMap[item.id] || {};
+      const tipo        = interno.tipo || 'NO FULL';
+      const descuento   = interno.descuento || 'N';
+      const precio_asia = interno.precio_asia || 0;
+      const margen      = interno.margen != null ? interno.margen : 0.7;
+      const costo       = precio_asia>0 ? precio_asia*(1-(V.descuentos[descuento]||0)) : (interno.costo||0);
+      const precio_ml   = item.price || 0;
+      const gan_pesos   = calcGanReal(precio_ml, costo, tipo);
+      const gan_pct     = costo>0 ? Math.round((gan_pesos/costo)*1000)/10 : 0;
+      return {
+        id:idx, mla:item.id, sku:item.seller_sku||interno.sku||'',
+        name:item.title||'', status:item.status==='active'?'active':'paused',
+        stock:item.available_quantity||0, tipo, descuento, precio_asia, margen, costo,
+        precio_ml, gan_pesos, gan_pct, semaforo:gan_pct>=60?'🟢':gan_pct>=50?'🟡':'🔴'
+      };
+    });
+    doFilter();
+    showToast(`✅ Sincronizado — ${products.length} publicaciones`, 'success');
+  } catch(e) {
+    showToast('❌ Error al sincronizar: '+e.message, 'error');
+  }
+  btn.classList.remove('syncing');
+}
+
+// ─── LOADING ──────────────────────────────────────────────
+function showLoading(msg) {
+  document.getElementById('loadingMsg').textContent = msg;
+  document.getElementById('loadingScreen').style.display='flex';
+  document.getElementById('panelContent').style.display='none';
+}
+function hideLoading() {
+  document.getElementById('loadingScreen').style.display='none';
+  document.getElementById('panelContent').style.display='block';
+}
+
+// ─── FILTER & RENDER ──────────────────────────────────────
+function doFilter() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  filtered = products.filter(p => {
+    const mq = !q || p.name.toLowerCase().includes(q) || p.mla.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
+    const mf = currentFilter==='all'     ? true
+      : currentFilter==='active'         ? p.status==='active'
+      : currentFilter==='paused'         ? p.status==='paused'
+      : currentFilter==='verde'          ? p.semaforo==='🟢'
+      : currentFilter==='amarillo'       ? p.semaforo==='🟡'
+      : currentFilter==='rojo'           ? p.semaforo==='🔴'
+      : currentFilter==='full'           ? p.tipo==='FULL'
+      : currentFilter==='nofull'         ? p.tipo==='NO FULL' : true;
+    return mq && mf;
+  });
+  currentPage = 1;
+  renderTable(); renderStats();
+}
+
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  doFilter();
+}
+
+function renderStats() {
+  document.getElementById('sTotal').textContent    = products.length;
+  document.getElementById('sActivas').textContent  = products.filter(p=>p.status==='active').length;
+  document.getElementById('sPausadas').textContent = products.filter(p=>p.status==='paused').length;
+  document.getElementById('sVerde').textContent    = products.filter(p=>p.semaforo==='🟢').length;
+  document.getElementById('sAmarillo').textContent = products.filter(p=>p.semaforo==='🟡').length;
+  document.getElementById('sRojo').textContent     = products.filter(p=>p.semaforo==='🔴').length;
+}
+
+function renderTable() {
+  const tbody = document.getElementById('tbody');
+  const empty = document.getElementById('empty');
+  const start = (currentPage-1)*PAGE;
+  const page  = filtered.slice(start, start+PAGE);
+
+  if (!filtered.length) {
+    tbody.innerHTML=''; empty.style.display='block';
+    document.getElementById('pInfo').textContent='';
+    document.getElementById('pBtns').innerHTML='';
+    return;
+  }
+  empty.style.display='none';
+
+  tbody.innerHTML = page.map(p => {
+    const tk = p.tipo==='FULL'?'FULL':'NOFULL';
+    const sc = scClass(p.stock||0);
+    return `<tr id="row-${p.id}">
+      <td><span class="mla-code">${p.mla}</span></td>
+      <td><span class="sku-code">${p.sku}</span></td>
+      <td><div class="product-name" title="${p.name}">${p.name}</div></td>
+      <td>
+        <button class="status-badge ${p.status==='active'?'s-active':'s-paused'}" onclick="toggleStatus(${p.id})" id="st-${p.id}">
+          <span class="s-dot"></span>${p.status==='active'?'Activa':'Pausada'}
+        </button>
+      </td>
+      <td>
+        <span class="stock-val ${sc}" onclick="startEdit('stock',${p.id})" id="v-stock-${p.id}">${p.stock||0} u.</span>
+        <input class="cell-input ci-stock" type="number" id="i-stock-${p.id}" onblur="saveEdit('stock',${p.id})" onkeydown="hk(event,'stock',${p.id})">
+        <span class="spin" id="sp-stock-${p.id}"></span>
+      </td>
+      <td>
+        <select class="select-cell desc-${p.descuento}" id="sel-desc-${p.id}" onchange="changeSelect('desc',${p.id},this.value)">
+          <option value="I" ${p.descuento==='I'?'selected':''}>I — 25%</option>
+          <option value="N" ${p.descuento==='N'?'selected':''}>N — 20%</option>
+          <option value="F" ${p.descuento==='F'?'selected':''}>F — 0%</option>
+        </select>
+      </td>
+      <td>
+        <select class="select-cell tipo-${tk}" id="sel-tipo-${p.id}" onchange="changeSelect('tipo',${p.id},this.value)">
+          <option value="FULL" ${p.tipo==='FULL'?'selected':''}>FULL</option>
+          <option value="NO FULL" ${p.tipo==='NO FULL'?'selected':''}>NO FULL</option>
+        </select>
+      </td>
+      <td>
+        <span class="cell-value" onclick="startEdit('precio_asia',${p.id})" id="v-precio_asia-${p.id}">${fmt(p.precio_asia||0)}</span>
+        <input class="cell-input" type="number" id="i-precio_asia-${p.id}" onblur="saveEdit('precio_asia',${p.id})" onkeydown="hk(event,'precio_asia',${p.id})">
+        <span class="spin" id="sp-precio_asia-${p.id}"></span>
+      </td>
+      <td><span class="cell-value cv-costo cv-ro" id="v-costo-${p.id}">${fmt(p.costo||0)}</span></td>
+      <td>
+        <span class="cell-value cv-margen" onclick="startEdit('margen',${p.id})" id="v-margen-${p.id}">${fmtP(p.margen*100)}</span>
+        <input class="cell-input ci-margen" type="number" step="1" min="0" max="200" id="i-margen-${p.id}" onblur="saveEdit('margen',${p.id})" onkeydown="hk(event,'margen',${p.id})">
+        <span class="spin" id="sp-margen-${p.id}"></span>
+      </td>
+      <td>
+        <span class="cell-value cv-price" onclick="startEdit('precio_ml',${p.id})" id="v-precio_ml-${p.id}">${fmt(p.precio_ml)}</span>
+        <input class="cell-input" type="number" id="i-precio_ml-${p.id}" onblur="saveEdit('precio_ml',${p.id})" onkeydown="hk(event,'precio_ml',${p.id})">
+        <span class="spin" id="sp-precio_ml-${p.id}"></span>
+      </td>
+      <td><span class="cell-value cv-gan cv-ro" id="v-gan_pesos-${p.id}">${fmt(p.gan_pesos)}</span></td>
+      <td><span class="cell-value cv-gan cv-ro" id="v-gan_pct-${p.id}">${fmtP(p.gan_pct)}</span></td>
+      <td><span class="semaforo" id="v-sem-${p.id}">${p.semaforo}</span></td>
+    </tr>`;
+  }).join('');
+
+  const total = filtered.length, pages = Math.ceil(total/PAGE);
+  document.getElementById('pInfo').textContent = `Mostrando ${start+1}–${Math.min(start+PAGE,total)} de ${total} productos`;
+  let btns = `<button class="page-btn" onclick="goPage(${currentPage-1})" ${currentPage===1?'disabled':''}>←</button>`;
+  for (let i=Math.max(1,currentPage-3); i<=Math.min(pages,currentPage+3); i++)
+    btns += `<button class="page-btn ${i===currentPage?'active':''}" onclick="goPage(${i})">${i}</button>`;
+  btns += `<button class="page-btn" onclick="goPage(${currentPage+1})" ${currentPage===pages?'disabled':''}>→</button>`;
+  document.getElementById('pBtns').innerHTML = btns;
+}
+
+function goPage(p) {
+  const pages = Math.ceil(filtered.length/PAGE);
+  if (p<1||p>pages) return;
+  currentPage=p; renderTable();
+}
+
+// ─── EDIT ─────────────────────────────────────────────────
+function startEdit(field, id) {
+  const p = products.find(x=>x.id===id);
+  document.getElementById(`v-${field}-${id}`).style.display='none';
+  const inp = document.getElementById(`i-${field}-${id}`);
+  inp.style.display='inline-block';
+  inp.value = field==='margen' ? Math.round(p.margen*100) : p[field];
+  inp.focus(); inp.select();
+}
+
+function hk(e, field, id) {
+  if (e.key==='Enter') saveEdit(field, id);
+  if (e.key==='Escape') cancelEdit(field, id);
+}
+
+function cancelEdit(field, id) {
+  document.getElementById(`v-${field}-${id}`).style.display='inline-block';
+  document.getElementById(`i-${field}-${id}`).style.display='none';
+}
+
+function updateDOM(p) {
+  const s=(fld,val)=>{ const el=document.getElementById(`v-${fld}-${p.id}`); if(el) el.textContent=(fld==='gan_pct'||fld==='margen')?fmtP(val):fmt(val); };
+  s('precio_asia',p.precio_asia); s('costo',p.costo); s('margen',p.margen*100);
+  s('precio_ml',p.precio_ml); s('gan_pesos',p.gan_pesos); s('gan_pct',p.gan_pct);
+  const sem=document.getElementById(`v-sem-${p.id}`); if(sem) sem.textContent=p.semaforo;
+  const sv=document.getElementById(`v-stock-${p.id}`);
+  if(sv){ sv.className=`stock-val ${scClass(p.stock||0)}`; sv.textContent=`${p.stock||0} u.`; }
+  const ds=document.getElementById(`sel-desc-${p.id}`); if(ds) ds.className=`select-cell desc-${p.descuento}`;
+  const ts=document.getElementById(`sel-tipo-${p.id}`); if(ts) ts.className=`select-cell tipo-${p.tipo==='FULL'?'FULL':'NOFULL'}`;
+}
+
+async function saveEdit(field, id) {
+  const v   = document.getElementById(`v-${field}-${id}`);
+  const inp = document.getElementById(`i-${field}-${id}`);
+  const sp  = document.getElementById(`sp-${field}-${id}`);
+  const p   = products.find(x=>x.id===id);
+  const newVal = parseFloat(inp.value);
+  if (isNaN(newVal)||newVal<0) { cancelEdit(field,id); return; }
+  if (field!=='stock'&&field!=='precio_ml' && newVal===p[field]) { cancelEdit(field,id); return; }
+
+  inp.style.display='none'; sp.style.display='inline-block';
+  v.style.display='inline-block';
+
+  try {
+    if (field==='precio_ml') {
+      // Update in ML
+      await mlUpdate(p.mla, {price: newVal});
+      p.precio_ml = newVal;
+      p.gan_pesos = calcGanReal(newVal, p.costo, p.tipo);
+      p.gan_pct   = p.costo>0 ? Math.round((p.gan_pesos/p.costo)*1000)/10 : 0;
+      p.semaforo  = p.gan_pct>=60?'🟢':p.gan_pct>=50?'🟡':'🔴';
+      showToast('🚀 Precio actualizado en Mercado Libre', 'success');
+    } else if (field==='stock') {
+      await mlUpdate(p.mla, {available_quantity: newVal});
+      p.stock = newVal;
+      showToast('📦 Stock actualizado en Mercado Libre', 'success');
+    } else {
+      // Internal field — save to Supabase
+      if (field==='margen') p.margen = newVal/100;
+      else if (field==='precio_asia') p.precio_asia = newVal;
+      recalc(p);
+      await upsertInterno(p);
+      showToast(field==='precio_asia'?'💰 Precio ASIA guardado — costo y precio ML recalculados':'📊 Margen guardado — precio ML recalculado', 'success');
+    }
+    updateDOM(p);
+    renderStats();
+  } catch(e) {
+    showToast('❌ Error: '+e.message, 'error');
+  }
+  sp.style.display='none';
+}
+
+async function changeSelect(type, id, val) {
+  const p = products.find(x=>x.id===id);
+  if (type==='desc') p.descuento = val;
+  else p.tipo = val;
+  recalc(p);
+  try {
+    await upsertInterno(p);
+    updateDOM(p);
+    renderStats();
+    showToast(type==='desc'?`🏷️ Descuento cambiado a ${val} — recalculado`:`🚚 Tipo cambiado a ${val} — recalculado`, 'success');
+  } catch(e) {
+    showToast('❌ Error al guardar: '+e.message, 'error');
+  }
+}
+
+async function toggleStatus(id) {
+  const p   = products.find(x=>x.id===id);
+  const btn = document.getElementById(`st-${id}`);
+  btn.style.opacity='.5';
+  const newStatus = p.status==='active'?'paused':'active';
+  try {
+    await mlUpdate(p.mla, {status: newStatus});
+    p.status = newStatus;
+    btn.className=`status-badge ${newStatus==='active'?'s-active':'s-paused'}`;
+    btn.innerHTML=`<span class="s-dot"></span>${newStatus==='active'?'Activa':'Pausada'}`;
+    renderStats();
+    showToast(newStatus==='active'?'✅ Publicación activada en ML':'⏸️ Publicación pausada en ML', 'success');
+  } catch(e) {
+    showToast('❌ Error: '+e.message, 'error');
+  }
+  btn.style.opacity='1';
+}
+
+// ─── TOAST ────────────────────────────────────────────────
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  document.getElementById('tMsg').textContent = msg;
+  t.className = `show t-${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ t.className=''; }, 3500);
+}
+
+// ─── BOOT ─────────────────────────────────────────────────
+(function boot() {
+  const params = new URLSearchParams(window.location.search);
+  const code   = params.get('code');
+  if (code) {
+    document.getElementById('loginScreen').style.display='none';
+    handleCallback(code);
+  } else if (accessToken) {
+    initApp();
+  } else {
+    document.getElementById('loginScreen').style.display='flex';
+  }
+})();
+</script>
+</body>
+</html>
