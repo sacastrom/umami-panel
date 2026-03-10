@@ -277,7 +277,7 @@ async function fetchAllItems(){
   showLoading(`Total en ML: ${total} publicaciones — obteniendo IDs...`,2);
 
   // Paginamos sin filtro de estado — ML permite hasta offset ~5000
-  const maxOffset=Math.min(total, 5000);
+  const maxOffset=total; // ML permite paginar hasta el total real
   for(let offset=0; offset<maxOffset; offset+=limit){
     const res=await mlFetch(`/users/${mlUserId}/items/search?limit=${limit}&offset=${offset}`);
     const ids=res.results||[];
