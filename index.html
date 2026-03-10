@@ -212,26 +212,22 @@ function scClass(s){return s<=3?'stock-low':s<=8?'stock-mid':'stock-ok';}
 function loginML(){
   window.location.href=`https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${ML_APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
 }
-
 async function handleCallback(code){
-  showLoading('Autenticando con Mercado Libre...',0);
+  showLoading('Autenticando...',0);
   try{
     const resp=await fetch('/api/token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,redirect_uri:REDIRECT_URI})});
     const data=await resp.json();
     if(!data.access_token)throw new Error(data.message||'Error de autenticación');
-    accessToken=data.access_token;
-    mlUserId=data.user_id;
-    localStorage.setItem('ml_token',accessToken);
-    localStorage.setItem('ml_user_id',mlUserId);
+    accessToken=data.access_token;mlUserId=data.user_id;
+    localStorage.setItem('ml_token',accessToken);localStorage.setItem('ml_user_id',mlUserId);
     window.history.replaceState({},'',window.location.pathname);
     await initApp();
   }catch(e){
-    showToast('❌ Error al autenticar: '+e.message,'error');
+    showToast('❌ '+e.message,'error');
     document.getElementById('loginScreen').style.display='flex';
     document.getElementById('app').style.display='none';
   }
 }
-
 function logout(){
   localStorage.removeItem('ml_token');localStorage.removeItem('ml_user_id');
   accessToken=null;mlUserId=null;products=[];
@@ -255,7 +251,7 @@ async function upsertInterno(p){
   });
 }
 
-// ── ML via PROXY ──
+// ── ML PROXY ──
 async function mlFetch(path){
   const r=await fetch(`/api/ml?path=${encodeURIComponent(path)}`,{headers:{'Authorization':'Bearer '+accessToken}});
   if(r.status===401){logout();throw new Error('Sesión expirada');}
@@ -263,89 +259,46 @@ async function mlFetch(path){
 }
 async function mlPut(path,body){
   const r=await fetch(`/api/ml?path=${encodeURIComponent(path)}`,{
-    method:'PUT',
-    headers:{'Authorization':'Bearer '+accessToken,'Content-Type':'application/json'},
+    method:'PUT',headers:{'Authorization':'Bearer '+accessToken,'Content-Type':'application/json'},
     body:JSON.stringify(body)
   });
   if(r.status===401){logout();throw new Error('Sesión expirada');}
   return r.json();
 }
 
-// ── FETCH ALL ITEMS — usa scroll_id para superar el límite de 1000 ──
-async function fetchByStatus(status, totalKnown){
-  const ids=[];
+// ── FETCH TODOS SIN FILTRO DE ESTADO (supera límite de 1000 por estado) ──
+async function fetchAllItems(){
+  const allIds=[];
   const limit=50;
-  let offset=0;
-  let total=totalKnown||null;
 
-  while(true){
-    const res=await mlFetch(`/users/${mlUserId}/items/search?limit=${limit}&offset=${offset}&status=${status}`);
-    if(total===null) total=res.paging?.total||0;
-    const batch=res.results||[];
-    if(!batch.length) break;
-    ids.push(...batch);
-    offset+=limit;
-    // ML permite hasta offset 1000 por status
-    if(offset>=Math.min(total,1000)) break;
+  // Primer request para saber el total real
+  const first=await mlFetch(`/users/${mlUserId}/items/search?limit=1&offset=0`);
+  const total=first.paging?.total||0;
+  showLoading(`Total en ML: ${total} publicaciones — obteniendo IDs...`,2);
+
+  // Paginamos sin filtro de estado — ML permite hasta offset ~5000
+  const maxOffset=Math.min(total, 5000);
+  for(let offset=0; offset<maxOffset; offset+=limit){
+    const res=await mlFetch(`/users/${mlUserId}/items/search?limit=${limit}&offset=${offset}`);
+    const ids=res.results||[];
+    if(!ids.length) break;
+    allIds.push(...ids);
+    const pct=2+(offset/maxOffset)*40;
+    showLoading(`Obteniendo IDs... ${allIds.length}/${total}`, pct);
   }
-  return {ids, total};
-}
 
-async function fetchItemDetails(ids, allItems, progressStart, progressEnd){
-  const total=ids.length;
-  for(let i=0;i<total;i+=20){
-    const batch=ids.slice(i,i+20).join(',');
+  // Fetch detalles en lotes de 20
+  const allItems=[];
+  showLoading(`Cargando detalles de ${allIds.length} publicaciones...`,42);
+  for(let i=0;i<allIds.length;i+=20){
+    const batch=allIds.slice(i,i+20).join(',');
     const items=await mlFetch(`/items?ids=${batch}&attributes=id,title,price,available_quantity,status,seller_sku`);
     items.forEach(it=>{if(it.code===200)allItems.push(it.body);});
-    const pct=progressStart+(progressEnd-progressStart)*((i+20)/total);
-    setProgress(Math.min(pct,progressEnd));
-    showLoading(`Cargando detalles... (${allItems.length} productos)`, Math.min(pct,progressEnd));
-  }
-}
-
-async function fetchAllItems(){
-  let all=[];
-
-  // 1. Obtenemos IDs activas (hasta 1000)
-  showLoading('Obteniendo publicaciones activas...', 2);
-  const {ids: activeIds, total: totalActive} = await fetchByStatus('active');
-  
-  // 2. Obtenemos IDs pausadas (hasta 1000)
-  showLoading('Obteniendo publicaciones pausadas...', 5);
-  const {ids: pausedIds, total: totalPaused} = await fetchByStatus('paused');
-
-  const totalKnown = totalActive + totalPaused;
-  showLoading(`Total en ML: ${totalKnown} — cargando detalles...`, 8);
-
-  // 3. Si hay más de 1000 activas, usamos offset extendido por lotes
-  const allActiveIds = [...activeIds];
-  if(totalActive > 1000){
-    for(let offset=1000; offset<Math.min(totalActive,5000); offset+=50){
-      const res = await mlFetch(`/users/${mlUserId}/items/search?limit=50&offset=${offset}&status=active`);
-      const batch = res.results||[];
-      if(!batch.length) break;
-      allActiveIds.push(...batch);
-      showLoading(`Obteniendo activas... (${allActiveIds.length}/${totalActive})`, 8+((offset/totalActive)*10));
-    }
+    const pct=42+((i+20)/allIds.length)*55;
+    showLoading(`Cargando detalles... ${allItems.length}/${allIds.length}`, Math.min(pct,97));
   }
 
-  const allPausedIds = [...pausedIds];
-  if(totalPaused > 1000){
-    for(let offset=1000; offset<Math.min(totalPaused,5000); offset+=50){
-      const res = await mlFetch(`/users/${mlUserId}/items/search?limit=50&offset=${offset}&status=paused`);
-      const batch = res.results||[];
-      if(!batch.length) break;
-      allPausedIds.push(...batch);
-      showLoading(`Obteniendo pausadas... (${allPausedIds.length}/${totalPaused})`, 18+((offset/totalPaused)*10));
-    }
-  }
-
-  // 4. Fetch detalles de todos
-  const allIds = [...allActiveIds, ...allPausedIds];
-  showLoading(`Cargando detalles de ${allIds.length} publicaciones...`, 25);
-  await fetchItemDetails(allIds, all, 25, 95);
-
-  return all;
+  return allItems;
 }
 
 function mergeData(mlItems,internos){
@@ -368,37 +321,35 @@ async function initApp(){
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('app').style.display='block';
   document.getElementById('panelContent').style.display='none';
-  showLoading('Iniciando panel...', 0);
+  showLoading('Iniciando...',0);
   try{
     const user=await mlFetch('/users/me');
     document.getElementById('userName').textContent=user.nickname||'Usuario ML';
-    showLoading('Conectado — cargando publicaciones...', 1);
     const[mlItems,internos]=await Promise.all([fetchAllItems(),loadInternos()]);
     products=mergeData(mlItems,internos);
-    setProgress(100);
-    hideLoading();doFilter();
+    setProgress(100);hideLoading();doFilter();
     showToast(`✅ ${products.length} publicaciones cargadas`,'success');
-  }catch(e){hideLoading();showToast('❌ Error: '+e.message,'error');console.error(e);}
+  }catch(e){hideLoading();showToast('❌ '+e.message,'error');console.error(e);}
 }
 
 async function syncAll(){
   const btn=document.getElementById('syncBtn');btn.classList.add('syncing');
   document.getElementById('panelContent').style.display='none';
-  showLoading('Sincronizando...', 0);
+  showLoading('Sincronizando...',0);
   try{
     const[mlItems,internos]=await Promise.all([fetchAllItems(),loadInternos()]);
     products=mergeData(mlItems,internos);
     setProgress(100);hideLoading();doFilter();
-    showToast(`✅ Sincronizado — ${products.length} publicaciones`,'success');
-  }catch(e){hideLoading();showToast('❌ Error: '+e.message,'error');}
+    showToast(`✅ ${products.length} publicaciones sincronizadas`,'success');
+  }catch(e){hideLoading();showToast('❌ '+e.message,'error');}
   btn.classList.remove('syncing');
 }
 
-function showLoading(msg, pct){
+function showLoading(msg,pct){
   document.getElementById('loadingMsg').textContent=msg;
   document.getElementById('loadingScreen').style.display='flex';
   document.getElementById('panelContent').style.display='none';
-  if(pct!==undefined) setProgress(pct);
+  if(pct!==undefined)setProgress(pct);
 }
 function setProgress(pct){document.getElementById('loadBar').style.width=pct+'%';}
 function hideLoading(){document.getElementById('loadingScreen').style.display='none';document.getElementById('panelContent').style.display='block';}
@@ -486,10 +437,10 @@ async function saveEdit(field,id){
       p.precio_ml=newVal;p.gan_pesos=calcGanReal(newVal,p.costo,p.tipo);
       p.gan_pct=p.costo>0?Math.round((p.gan_pesos/p.costo)*1000)/10:0;
       p.semaforo=p.gan_pct>=60?'🟢':p.gan_pct>=50?'🟡':'🔴';
-      showToast('🚀 Precio actualizado en Mercado Libre','success');
+      showToast('🚀 Precio actualizado en ML','success');
     }else if(field==='stock'){
       await mlPut(`/items/${p.mla}`,{available_quantity:newVal});
-      p.stock=newVal;showToast('📦 Stock actualizado en Mercado Libre','success');
+      p.stock=newVal;showToast('📦 Stock actualizado en ML','success');
     }else{
       if(field==='margen')p.margen=newVal/100;
       else if(field==='precio_asia')p.precio_asia=newVal;
@@ -497,15 +448,15 @@ async function saveEdit(field,id){
       showToast(field==='precio_asia'?'💰 Precio ASIA guardado':'📊 Margen guardado','success');
     }
     updateDOM(p);renderStats();
-  }catch(e){showToast('❌ Error: '+e.message,'error');}
+  }catch(e){showToast('❌ '+e.message,'error');}
   sp.style.display='none';
 }
 async function changeSelect(type,id,val){
   const p=products.find(x=>x.id===id);
   if(type==='desc')p.descuento=val;else p.tipo=val;
   recalc(p);
-  try{await upsertInterno(p);updateDOM(p);renderStats();showToast(type==='desc'?`🏷️ Descuento → ${val}`:`🚚 Tipo → ${val}`,'success');}
-  catch(e){showToast('❌ Error: '+e.message,'error');}
+  try{await upsertInterno(p);updateDOM(p);renderStats();showToast(type==='desc'?`🏷️ Desc → ${val}`:`🚚 Tipo → ${val}`,'success');}
+  catch(e){showToast('❌ '+e.message,'error');}
 }
 async function toggleStatus(id){
   const p=products.find(x=>x.id===id);const btn=document.getElementById(`st-${id}`);
@@ -515,7 +466,7 @@ async function toggleStatus(id){
     btn.className=`status-badge ${ns==='active'?'s-active':'s-paused'}`;
     btn.innerHTML=`<span class="s-dot"></span>${ns==='active'?'Activa':'Pausada'}`;
     renderStats();showToast(ns==='active'?'✅ Activada en ML':'⏸️ Pausada en ML','success');
-  }catch(e){showToast('❌ Error: '+e.message,'error');}
+  }catch(e){showToast('❌ '+e.message,'error');}
   btn.style.opacity='1';
 }
 function showToast(msg,type='success'){
