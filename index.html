@@ -6,12 +6,7 @@
 <title>UMAMI PANEL</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg:#0a0a0f; --surface:#13131a; --surface2:#1c1c27; --border:#2a2a3d;
-    --accent:#ffe033; --green:#2ecc71; --red:#e74c3c; --blue:#4a9eff;
-    --orange:#ff6b35; --text:#e8e8f0; --muted:#6b6b8a;
-    --font-head:"Syne",sans-serif; --font-mono:"DM Mono",monospace;
-  }
+  :root{--bg:#0a0a0f;--surface:#13131a;--surface2:#1c1c27;--border:#2a2a3d;--accent:#ffe033;--green:#2ecc71;--red:#e74c3c;--blue:#4a9eff;--orange:#ff6b35;--text:#e8e8f0;--muted:#6b6b8a;--font-head:"Syne",sans-serif;--font-mono:"DM Mono",monospace;}
   *{margin:0;padding:0;box-sizing:border-box;}
   body{background:var(--bg);color:var(--text);font-family:var(--font-mono);min-height:100vh;}
   #loginScreen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:32px;padding:24px;}
@@ -40,7 +35,7 @@
   .stat-card{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;}
   .stat-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
   .stat-value{font-family:var(--font-head);font-size:20px;font-weight:700;}
-  .sv-green{color:var(--green);} .sv-yellow{color:var(--accent);} .sv-orange{color:var(--orange);}
+  .sv-green{color:var(--green);}.sv-yellow{color:var(--accent);}.sv-orange{color:var(--orange);}
   .toolbar{padding:12px 24px;display:flex;align-items:center;gap:10px;background:var(--bg);border-bottom:1px solid var(--border);flex-wrap:wrap;}
   .search-wrap{flex:1;min-width:200px;position:relative;}
   .search-wrap input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px 8px 34px;color:var(--text);font-family:var(--font-mono);font-size:12px;outline:none;}
@@ -69,16 +64,16 @@
   .s-dot{width:5px;height:5px;border-radius:50%;background:currentColor;}
   .stock-val{font-family:var(--font-mono);font-size:12px;cursor:pointer;padding:3px 6px;border-radius:4px;border:1px solid transparent;transition:all .15s;display:inline-block;}
   .stock-val:hover{border-color:var(--border);background:var(--bg);}
-  .stock-low{color:var(--red);} .stock-mid{color:var(--accent);} .stock-ok{color:var(--text);}
+  .stock-low{color:var(--red);}.stock-mid{color:var(--accent);}.stock-ok{color:var(--text);}
   .select-cell{background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:10px;padding:3px 20px 3px 6px;border-radius:5px;cursor:pointer;outline:none;transition:border-color .15s;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%236b6b8a'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 6px center;}
   .select-cell:focus{border-color:var(--accent);}
-  .desc-I{color:var(--blue);} .desc-N{color:var(--green);} .desc-F{color:var(--muted);}
-  .tipo-FULL{color:var(--accent);} .tipo-NOFULL{color:var(--muted);}
+  .desc-I{color:var(--blue);}.desc-N{color:var(--green);}.desc-F{color:var(--muted);}
+  .tipo-FULL{color:var(--accent);}.tipo-NOFULL{color:var(--muted);}
   .cell-value{font-family:var(--font-mono);font-size:12px;cursor:pointer;padding:3px 5px;border-radius:4px;border:1px solid transparent;transition:all .15s;display:inline-block;min-width:70px;}
   .cell-value:hover{border-color:var(--border);background:var(--bg);}
-  .cv-price{color:var(--accent);font-weight:500;} .cv-costo{color:var(--muted);}
-  .cv-margen{color:var(--blue);} .cv-gan{color:var(--green);}
-  .cv-ro{cursor:default;} .cv-ro:hover{border-color:transparent!important;background:transparent!important;}
+  .cv-price{color:var(--accent);font-weight:500;}.cv-costo{color:var(--muted);}
+  .cv-margen{color:var(--blue);}.cv-gan{color:var(--green);}
+  .cv-ro{cursor:default;}.cv-ro:hover{border-color:transparent!important;background:transparent!important;}
   .cell-input{font-family:var(--font-mono);font-size:12px;background:var(--bg);border:1px solid var(--accent);color:var(--accent);padding:3px 5px;border-radius:4px;width:85px;outline:none;display:none;}
   .ci-margen{color:var(--blue);border-color:var(--blue);}
   .ci-stock{color:var(--text);border-color:var(--blue);width:70px;}
@@ -174,21 +169,16 @@
 <div id="toast"><span id="tMsg"></span></div>
 
 <script>
-const ML_APP_ID    = '2267364561876653';
-const SUPA_URL     = 'https://rartbrcmdotholpwcqtc.supabase.co';
-const SUPA_KEY     = 'sb_publishable_FbtldZ8X-Mnlb3tyk2C0lg_bqCNd27w';
+const ML_APP_ID = '2267364561876653';
+const SUPA_URL  = 'https://rartbrcmdotholpwcqtc.supabase.co';
+const SUPA_KEY  = 'sb_publishable_FbtldZ8X-Mnlb3tyk2C0lg_bqCNd27w';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
 
-const V = {
-  costoFijo:1115, costoFijoMayor:2810,
-  comisionFull:0.175, comisionNF:0.14,
-  precioEnvioGratis:33000, costoEnvioGratis:12000,
-  descuentos:{I:0.25,N:0.20,F:0.0}
-};
+const V={costoFijo:1115,costoFijoMayor:2810,comisionFull:0.175,comisionNF:0.14,precioEnvioGratis:33000,costoEnvioGratis:12000,descuentos:{I:0.25,N:0.20,F:0.0}};
 
-let accessToken = localStorage.getItem('ml_token') || null;
-let mlUserId    = localStorage.getItem('ml_user_id') || null;
-let products=[], filtered=[], currentFilter='all', currentPage=1;
+let accessToken=localStorage.getItem('ml_token')||null;
+let mlUserId=localStorage.getItem('ml_user_id')||null;
+let products=[],filtered=[],currentFilter='all',currentPage=1;
 const PAGE=30;
 let toastTimer;
 
@@ -201,7 +191,7 @@ function calcPrecioML(costo,margen,tipo){
 }
 function calcGanReal(precio_ml,costo,tipo){
   const e=precio_ml>=V.precioEnvioGratis?V.costoEnvioGratis:0;
-  if(tipo==='FULL') return(precio_ml*0.825)-costo-e;
+  if(tipo==='FULL')return(precio_ml*0.825)-costo-e;
   const cf=precio_ml<=15000?V.costoFijo:V.costoFijoMayor;
   return(precio_ml*0.86-cf)-costo-e;
 }
@@ -217,21 +207,15 @@ function fmtP(n){return n.toFixed(1)+'%';}
 function scClass(s){return s<=3?'stock-low':s<=8?'stock-mid':'stock-ok';}
 
 function loginML(){
-  const url=`https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${ML_APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
-  window.location.href=url;
+  window.location.href=`https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${ML_APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
 }
 
 async function handleCallback(code){
   showLoading('Autenticando con Mercado Libre...');
   try{
-    // Use our serverless function to exchange code for token
-    const resp=await fetch('/api/token',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({code,redirect_uri:REDIRECT_URI})
-    });
+    const resp=await fetch('/api/token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,redirect_uri:REDIRECT_URI})});
     const data=await resp.json();
-    if(!data.access_token) throw new Error(data.message||'Error de autenticación');
+    if(!data.access_token)throw new Error(data.message||'Error de autenticación');
     accessToken=data.access_token;
     mlUserId=data.user_id;
     localStorage.setItem('ml_token',accessToken);
@@ -253,19 +237,15 @@ function logout(){
   document.getElementById('loginScreen').style.display='flex';
 }
 
+// ── SUPABASE ──
 async function supaFetch(path,method='GET',body=null){
   const opts={method,headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=representation'}};
-  if(body) opts.body=JSON.stringify(body);
+  if(body)opts.body=JSON.stringify(body);
   const r=await fetch(SUPA_URL+'/rest/v1/'+path,opts);
   if(!r.ok){const t=await r.text();throw new Error(t);}
   return r.status===204?null:r.json();
 }
-
-async function loadInternos(){
-  try{return await supaFetch('productos_internos?select=*');}
-  catch(e){console.error('Supabase:',e);return[];}
-}
-
+async function loadInternos(){try{return await supaFetch('productos_internos?select=*');}catch(e){console.error('Supabase:',e);return[];}}
 async function upsertInterno(p){
   return supaFetch('productos_internos?on_conflict=mla','POST',{
     mla:p.mla,sku:p.sku,precio_asia:p.precio_asia,descuento:p.descuento,
@@ -273,14 +253,14 @@ async function upsertInterno(p){
   });
 }
 
+// ── ML via PROXY ──
 async function mlFetch(path){
-  const r=await fetch('https://api.mercadolibre.com'+path,{headers:{'Authorization':'Bearer '+accessToken}});
+  const r=await fetch(`/api/ml?path=${encodeURIComponent(path)}`,{headers:{'Authorization':'Bearer '+accessToken}});
   if(r.status===401){logout();throw new Error('Sesión expirada');}
   return r.json();
 }
-
-async function mlUpdate(itemId,body){
-  const r=await fetch(`https://api.mercadolibre.com/items/${itemId}`,{
+async function mlPut(path,body){
+  const r=await fetch(`/api/ml?path=${encodeURIComponent(path)}`,{
     method:'PUT',
     headers:{'Authorization':'Bearer '+accessToken,'Content-Type':'application/json'},
     body:JSON.stringify(body)
@@ -291,36 +271,50 @@ async function mlUpdate(itemId,body){
 
 async function fetchAllItems(){
   let all=[],offset=0,limit=50;
-  // Active
   while(true){
     showLoading(`Cargando publicaciones activas... (${all.length})`);
     const res=await mlFetch(`/users/${mlUserId}/items/search?limit=${limit}&offset=${offset}&status=active`);
     const ids=res.results||[];
-    if(!ids.length) break;
+    if(!ids.length)break;
     for(let i=0;i<ids.length;i+=20){
       const batch=ids.slice(i,i+20).join(',');
       const items=await mlFetch(`/items?ids=${batch}&attributes=id,title,price,available_quantity,status,seller_sku`);
       items.forEach(it=>{if(it.code===200)all.push(it.body);});
     }
     offset+=limit;
-    if(ids.length<limit) break;
+    if(ids.length<limit)break;
   }
-  // Paused
   offset=0;
   while(true){
     showLoading(`Cargando publicaciones pausadas... (${all.length})`);
     const res=await mlFetch(`/users/${mlUserId}/items/search?limit=${limit}&offset=${offset}&status=paused`);
     const ids=res.results||[];
-    if(!ids.length) break;
+    if(!ids.length)break;
     for(let i=0;i<ids.length;i+=20){
       const batch=ids.slice(i,i+20).join(',');
       const items=await mlFetch(`/items?ids=${batch}&attributes=id,title,price,available_quantity,status,seller_sku`);
       items.forEach(it=>{if(it.code===200)all.push(it.body);});
     }
     offset+=limit;
-    if(ids.length<limit) break;
+    if(ids.length<limit)break;
   }
   return all;
+}
+
+function mergeData(mlItems,internos){
+  const iMap={};internos.forEach(i=>{iMap[i.mla]=i;});
+  return mlItems.map((item,idx)=>{
+    const int=iMap[item.id]||{};
+    const tipo=int.tipo||'NO FULL';const descuento=int.descuento||'N';
+    const precio_asia=int.precio_asia||0;const margen=int.margen!=null?int.margen:0.7;
+    const costo=precio_asia>0?precio_asia*(1-(V.descuentos[descuento]||0)):(int.costo||0);
+    const precio_ml=item.price||0;const gan_pesos=calcGanReal(precio_ml,costo,tipo);
+    const gan_pct=costo>0?Math.round((gan_pesos/costo)*1000)/10:0;
+    return{id:idx,mla:item.id,sku:item.seller_sku||int.sku||'',name:item.title||'',
+      status:item.status==='active'?'active':'paused',stock:item.available_quantity||0,
+      tipo,descuento,precio_asia,margen,costo,precio_ml,gan_pesos,gan_pct,
+      semaforo:gan_pct>=60?'🟢':gan_pct>=50?'🟡':'🔴'};
+  });
 }
 
 async function initApp(){
@@ -332,46 +326,17 @@ async function initApp(){
     const user=await mlFetch('/users/me');
     document.getElementById('userName').textContent=user.nickname||'Usuario ML';
     const[mlItems,internos]=await Promise.all([fetchAllItems(),loadInternos()]);
-    const iMap={};internos.forEach(i=>{iMap[i.mla]=i;});
-    products=mlItems.map((item,idx)=>{
-      const int=iMap[item.id]||{};
-      const tipo=int.tipo||'NO FULL';
-      const descuento=int.descuento||'N';
-      const precio_asia=int.precio_asia||0;
-      const margen=int.margen!=null?int.margen:0.7;
-      const costo=precio_asia>0?precio_asia*(1-(V.descuentos[descuento]||0)):(int.costo||0);
-      const precio_ml=item.price||0;
-      const gan_pesos=calcGanReal(precio_ml,costo,tipo);
-      const gan_pct=costo>0?Math.round((gan_pesos/costo)*1000)/10:0;
-      return{id:idx,mla:item.id,sku:item.seller_sku||int.sku||'',name:item.title||'',
-        status:item.status==='active'?'active':'paused',stock:item.available_quantity||0,
-        tipo,descuento,precio_asia,margen,costo,precio_ml,gan_pesos,gan_pct,
-        semaforo:gan_pct>=60?'🟢':gan_pct>=50?'🟡':'🔴'};
-    });
+    products=mergeData(mlItems,internos);
     hideLoading();doFilter();
     showToast(`✅ ${products.length} publicaciones cargadas`,'success');
-  }catch(e){
-    hideLoading();showToast('❌ Error: '+e.message,'error');console.error(e);
-  }
+  }catch(e){hideLoading();showToast('❌ Error: '+e.message,'error');console.error(e);}
 }
 
 async function syncAll(){
   const btn=document.getElementById('syncBtn');btn.classList.add('syncing');
   try{
     const[mlItems,internos]=await Promise.all([fetchAllItems(),loadInternos()]);
-    const iMap={};internos.forEach(i=>{iMap[i.mla]=i;});
-    products=mlItems.map((item,idx)=>{
-      const int=iMap[item.id]||{};
-      const tipo=int.tipo||'NO FULL';const descuento=int.descuento||'N';
-      const precio_asia=int.precio_asia||0;const margen=int.margen!=null?int.margen:0.7;
-      const costo=precio_asia>0?precio_asia*(1-(V.descuentos[descuento]||0)):(int.costo||0);
-      const precio_ml=item.price||0;const gan_pesos=calcGanReal(precio_ml,costo,tipo);
-      const gan_pct=costo>0?Math.round((gan_pesos/costo)*1000)/10:0;
-      return{id:idx,mla:item.id,sku:item.seller_sku||int.sku||'',name:item.title||'',
-        status:item.status==='active'?'active':'paused',stock:item.available_quantity||0,
-        tipo,descuento,precio_asia,margen,costo,precio_ml,gan_pesos,gan_pct,
-        semaforo:gan_pct>=60?'🟢':gan_pct>=50?'🟡':'🔴'};
-    });
+    products=mergeData(mlItems,internos);
     doFilter();showToast(`✅ Sincronizado — ${products.length} publicaciones`,'success');
   }catch(e){showToast('❌ Error: '+e.message,'error');}
   btn.classList.remove('syncing');
@@ -389,9 +354,7 @@ function doFilter(){
   });
   currentPage=1;renderTable();renderStats();
 }
-
 function setFilter(f,btn){currentFilter=f;document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');doFilter();}
-
 function renderStats(){
   document.getElementById('sTotal').textContent=products.length;
   document.getElementById('sActivas').textContent=products.filter(p=>p.status==='active').length;
@@ -400,7 +363,6 @@ function renderStats(){
   document.getElementById('sAmarillo').textContent=products.filter(p=>p.semaforo==='🟡').length;
   document.getElementById('sRojo').textContent=products.filter(p=>p.semaforo==='🔴').length;
 }
-
 function renderTable(){
   const tbody=document.getElementById('tbody');const empty=document.getElementById('empty');
   const start=(currentPage-1)*PAGE;const page=filtered.slice(start,start+PAGE);
@@ -432,9 +394,7 @@ function renderTable(){
   btns+=`<button class="page-btn" onclick="goPage(${currentPage+1})" ${currentPage===pages?'disabled':''}>→</button>`;
   document.getElementById('pBtns').innerHTML=btns;
 }
-
 function goPage(p){const pages=Math.ceil(filtered.length/PAGE);if(p<1||p>pages)return;currentPage=p;renderTable();}
-
 function startEdit(field,id){
   const p=products.find(x=>x.id===id);
   document.getElementById(`v-${field}-${id}`).style.display='none';
@@ -445,7 +405,6 @@ function startEdit(field,id){
 }
 function hk(e,field,id){if(e.key==='Enter')saveEdit(field,id);if(e.key==='Escape')cancelEdit(field,id);}
 function cancelEdit(field,id){document.getElementById(`v-${field}-${id}`).style.display='inline-block';document.getElementById(`i-${field}-${id}`).style.display='none';}
-
 function updateDOM(p){
   const s=(fld,val)=>{const el=document.getElementById(`v-${fld}-${p.id}`);if(el)el.textContent=(fld==='gan_pct'||fld==='margen')?fmtP(val):fmt(val);};
   s('precio_asia',p.precio_asia);s('costo',p.costo);s('margen',p.margen*100);
@@ -455,7 +414,6 @@ function updateDOM(p){
   const ds=document.getElementById(`sel-desc-${p.id}`);if(ds)ds.className=`select-cell desc-${p.descuento}`;
   const ts=document.getElementById(`sel-tipo-${p.id}`);if(ts)ts.className=`select-cell tipo-${p.tipo==='FULL'?'FULL':'NOFULL'}`;
 }
-
 async function saveEdit(field,id){
   const v=document.getElementById(`v-${field}-${id}`);
   const inp=document.getElementById(`i-${field}-${id}`);
@@ -466,51 +424,47 @@ async function saveEdit(field,id){
   inp.style.display='none';sp.style.display='inline-block';v.style.display='inline-block';
   try{
     if(field==='precio_ml'){
-      await mlUpdate(p.mla,{price:newVal});
+      await mlPut(`/items/${p.mla}`,{price:newVal});
       p.precio_ml=newVal;p.gan_pesos=calcGanReal(newVal,p.costo,p.tipo);
       p.gan_pct=p.costo>0?Math.round((p.gan_pesos/p.costo)*1000)/10:0;
       p.semaforo=p.gan_pct>=60?'🟢':p.gan_pct>=50?'🟡':'🔴';
       showToast('🚀 Precio actualizado en Mercado Libre','success');
     }else if(field==='stock'){
-      await mlUpdate(p.mla,{available_quantity:newVal});
+      await mlPut(`/items/${p.mla}`,{available_quantity:newVal});
       p.stock=newVal;showToast('📦 Stock actualizado en Mercado Libre','success');
     }else{
       if(field==='margen')p.margen=newVal/100;
       else if(field==='precio_asia')p.precio_asia=newVal;
       recalc(p);await upsertInterno(p);
-      showToast(field==='precio_asia'?'💰 Precio ASIA guardado — recalculado':'📊 Margen guardado — recalculado','success');
+      showToast(field==='precio_asia'?'💰 Precio ASIA guardado':'📊 Margen guardado','success');
     }
     updateDOM(p);renderStats();
   }catch(e){showToast('❌ Error: '+e.message,'error');}
   sp.style.display='none';
 }
-
 async function changeSelect(type,id,val){
   const p=products.find(x=>x.id===id);
   if(type==='desc')p.descuento=val;else p.tipo=val;
   recalc(p);
-  try{await upsertInterno(p);updateDOM(p);renderStats();showToast(type==='desc'?`🏷️ Descuento → ${val} recalculado`:`🚚 Tipo → ${val} recalculado`,'success');}
+  try{await upsertInterno(p);updateDOM(p);renderStats();showToast(type==='desc'?`🏷️ Descuento → ${val}`:`🚚 Tipo → ${val}`,'success');}
   catch(e){showToast('❌ Error: '+e.message,'error');}
 }
-
 async function toggleStatus(id){
   const p=products.find(x=>x.id===id);const btn=document.getElementById(`st-${id}`);
   btn.style.opacity='.5';const ns=p.status==='active'?'paused':'active';
   try{
-    await mlUpdate(p.mla,{status:ns});p.status=ns;
+    await mlPut(`/items/${p.mla}`,{status:ns});p.status=ns;
     btn.className=`status-badge ${ns==='active'?'s-active':'s-paused'}`;
     btn.innerHTML=`<span class="s-dot"></span>${ns==='active'?'Activa':'Pausada'}`;
     renderStats();showToast(ns==='active'?'✅ Activada en ML':'⏸️ Pausada en ML','success');
   }catch(e){showToast('❌ Error: '+e.message,'error');}
   btn.style.opacity='1';
 }
-
 function showToast(msg,type='success'){
   const t=document.getElementById('toast');document.getElementById('tMsg').textContent=msg;
   t.className=`show t-${type}`;clearTimeout(toastTimer);
   toastTimer=setTimeout(()=>{t.className='';},3500);
 }
-
 (function boot(){
   const params=new URLSearchParams(window.location.search);
   const code=params.get('code');
