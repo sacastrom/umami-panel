@@ -19,8 +19,7 @@
   .btn-ml:hover{background:#ffd000;transform:translateY(-1px);}
   .login-note{font-size:10px;color:var(--muted);}
   header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:100;}
-  .logo{font-family:var(--font-head);font-weight:800;font-size:18px;}
-  .logo span{color:var(--accent);}
+  .logo{font-family:var(--font-head);font-weight:800;font-size:18px;}.logo span{color:var(--accent);}
   .header-right{display:flex;align-items:center;gap:12px;}
   .user-badge{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:5px 12px;font-size:11px;color:var(--muted);}
   .user-dot{width:7px;height:7px;background:var(--green);border-radius:50%;animation:pulse 2s infinite;}
@@ -90,14 +89,12 @@
   .load-bar{height:100%;background:var(--accent);border-radius:2px;transition:width .3s;}
   #toast{position:fixed;bottom:20px;right:20px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 16px;font-size:11px;display:flex;align-items:center;gap:8px;transform:translateY(60px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:999;max-width:320px;}
   #toast.show{transform:translateY(0);opacity:1;}
-  #toast.t-success{border-color:var(--green);}
-  #toast.t-error{border-color:var(--red);}
+  #toast.t-success{border-color:var(--green);}#toast.t-error{border-color:var(--red);}
   .empty{text-align:center;padding:40px;color:var(--muted);}
   #app{display:none;}
 </style>
 </head>
 <body>
-
 <div id="loginScreen">
   <div class="login-logo">UMAMI <span>PANEL</span></div>
   <div class="login-card">
@@ -144,20 +141,18 @@
   </div>
   <div id="loadingScreen" style="display:flex;">
     <div class="loader"></div>
-    <span id="loadingMsg">Cargando publicaciones...</span>
+    <span id="loadingMsg">Cargando...</span>
     <div class="load-progress"><div class="load-bar" id="loadBar" style="width:0%"></div></div>
   </div>
   <div id="panelContent" style="display:none;">
     <div class="hint">✏️ Hacé click en cualquier celda para editar · Precio ML, Stock y Estado se actualizan en Mercado Libre</div>
     <div class="table-wrap">
       <table>
-        <thead>
-          <tr>
-            <th>Código ML</th><th>SKU</th><th>Producto</th><th>Estado</th><th>Stock</th>
-            <th>Desc.</th><th>Tipo</th><th>Precio ASIA ✏️</th><th>Costo</th>
-            <th>% Gan. ✏️</th><th>Precio ML ✏️</th><th>Gan. $</th><th>Gan. %</th><th>🚦</th>
-          </tr>
-        </thead>
+        <thead><tr>
+          <th>Código ML</th><th>SKU</th><th>Producto</th><th>Estado</th><th>Stock</th>
+          <th>Desc.</th><th>Tipo</th><th>Precio ASIA ✏️</th><th>Costo</th>
+          <th>% Gan. ✏️</th><th>Precio ML ✏️</th><th>Gan. $</th><th>Gan. %</th><th>🚦</th>
+        </tr></thead>
         <tbody id="tbody"></tbody>
       </table>
       <div class="empty" id="empty" style="display:none;">📭 No se encontraron productos</div>
@@ -168,13 +163,14 @@
     </div>
   </div>
 </div>
-
 <div id="toast"><span id="tMsg"></span></div>
 
 <script>
-const ML_APP_ID = '2267364561876653';
-const SUPA_URL  = 'https://rartbrcmdotholpwcqtc.supabase.co';
-const SUPA_KEY  = 'sb_publishable_FbtldZ8X-Mnlb3tyk2C0lg_bqCNd27w';
+const ML_APP_ID    = '2267364561876653';
+const SUPA_URL     = 'https://rartbrcmdotholpwcqtc.supabase.co';
+const SUPA_KEY     = 'sb_publishable_FbtldZ8X-Mnlb3tyk2C0lg_bqCNd27w';
+const SHEET_ID     = '1ytO7tU_tWg25Tu--h6d5epX3XLirKYVJz-06runTQ98';
+const SHEET_NAME   = 'PRODUCTOS';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
 
 const V={costoFijo:1115,costoFijoMayor:2810,comisionFull:0.175,comisionNF:0.14,precioEnvioGratis:33000,costoEnvioGratis:12000,descuentos:{I:0.25,N:0.20,F:0.0}};
@@ -205,6 +201,8 @@ function recalc(p){
   p.gan_pct=p.costo>0?Math.round((p.gan_pesos/p.costo)*1000)/10:0;
   p.semaforo=p.gan_pct>=60?'🟢':p.gan_pct>=50?'🟡':'🔴';
 }
+function parsePesos(s){if(!s)return 0;return parseFloat(String(s).replace(/[$\s.]/g,'').replace(',','.').trim())||0;}
+function parsePct(s){if(!s)return 0;return parseFloat(String(s).replace('%','').trim())/100||0;}
 function fmt(n){return'$'+Math.round(n).toLocaleString('es-AR');}
 function fmtP(n){return n.toFixed(1)+'%';}
 function scClass(s){return s<=3?'stock-low':s<=8?'stock-mid':'stock-ok';}
@@ -233,6 +231,29 @@ function logout(){
   accessToken=null;mlUserId=null;products=[];
   document.getElementById('app').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
+}
+
+// ── GOOGLE SHEETS (público) ──
+async function loadFromSheets(){
+  const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+  const r=await fetch(url);
+  const text=await r.text();
+  const json=JSON.parse(text.replace(/^[^(]+\(/, '').replace(/\);?$/, ''));
+  const rows=json.table.rows;
+  // Columnas: A=MLA, B=SKU, C=Nombre, D=Precio ASIA, E=Precio Tienda, F=Descuento, G=Costo, H=% Gan, I=Tipo
+  return rows.slice(0).map(r=>{
+    const c=r.c;
+    const get=(i)=>c[i]&&c[i].v!=null?c[i].v:'';
+    const mla=String(get(0)).trim();
+    if(!mla||!mla.startsWith('MLA'))return null;
+    const sku=String(get(1)).trim();
+    const name=String(get(2)).trim();
+    const precio_asia=typeof get(3)==='number'?get(3):parsePesos(get(3));
+    const descuento=String(get(5)||'N').trim().toUpperCase()||'N';
+    const margen=typeof get(7)==='number'?get(7):parsePct(get(7));
+    const tipo=String(get(8)||'NO FULL').trim().toUpperCase().includes('FULL')&&!String(get(8)).includes('NO')?'FULL':'NO FULL';
+    return{mla,sku,name,precio_asia,descuento,margen:margen||0.7,tipo};
+  }).filter(Boolean);
 }
 
 // ── SUPABASE ──
@@ -266,54 +287,53 @@ async function mlPut(path,body){
   return r.json();
 }
 
-// ── FETCH TODOS SIN FILTRO DE ESTADO (supera límite de 1000 por estado) ──
-async function fetchAllItems(){
-  const allIds=[];
-  const limit=50;
-
-  // Primer request para saber el total real
-  const first=await mlFetch(`/users/${mlUserId}/items/search?limit=1&offset=0`);
-  const total=first.paging?.total||0;
-  showLoading(`Total en ML: ${total} publicaciones — obteniendo IDs...`,2);
-
-  // Paginamos sin filtro de estado — ML permite hasta offset ~5000
-  const maxOffset=total; // ML permite paginar hasta el total real
-  for(let offset=0; offset<maxOffset; offset+=limit){
-    const res=await mlFetch(`/users/${mlUserId}/items/search?limit=${limit}&offset=${offset}`);
-    const ids=res.results||[];
-    if(!ids.length) break;
-    allIds.push(...ids);
-    const pct=2+(offset/maxOffset)*40;
-    showLoading(`Obteniendo IDs... ${allIds.length}/${total}`, pct);
+// ── FETCH ML DATA para lista de MLAs (lotes de 20) ──
+async function fetchMLData(sheetRows){
+  const mlMap={};
+  const ids=sheetRows.map(r=>r.mla);
+  const total=ids.length;
+  for(let i=0;i<total;i+=20){
+    const batch=ids.slice(i,i+20).join(',');
+    try{
+      const items=await mlFetch(`/items?ids=${batch}&attributes=id,price,available_quantity,status`);
+      items.forEach(it=>{
+        if(it.code===200){
+          mlMap[it.body.id]={
+            precio_ml:it.body.price||0,
+            stock:it.body.available_quantity||0,
+            status:it.body.status==='active'?'active':'paused'
+          };
+        }
+      });
+    }catch(e){console.error('ML batch error:',e);}
+    const pct=50+((i+20)/total)*45;
+    showLoading(`Consultando ML... ${Math.min(i+20,total)}/${total}`,Math.min(pct,95));
   }
-
-  // Fetch detalles en lotes de 20
-  const allItems=[];
-  showLoading(`Cargando detalles de ${allIds.length} publicaciones...`,42);
-  for(let i=0;i<allIds.length;i+=20){
-    const batch=allIds.slice(i,i+20).join(',');
-    const items=await mlFetch(`/items?ids=${batch}&attributes=id,title,price,available_quantity,status,seller_sku`);
-    items.forEach(it=>{if(it.code===200)allItems.push(it.body);});
-    const pct=42+((i+20)/allIds.length)*55;
-    showLoading(`Cargando detalles... ${allItems.length}/${allIds.length}`, Math.min(pct,97));
-  }
-
-  return allItems;
+  return mlMap;
 }
 
-function mergeData(mlItems,internos){
+async function buildProducts(sheetRows, mlMap, internos){
   const iMap={};internos.forEach(i=>{iMap[i.mla]=i;});
-  return mlItems.map((item,idx)=>{
-    const int=iMap[item.id]||{};
-    const tipo=int.tipo||'NO FULL';const descuento=int.descuento||'N';
-    const precio_asia=int.precio_asia||0;const margen=int.margen!=null?int.margen:0.7;
-    const costo=precio_asia>0?precio_asia*(1-(V.descuentos[descuento]||0)):(int.costo||0);
-    const precio_ml=item.price||0;const gan_pesos=calcGanReal(precio_ml,costo,tipo);
-    const gan_pct=costo>0?Math.round((gan_pesos/costo)*1000)/10:0;
-    return{id:idx,mla:item.id,sku:item.seller_sku||int.sku||'',name:item.title||'',
-      status:item.status==='active'?'active':'paused',stock:item.available_quantity||0,
-      tipo,descuento,precio_asia,margen,costo,precio_ml,gan_pesos,gan_pct,
-      semaforo:gan_pct>=60?'🟢':gan_pct>=50?'🟡':'🔴'};
+  return sheetRows.map((row,idx)=>{
+    const int=iMap[row.mla]||{};
+    // Supabase overrides sheets si hay datos guardados
+    const precio_asia=int.precio_asia!=null?int.precio_asia:row.precio_asia;
+    const descuento=int.descuento||row.descuento||'N';
+    const margen=int.margen!=null?int.margen:row.margen;
+    const tipo=int.tipo||row.tipo||'NO FULL';
+    const costo=precio_asia*(1-(V.descuentos[descuento]||0));
+    const ml=mlMap[row.mla]||{};
+    const precio_ml=ml.precio_ml||0;
+    const stock=ml.stock||0;
+    const status=ml.status||'paused';
+    const gan_pesos=precio_ml>0?calcGanReal(precio_ml,costo,tipo):0;
+    const gan_pct=costo>0&&precio_ml>0?Math.round((gan_pesos/costo)*1000)/10:0;
+    return{
+      id:idx,mla:row.mla,sku:row.sku,name:row.name,
+      status,stock,tipo,descuento,precio_asia,margen,costo,
+      precio_ml,gan_pesos,gan_pct,
+      semaforo:gan_pct>=60?'🟢':gan_pct>=50?'🟡':'🔴'
+    };
   });
 }
 
@@ -325,8 +345,13 @@ async function initApp(){
   try{
     const user=await mlFetch('/users/me');
     document.getElementById('userName').textContent=user.nickname||'Usuario ML';
-    const[mlItems,internos]=await Promise.all([fetchAllItems(),loadInternos()]);
-    products=mergeData(mlItems,internos);
+
+    showLoading('Cargando Google Sheets...',5);
+    const [sheetRows, internos] = await Promise.all([loadFromSheets(), loadInternos()]);
+    showLoading(`${sheetRows.length} productos desde Sheets — consultando ML...`,50);
+
+    const mlMap=await fetchMLData(sheetRows);
+    products=await buildProducts(sheetRows,mlMap,internos);
     setProgress(100);hideLoading();doFilter();
     showToast(`✅ ${products.length} publicaciones cargadas`,'success');
   }catch(e){hideLoading();showToast('❌ '+e.message,'error');console.error(e);}
@@ -337,8 +362,10 @@ async function syncAll(){
   document.getElementById('panelContent').style.display='none';
   showLoading('Sincronizando...',0);
   try{
-    const[mlItems,internos]=await Promise.all([fetchAllItems(),loadInternos()]);
-    products=mergeData(mlItems,internos);
+    const [sheetRows, internos] = await Promise.all([loadFromSheets(), loadInternos()]);
+    showLoading(`${sheetRows.length} productos — consultando ML...`,50);
+    const mlMap=await fetchMLData(sheetRows);
+    products=await buildProducts(sheetRows,mlMap,internos);
     setProgress(100);hideLoading();doFilter();
     showToast(`✅ ${products.length} publicaciones sincronizadas`,'success');
   }catch(e){hideLoading();showToast('❌ '+e.message,'error');}
@@ -384,7 +411,7 @@ function renderTable(){
       <td><span class="sku-code">${p.sku}</span></td>
       <td><div class="product-name" title="${p.name}">${p.name}</div></td>
       <td><button class="status-badge ${p.status==='active'?'s-active':'s-paused'}" onclick="toggleStatus(${p.id})" id="st-${p.id}"><span class="s-dot"></span>${p.status==='active'?'Activa':'Pausada'}</button></td>
-      <td><span class="stock-val ${sc}" onclick="startEdit('stock',${p.id})" id="v-stock-${p.id}">${p.stock||0} u.</span><input class="cell-input ci-stock" type="number" id="i-stock-${p.id}" onblur="saveEdit('stock',${p.id})" onkeydown="hk(event,'stock',${p.id})"><span class="spin" id="sp-stock-${p.id}"></span></td>
+      <td><span class="stock-val ${sc}" onclick="startEdit('stock',${p.id})" id="v-stock-${p.id}">${p.stock} u.</span><input class="cell-input ci-stock" type="number" id="i-stock-${p.id}" onblur="saveEdit('stock',${p.id})" onkeydown="hk(event,'stock',${p.id})"><span class="spin" id="sp-stock-${p.id}"></span></td>
       <td><select class="select-cell desc-${p.descuento}" id="sel-desc-${p.id}" onchange="changeSelect('desc',${p.id},this.value)"><option value="I" ${p.descuento==='I'?'selected':''}>I — 25%</option><option value="N" ${p.descuento==='N'?'selected':''}>N — 20%</option><option value="F" ${p.descuento==='F'?'selected':''}>F — 0%</option></select></td>
       <td><select class="select-cell tipo-${tk}" id="sel-tipo-${p.id}" onchange="changeSelect('tipo',${p.id},this.value)"><option value="FULL" ${p.tipo==='FULL'?'selected':''}>FULL</option><option value="NO FULL" ${p.tipo==='NO FULL'?'selected':''}>NO FULL</option></select></td>
       <td><span class="cell-value" onclick="startEdit('precio_asia',${p.id})" id="v-precio_asia-${p.id}">${fmt(p.precio_asia||0)}</span><input class="cell-input" type="number" id="i-precio_asia-${p.id}" onblur="saveEdit('precio_asia',${p.id})" onkeydown="hk(event,'precio_asia',${p.id})"><span class="spin" id="sp-precio_asia-${p.id}"></span></td>
@@ -412,14 +439,14 @@ function startEdit(field,id){
   inp.value=field==='margen'?Math.round(p.margen*100):p[field];
   inp.focus();inp.select();
 }
-function hk(e,field,id){if(e.key==='Enter')saveEdit(field,id);if(e.key==='Escape')cancelEdit(field,id);}
-function cancelEdit(field,id){document.getElementById(`v-${field}-${id}`).style.display='inline-block';document.getElementById(`i-${field}-${id}`).style.display='none';}
+function hk(e,f,id){if(e.key==='Enter')saveEdit(f,id);if(e.key==='Escape')cancelEdit(f,id);}
+function cancelEdit(f,id){document.getElementById(`v-${f}-${id}`).style.display='inline-block';document.getElementById(`i-${f}-${id}`).style.display='none';}
 function updateDOM(p){
   const s=(fld,val)=>{const el=document.getElementById(`v-${fld}-${p.id}`);if(el)el.textContent=(fld==='gan_pct'||fld==='margen')?fmtP(val):fmt(val);};
   s('precio_asia',p.precio_asia);s('costo',p.costo);s('margen',p.margen*100);
   s('precio_ml',p.precio_ml);s('gan_pesos',p.gan_pesos);s('gan_pct',p.gan_pct);
   const sem=document.getElementById(`v-sem-${p.id}`);if(sem)sem.textContent=p.semaforo;
-  const sv=document.getElementById(`v-stock-${p.id}`);if(sv){sv.className=`stock-val ${scClass(p.stock||0)}`;sv.textContent=`${p.stock||0} u.`;}
+  const sv=document.getElementById(`v-stock-${p.id}`);if(sv){sv.className=`stock-val ${scClass(p.stock||0)}`;sv.textContent=`${p.stock} u.`;}
   const ds=document.getElementById(`sel-desc-${p.id}`);if(ds)ds.className=`select-cell desc-${p.descuento}`;
   const ts=document.getElementById(`sel-tipo-${p.id}`);if(ts)ts.className=`select-cell tipo-${p.tipo==='FULL'?'FULL':'NOFULL'}`;
 }
