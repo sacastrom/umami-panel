@@ -86,6 +86,8 @@
   .page-btn:disabled{opacity:.3;cursor:not-allowed;}
   #loadingScreen{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:16px;color:var(--muted);font-size:13px;}
   .loader{width:32px;height:32px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
+  .load-progress{width:280px;height:3px;background:var(--border);border-radius:2px;overflow:hidden;}
+  .load-bar{height:100%;background:var(--accent);border-radius:2px;transition:width .3s;}
   #toast{position:fixed;bottom:20px;right:20px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 16px;font-size:11px;display:flex;align-items:center;gap:8px;transform:translateY(60px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:999;max-width:320px;}
   #toast.show{transform:translateY(0);opacity:1;}
   #toast.t-success{border-color:var(--green);}
@@ -143,6 +145,7 @@
   <div id="loadingScreen" style="display:flex;">
     <div class="loader"></div>
     <span id="loadingMsg">Cargando publicaciones...</span>
+    <div class="load-progress"><div class="load-bar" id="loadBar" style="width:0%"></div></div>
   </div>
   <div id="panelContent" style="display:none;">
     <div class="hint">✏️ Hacé click en cualquier celda para editar · Precio ML, Stock y Estado se actualizan en Mercado Libre</div>
@@ -211,7 +214,7 @@ function loginML(){
 }
 
 async function handleCallback(code){
-  showLoading('Autenticando con Mercado Libre...');
+  showLoading('Autenticando con Mercado Libre...',0);
   try{
     const resp=await fetch('/api/token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,redirect_uri:REDIRECT_URI})});
     const data=await resp.json();
@@ -226,7 +229,6 @@ async function handleCallback(code){
     showToast('❌ Error al autenticar: '+e.message,'error');
     document.getElementById('loginScreen').style.display='flex';
     document.getElementById('app').style.display='none';
-    hideLoading();
   }
 }
 
@@ -269,35 +271,80 @@ async function mlPut(path,body){
   return r.json();
 }
 
+// ── FETCH ALL ITEMS — usa scroll_id para superar el límite de 1000 ──
+async function fetchByStatus(status, totalKnown){
+  const ids=[];
+  const limit=50;
+  let offset=0;
+  let total=totalKnown||null;
+
+  while(true){
+    const res=await mlFetch(`/users/${mlUserId}/items/search?limit=${limit}&offset=${offset}&status=${status}`);
+    if(total===null) total=res.paging?.total||0;
+    const batch=res.results||[];
+    if(!batch.length) break;
+    ids.push(...batch);
+    offset+=limit;
+    // ML permite hasta offset 1000 por status
+    if(offset>=Math.min(total,1000)) break;
+  }
+  return {ids, total};
+}
+
+async function fetchItemDetails(ids, allItems, progressStart, progressEnd){
+  const total=ids.length;
+  for(let i=0;i<total;i+=20){
+    const batch=ids.slice(i,i+20).join(',');
+    const items=await mlFetch(`/items?ids=${batch}&attributes=id,title,price,available_quantity,status,seller_sku`);
+    items.forEach(it=>{if(it.code===200)allItems.push(it.body);});
+    const pct=progressStart+(progressEnd-progressStart)*((i+20)/total);
+    setProgress(Math.min(pct,progressEnd));
+    showLoading(`Cargando detalles... (${allItems.length} productos)`, Math.min(pct,progressEnd));
+  }
+}
+
 async function fetchAllItems(){
-  let all=[],offset=0,limit=50;
-  while(true){
-    showLoading(`Cargando publicaciones activas... (${all.length})`);
-    const res=await mlFetch(`/users/${mlUserId}/items/search?limit=${limit}&offset=${offset}&status=active`);
-    const ids=res.results||[];
-    if(!ids.length)break;
-    for(let i=0;i<ids.length;i+=20){
-      const batch=ids.slice(i,i+20).join(',');
-      const items=await mlFetch(`/items?ids=${batch}&attributes=id,title,price,available_quantity,status,seller_sku`);
-      items.forEach(it=>{if(it.code===200)all.push(it.body);});
+  let all=[];
+
+  // 1. Obtenemos IDs activas (hasta 1000)
+  showLoading('Obteniendo publicaciones activas...', 2);
+  const {ids: activeIds, total: totalActive} = await fetchByStatus('active');
+  
+  // 2. Obtenemos IDs pausadas (hasta 1000)
+  showLoading('Obteniendo publicaciones pausadas...', 5);
+  const {ids: pausedIds, total: totalPaused} = await fetchByStatus('paused');
+
+  const totalKnown = totalActive + totalPaused;
+  showLoading(`Total en ML: ${totalKnown} — cargando detalles...`, 8);
+
+  // 3. Si hay más de 1000 activas, usamos offset extendido por lotes
+  const allActiveIds = [...activeIds];
+  if(totalActive > 1000){
+    for(let offset=1000; offset<Math.min(totalActive,5000); offset+=50){
+      const res = await mlFetch(`/users/${mlUserId}/items/search?limit=50&offset=${offset}&status=active`);
+      const batch = res.results||[];
+      if(!batch.length) break;
+      allActiveIds.push(...batch);
+      showLoading(`Obteniendo activas... (${allActiveIds.length}/${totalActive})`, 8+((offset/totalActive)*10));
     }
-    offset+=limit;
-    if(ids.length<limit)break;
   }
-  offset=0;
-  while(true){
-    showLoading(`Cargando publicaciones pausadas... (${all.length})`);
-    const res=await mlFetch(`/users/${mlUserId}/items/search?limit=${limit}&offset=${offset}&status=paused`);
-    const ids=res.results||[];
-    if(!ids.length)break;
-    for(let i=0;i<ids.length;i+=20){
-      const batch=ids.slice(i,i+20).join(',');
-      const items=await mlFetch(`/items?ids=${batch}&attributes=id,title,price,available_quantity,status,seller_sku`);
-      items.forEach(it=>{if(it.code===200)all.push(it.body);});
+
+  const allPausedIds = [...pausedIds];
+  if(totalPaused > 1000){
+    for(let offset=1000; offset<Math.min(totalPaused,5000); offset+=50){
+      const res = await mlFetch(`/users/${mlUserId}/items/search?limit=50&offset=${offset}&status=paused`);
+      const batch = res.results||[];
+      if(!batch.length) break;
+      allPausedIds.push(...batch);
+      showLoading(`Obteniendo pausadas... (${allPausedIds.length}/${totalPaused})`, 18+((offset/totalPaused)*10));
     }
-    offset+=limit;
-    if(ids.length<limit)break;
   }
+
+  // 4. Fetch detalles de todos
+  const allIds = [...allActiveIds, ...allPausedIds];
+  showLoading(`Cargando detalles de ${allIds.length} publicaciones...`, 25);
+  await fetchItemDetails(allIds, all, 25, 95);
+
   return all;
 }
 
@@ -321,12 +368,14 @@ async function initApp(){
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('app').style.display='block';
   document.getElementById('panelContent').style.display='none';
-  showLoading('Iniciando panel...');
+  showLoading('Iniciando panel...', 0);
   try{
     const user=await mlFetch('/users/me');
     document.getElementById('userName').textContent=user.nickname||'Usuario ML';
+    showLoading('Conectado — cargando publicaciones...', 1);
     const[mlItems,internos]=await Promise.all([fetchAllItems(),loadInternos()]);
     products=mergeData(mlItems,internos);
+    setProgress(100);
     hideLoading();doFilter();
     showToast(`✅ ${products.length} publicaciones cargadas`,'success');
   }catch(e){hideLoading();showToast('❌ Error: '+e.message,'error');console.error(e);}
@@ -334,15 +383,24 @@ async function initApp(){
 
 async function syncAll(){
   const btn=document.getElementById('syncBtn');btn.classList.add('syncing');
+  document.getElementById('panelContent').style.display='none';
+  showLoading('Sincronizando...', 0);
   try{
     const[mlItems,internos]=await Promise.all([fetchAllItems(),loadInternos()]);
     products=mergeData(mlItems,internos);
-    doFilter();showToast(`✅ Sincronizado — ${products.length} publicaciones`,'success');
-  }catch(e){showToast('❌ Error: '+e.message,'error');}
+    setProgress(100);hideLoading();doFilter();
+    showToast(`✅ Sincronizado — ${products.length} publicaciones`,'success');
+  }catch(e){hideLoading();showToast('❌ Error: '+e.message,'error');}
   btn.classList.remove('syncing');
 }
 
-function showLoading(msg){document.getElementById('loadingMsg').textContent=msg;document.getElementById('loadingScreen').style.display='flex';document.getElementById('panelContent').style.display='none';}
+function showLoading(msg, pct){
+  document.getElementById('loadingMsg').textContent=msg;
+  document.getElementById('loadingScreen').style.display='flex';
+  document.getElementById('panelContent').style.display='none';
+  if(pct!==undefined) setProgress(pct);
+}
+function setProgress(pct){document.getElementById('loadBar').style.width=pct+'%';}
 function hideLoading(){document.getElementById('loadingScreen').style.display='none';document.getElementById('panelContent').style.display='block';}
 
 function doFilter(){
