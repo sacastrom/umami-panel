@@ -77,7 +77,6 @@
   .cell-input{font-family:var(--font-mono);font-size:12px;background:var(--bg);border:1px solid var(--accent);color:var(--accent);padding:3px 5px;border-radius:4px;width:80px;outline:none;display:none;}
   .ci-stock{color:var(--text);border-color:var(--blue);width:65px;}
   .spin-cell{display:none;width:10px;height:10px;border:1.5px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;margin-left:4px;vertical-align:middle;}
-  /* Precio calculado vs real */
   .price-calc{font-family:var(--font-mono);font-size:12px;color:var(--accent);font-weight:500;}
   .price-real{font-family:var(--font-mono);font-size:11px;color:var(--muted);}
   .price-real.diff{color:var(--orange);text-decoration:line-through;}
@@ -97,7 +96,6 @@
   #toast.t-success{border-color:var(--green);}#toast.t-error{border-color:var(--red);}#toast.t-info{border-color:var(--blue);}
   .empty{text-align:center;padding:40px;color:var(--muted);}
   #app{display:none;}
-  /* Modal de progreso de actualización */
   #updateModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:center;justify-content:center;}
   #updateModal.show{display:flex;}
   .modal-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;width:360px;display:flex;flex-direction:column;gap:16px;text-align:center;}
@@ -213,27 +211,62 @@ const SHEET_NAME = 'PRODUCTOS';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
 const DIFF_THRESHOLD = 5; // diferencia mínima en $ para considerar distinto
 
-const V={costoFijo:1115,costoFijoMayor:2810,comisionFull:0.175,comisionNF:0.14,precioEnvioGratis:33000,costoEnvioGratis:12000,descuentos:{I:0.25,N:0.20,F:0.0}};
+// ── VARIABLES DE COSTOS ML (actualizado 12/03/2026) ──
+const V = {
+  comision: 0.135,               // 13.5% para FULL y NO FULL
+  precioEnvioGratis: 33000,      // umbral envío gratis
+  costoEnvioGratis: 12000,       // costo logístico envío gratis
+  descuentos: { I: 0.25, N: 0.20, F: 0.0 },
+  // NO FULL — costos fijos por tramo (5 a 8 kg)
+  nf: [
+    { hasta: 15999,      cf: 1395 },
+    { hasta: 23999,      cf: 2790 },
+    { hasta: 32999,      cf: 3305 },
+    { hasta: Infinity,   cf: 0    }
+  ],
+  // FULL — costos fijos por tramo (5 a 8 kg)
+  full: [
+    { hasta: 3499,       cf: 350  },
+    { hasta: 4999,       cf: 650  },
+    { hasta: 7999,       cf: 850  },
+    { hasta: 15999,      cf: 1250 },
+    { hasta: 32999,      cf: 2000 },
+    { hasta: Infinity,   cf: 0    }
+  ]
+};
 
-let accessToken=localStorage.getItem('ml_token')||null;
-let mlUserId=localStorage.getItem('ml_user_id')||null;
-let products=[],filtered=[],currentFilter='all',currentPage=1;
-const PAGE=30;
-let toastTimer;
+// Calcula precio ML con lógica de tramos consistente (sin circularidad)
+function calcPrecioML(costo, margen, tipo) {
+  const base = costo * (1 + margen);
+  const tabla = tipo === 'FULL' ? V.full : V.nf;
+  const com = V.comision;
 
-function calcPrecioML(costo,margen,tipo){
-  let p;
-  if(tipo==='FULL'){p=(costo*(1+margen))/(1-V.comisionFull);}
-  else{const p1=((costo*(1+margen))+V.costoFijo)/(1-V.comisionNF);const p2=((costo*(1+margen))+V.costoFijoMayor)/(1-V.comisionNF);p=p1<=15000?p1:p2;}
-  if(p>=V.precioEnvioGratis){const e=tipo==='FULL'?V.costoEnvioGratis/(1-V.comisionFull):V.costoEnvioGratis/(1-V.comisionNF);p+=e;}
-  return Math.round(p/5)*5;
+  // Para cada tramo, calcular el precio final que resultaría con ese CF
+  // y verificar que sea consistente con ese tramo
+  let cf = tabla[tabla.length - 1].cf;
+  for (const tramo of tabla) {
+    const pFinal = (base + tramo.cf) / (1 - com);
+    if (pFinal <= tramo.hasta) { cf = tramo.cf; break; }
+    cf = tramo.cf;
+  }
+
+  let p = (base + cf) / (1 - com);
+  if (p >= V.precioEnvioGratis) p += V.costoEnvioGratis / (1 - com);
+  return Math.round(p / 5) * 5;
 }
-function calcGanReal(precio_ml,costo,tipo){
-  const e=precio_ml>=V.precioEnvioGratis?V.costoEnvioGratis:0;
-  if(tipo==='FULL')return(precio_ml*0.825)-costo-e;
-  const cf=precio_ml<=15000?V.costoFijo:V.costoFijoMayor;
-  return(precio_ml*0.86-cf)-costo-e;
+
+// Calcula ganancia real en pesos sobre el precio ML publicado
+function calcGanReal(precio_ml, costo, tipo) {
+  const tabla = tipo === 'FULL' ? V.full : V.nf;
+  let cf = 0;
+  for (const tramo of tabla) {
+    cf = tramo.cf;
+    if (precio_ml <= tramo.hasta) break;
+  }
+  const envio = precio_ml >= V.precioEnvioGratis ? V.costoEnvioGratis : 0;
+  return precio_ml - (precio_ml * V.comision) - cf - envio - costo;
 }
+
 function fmt(n){return'$'+Math.round(n).toLocaleString('es-AR');}
 function fmtP(n){return n.toFixed(1)+'%';}
 function scClass(s){return s<=3?'stock-low':s<=8?'stock-mid':'stock-ok';}
@@ -287,7 +320,6 @@ async function loadFromSheets(){
       descuento:['I','N','F'].includes(descRaw)?descRaw:'N',
       margen:typeof margenRaw==='number'?margenRaw:0.7,
       tipo:tipoRaw.includes('FULL')&&!tipoRaw.includes('NO')?'FULL':'NO FULL',
-      // Col J = precio ML calculado según Sheets (índice 9)
       precio_sheets:typeof get(9)==='number'?get(9):0,
     };
   }).filter(Boolean);
@@ -328,10 +360,8 @@ function buildProducts(rows,mlMap){
     const precio_ml_real=ml.precio_ml_real||0;
     const stock=ml.stock||0;
     const status=ml.status||'paused';
-    // Precio calculado: usamos col J de Sheets si existe, sino recalculamos
     const costo=row.precio_asia*(1-(V.descuentos[row.descuento]||0));
     const precio_ml_calc=row.precio_sheets>0?row.precio_sheets:calcPrecioML(costo,row.margen,row.tipo);
-    // Semáforo basado en precio PUBLICADO real
     const gan_pesos=precio_ml_real>0?calcGanReal(precio_ml_real,costo,row.tipo):calcGanReal(precio_ml_calc,costo,row.tipo);
     const gan_pct=costo>0?Math.round((gan_pesos/costo)*1000)/10:0;
     return{
@@ -344,6 +374,12 @@ function buildProducts(rows,mlMap){
     };
   });
 }
+
+let accessToken=localStorage.getItem('ml_token')||null;
+let mlUserId=localStorage.getItem('ml_user_id')||null;
+let products=[],filtered=[],currentFilter='all',currentPage=1;
+const PAGE=30;
+let toastTimer;
 
 async function initApp(){
   document.getElementById('loginScreen').style.display='none';
@@ -376,16 +412,13 @@ async function reloadApp(){
   }catch(e){hideLoading();showToast('❌ '+e.message,'error');}
 }
 
-// ── ACTUALIZAR PRECIOS DIFERENTES ──
 async function updateDiffPrices(){
   const toUpdate=products.filter(p=>hasDiff(p));
   if(!toUpdate.length){showToast('✅ Todos los precios están al día','success');return;}
-
   const modal=document.getElementById('updateModal');
   modal.classList.add('show');
   const btn=document.getElementById('btnUpdate');
   btn.disabled=true;btn.classList.add('loading');
-
   let ok=0,errors=0;
   for(let i=0;i<toUpdate.length;i++){
     const p=toUpdate[i];
@@ -397,10 +430,8 @@ async function updateDiffPrices(){
       await mlPut(`/items/${p.mla}`,{price:p.precio_ml_calc});
       p.precio_ml_real=p.precio_ml_calc;ok++;
     }catch(e){errors++;console.error(p.mla,e);}
-    // pequeña pausa para no saturar la API
     await new Promise(r=>setTimeout(r,80));
   }
-
   modal.classList.remove('show');
   btn.classList.remove('loading');
   doFilter();
@@ -459,7 +490,6 @@ function renderTable(){
   tbody.innerHTML=page.map(p=>{
     const sc=scClass(p.stock||0);
     const diff=hasDiff(p);
-    const tk=p.tipo==='FULL'?'FULL':'NOFULL';
     const priceCell=diff
       ?`<span class="price-calc">${fmt(p.precio_ml_calc)}</span> <span class="diff-arrow">→</span> <span class="price-real diff">${fmt(p.precio_ml_real)}</span>`
       :`<span class="price-calc">${fmt(p.precio_ml_calc)}</span> <span class="price-real">${p.precio_ml_real>0?fmt(p.precio_ml_real):'—'}</span>`;
@@ -529,6 +559,7 @@ function showToast(msg,type='success'){
   t.className=`show t-${type}`;clearTimeout(toastTimer);
   toastTimer=setTimeout(()=>{t.className='';},4000);
 }
+
 (function boot(){
   const params=new URLSearchParams(window.location.search);
   const code=params.get('code');
