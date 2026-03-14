@@ -82,6 +82,8 @@
   .price-real.diff{color:var(--orange);text-decoration:line-through;}
   .diff-arrow{font-size:10px;color:var(--accent);margin:0 3px;}
   .semaforo{font-size:13px;}
+  .prod-thumb{width:48px;height:48px;border-radius:6px;object-fit:cover;background:var(--surface2);border:1px solid var(--border);display:block;}
+  .prod-thumb-placeholder{width:48px;height:48px;border-radius:6px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:18px;flex-shrink:0;}
   .pagination{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-top:1px solid var(--border);font-size:10px;color:var(--muted);}
   .page-btns{display:flex;gap:4px;flex-wrap:wrap;}
   .page-btn{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:3px 8px;border-radius:5px;cursor:pointer;font-family:var(--font-mono);font-size:10px;transition:all .2s;}
@@ -177,7 +179,7 @@
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th>Código ML</th><th>SKU</th><th>Producto</th><th>Estado</th><th>Stock ✏️</th>
+          <th>Foto</th><th>Código ML</th><th>SKU</th><th>Producto</th><th>Estado</th><th>Stock ✏️</th>
           <th>Desc.</th><th>Tipo</th><th>Precio ASIA</th><th>Costo</th>
           <th>% Gan.</th><th>Precio calc. / publicado</th><th>Gan. $</th><th>Gan. %</th><th>🚦</th>
         </tr></thead>
@@ -215,22 +217,22 @@ const DIFF_THRESHOLD = 5; // diferencia mínima en $ para considerar distinto
 const V = {
   comision: 0.135,               // 13.5% para FULL y NO FULL
   precioEnvioGratis: 33000,      // umbral envío gratis
-  costoEnvioGratis: 9800,       // costo logístico envío gratis
+  costoEnvioGratis: 12000,       // costo logístico envío gratis
   descuentos: { I: 0.25, N: 0.20, F: 0.0 },
   // NO FULL — costos fijos por tramo (5 a 8 kg)
   nf: [
-    { hasta: 15999,      cf: 1275 },
-    { hasta: 23999,      cf: 2500 },
-    { hasta: 32999,      cf: 3030 },
+    { hasta: 15999,      cf: 1395 },
+    { hasta: 23999,      cf: 2790 },
+    { hasta: 32999,      cf: 3305 },
     { hasta: Infinity,   cf: 0    }
   ],
   // FULL — costos fijos por tramo (5 a 8 kg)
   full: [
-    { hasta: 3499,       cf: 290  },
-    { hasta: 4999,       cf: 550  },
-    { hasta: 7999,       cf: 750  },
-    { hasta: 15999,      cf: 1000 },
-    { hasta: 32999,      cf: 1750 },
+    { hasta: 3499,       cf: 350  },
+    { hasta: 4999,       cf: 650  },
+    { hasta: 7999,       cf: 850  },
+    { hasta: 15999,      cf: 1250 },
+    { hasta: 32999,      cf: 2000 },
     { hasta: Infinity,   cf: 0    }
   ]
 };
@@ -345,8 +347,8 @@ async function fetchMLData(rows){
   for(let i=0;i<rows.length;i+=20){
     const batch=rows.slice(i,i+20).map(r=>r.mla).join(',');
     try{
-      const items=await mlFetch(`/items?ids=${batch}&attributes=id,price,available_quantity,status`);
-      items.forEach(it=>{if(it.code===200)mlMap[it.body.id]={precio_ml_real:it.body.price||0,stock:it.body.available_quantity||0,status:it.body.status==='active'?'active':'paused'};});
+      const items=await mlFetch(`/items?ids=${batch}&attributes=id,price,available_quantity,status,thumbnail`);
+      items.forEach(it=>{if(it.code===200)mlMap[it.body.id]={precio_ml_real:it.body.price||0,stock:it.body.available_quantity||0,status:it.body.status==='active'?'active':'paused',thumbnail:it.body.thumbnail||''};});
     }catch(e){console.error('batch error',e);}
     const pct=50+((i+20)/rows.length)*45;
     showLoading(`Consultando ML... ${Math.min(i+20,rows.length)}/${rows.length}`,Math.min(pct,95));
@@ -360,6 +362,7 @@ function buildProducts(rows,mlMap){
     const precio_ml_real=ml.precio_ml_real||0;
     const stock=ml.stock||0;
     const status=ml.status||'paused';
+    const thumbnail=ml.thumbnail||'';
     const costo=row.precio_asia*(1-(V.descuentos[row.descuento]||0));
     const precio_ml_calc=row.precio_sheets>0?row.precio_sheets:calcPrecioML(costo,row.margen,row.tipo);
     const gan_pesos=precio_ml_real>0?calcGanReal(precio_ml_real,costo,row.tipo):calcGanReal(precio_ml_calc,costo,row.tipo);
@@ -368,6 +371,7 @@ function buildProducts(rows,mlMap){
       id:idx,mla:row.mla,sku:row.sku,name:row.name,
       status,stock,tipo:row.tipo,descuento:row.descuento,
       precio_asia:row.precio_asia,margen:row.margen,costo,
+      thumbnail,
       precio_ml_calc,precio_ml_real,
       gan_pesos,gan_pct,
       semaforo:gan_pct>=60?'🟢':gan_pct>=50?'🟡':'🔴'
@@ -494,6 +498,7 @@ function renderTable(){
       ?`<span class="price-calc">${fmt(p.precio_ml_calc)}</span> <span class="diff-arrow">→</span> <span class="price-real diff">${fmt(p.precio_ml_real)}</span>`
       :`<span class="price-calc">${fmt(p.precio_ml_calc)}</span> <span class="price-real">${p.precio_ml_real>0?fmt(p.precio_ml_real):'—'}</span>`;
     return`<tr id="row-${p.id}" class="${diff?'has-diff':''}">
+      <td>${p.thumbnail?`<img class="prod-thumb" src="${p.thumbnail}" alt="" loading="lazy">`:`<div class="prod-thumb-placeholder">□</div>`}</td>
       <td><span class="mla-code">${p.mla}</span></td>
       <td><span class="sku-code">${p.sku}</span></td>
       <td><div class="product-name" title="${p.name}">${p.name}</div></td>
