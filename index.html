@@ -27,6 +27,10 @@
   .btn-icon{background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:6px;font-family:var(--font-mono);font-size:11px;cursor:pointer;transition:all .2s;}
   .btn-icon:hover{border-color:var(--accent);color:var(--accent);}
   .btn-icon.danger:hover{border-color:var(--red);color:var(--red);}
+  .btn-sinstock{background:transparent;border:1px solid var(--red);color:var(--red);padding:5px 14px;border-radius:6px;font-family:var(--font-head);font-weight:700;font-size:11px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:6px;}
+  .btn-sinstock:hover{background:var(--red);color:#fff;}
+  .btn-sinstock .ss-count{background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;display:none;}
+  .btn-sinstock .ss-count.visible{display:inline;}
   .btn-update{background:var(--accent);color:#000;border:none;padding:6px 14px;border-radius:6px;font-family:var(--font-head);font-weight:700;font-size:11px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:6px;}
   .btn-update:hover{background:#ffd000;}
   .btn-update:disabled{opacity:.4;cursor:not-allowed;}
@@ -38,6 +42,8 @@
   .stat-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
   .stat-value{font-family:var(--font-head);font-size:18px;font-weight:700;}
   .sv-green{color:var(--green);}.sv-yellow{color:var(--accent);}.sv-orange{color:var(--orange);}.sv-blue{color:var(--blue);}
+  .stat-card.ss-card{cursor:pointer;border-color:rgba(231,76,60,.3);transition:all .2s;}
+  .stat-card.ss-card:hover{border-color:var(--red);background:rgba(231,76,60,.05);}
   .update-bar{padding:8px 20px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;}
   .update-info{font-size:11px;color:var(--muted);}
   .update-info strong{color:var(--accent);}
@@ -106,6 +112,73 @@
   .modal-progress{width:100%;height:4px;background:var(--border);border-radius:2px;overflow:hidden;}
   .modal-bar{height:100%;background:var(--accent);border-radius:2px;transition:width .3s;}
   .modal-count{font-size:11px;color:var(--muted);}
+
+  /* ── SIN STOCK PANEL ─────────────────────────── */
+  #sinStockPanel{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:300;backdrop-filter:blur(4px);}
+  #sinStockPanel.open{display:flex;align-items:flex-start;justify-content:center;padding:20px;}
+  .ss-drawer{background:var(--surface);border:1px solid var(--border);border-radius:20px;width:100%;max-width:900px;max-height:calc(100vh - 40px);display:flex;flex-direction:column;overflow:hidden;animation:ssSlide .25s cubic-bezier(.34,1.2,.64,1);}
+  @keyframes ssSlide{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
+  .ss-header{padding:18px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+  .ss-title{font-family:var(--font-head);font-size:18px;font-weight:800;display:flex;align-items:center;gap:10px;}
+  .ss-badge{background:rgba(231,76,60,.15);color:var(--red);border:1px solid rgba(231,76,60,.3);padding:3px 10px;border-radius:12px;font-size:11px;font-family:var(--font-mono);}
+  .ss-close{background:transparent;border:1px solid var(--border);color:var(--muted);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .2s;}
+  .ss-close:hover{border-color:var(--red);color:var(--red);}
+  .ss-subheader{padding:10px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;font-size:11px;color:var(--muted);flex-shrink:0;}
+  .ss-sort-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .ss-sort-btn{background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:6px;font-size:10px;font-family:var(--font-mono);cursor:pointer;transition:all .2s;}
+  .ss-sort-btn.active{background:var(--accent);color:var(--bg);border-color:var(--accent);}
+  .ss-loading{display:flex;align-items:center;justify-content:center;gap:12px;padding:60px;color:var(--muted);font-size:12px;}
+  .ss-loader{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--red);border-radius:50%;animation:spin .7s linear infinite;}
+  .ss-body{flex:1;overflow-y:auto;padding:12px 24px 24px;}
+  .ss-empty{text-align:center;padding:60px;color:var(--muted);}
+  .ss-empty-icon{font-size:40px;margin-bottom:12px;}
+  .ss-empty-title{font-family:var(--font-head);font-size:16px;color:var(--text);margin-bottom:6px;}
+
+  /* Tarjetas sin stock */
+  .ss-list{display:flex;flex-direction:column;gap:8px;}
+  .ss-card{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;transition:border-color .2s;}
+  .ss-card:hover{border-color:rgba(231,76,60,.4);}
+  .ss-card.reactivating{opacity:.5;pointer-events:none;}
+  .ss-card.reactivated{border-color:var(--green);background:rgba(46,204,113,.05);}
+  .ss-thumb{width:52px;height:52px;border-radius:8px;object-fit:cover;border:1px solid var(--border);}
+  .ss-thumb-ph{width:52px;height:52px;border-radius:8px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:20px;flex-shrink:0;}
+  .ss-info{min-width:0;}
+  .ss-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px;}
+  .ss-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .ss-mla{font-size:9px;color:var(--muted);background:var(--bg);padding:1px 5px;border-radius:3px;border:1px solid var(--border);}
+  .ss-tipo{font-size:9px;padding:1px 6px;border-radius:10px;}
+  .ss-tipo.full{background:rgba(255,224,51,.1);color:var(--accent);border:1px solid rgba(255,224,51,.2);}
+  .ss-tipo.nofull{background:rgba(107,107,138,.1);color:var(--muted);border:1px solid var(--border);}
+  .ss-date{font-size:9px;color:var(--muted);}
+  .ss-prices{display:flex;gap:6px;margin-top:6px;align-items:center;flex-wrap:wrap;}
+  .ss-price-item{display:flex;flex-direction:column;gap:1px;}
+  .ss-price-label{font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+  .ss-price-val{font-family:var(--font-mono);font-size:12px;}
+  .ss-price-val.calc{color:var(--accent);}
+  .ss-price-val.pub{color:var(--muted);}
+  .ss-price-val.margin{color:var(--green);}
+  .ss-price-val.margin.warn{color:var(--orange);}
+  .ss-price-val.margin.bad{color:var(--red);}
+  .ss-divider{width:1px;height:28px;background:var(--border);}
+
+  /* Controles de reactivación */
+  .ss-controls{display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0;}
+  .ss-input-row{display:flex;align-items:center;gap:6px;}
+  .ss-input-label{font-size:9px;color:var(--muted);white-space:nowrap;}
+  .ss-input{font-family:var(--font-mono);font-size:12px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:6px;width:90px;outline:none;text-align:right;transition:border-color .2s;}
+  .ss-input:focus{border-color:var(--accent);}
+  .ss-input.price-input:focus{border-color:var(--accent);}
+  .ss-input.stock-input:focus{border-color:var(--blue);}
+  .ss-btn-reactivar{background:var(--green);color:#000;border:none;padding:7px 14px;border-radius:8px;font-family:var(--font-head);font-weight:700;font-size:11px;cursor:pointer;transition:all .2s;white-space:nowrap;}
+  .ss-btn-reactivar:hover{background:#27ae60;color:#fff;}
+  .ss-btn-reactivar:disabled{opacity:.4;cursor:not-allowed;}
+  .ss-reactivated-tag{font-size:10px;color:var(--green);display:none;}
+  .ss-card.reactivated .ss-reactivated-tag{display:block;}
+  .ss-card.reactivated .ss-btn-reactivar{display:none;}
+
+  .ss-footer{padding:12px 24px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;font-size:10px;color:var(--muted);}
+  .ss-refresh{background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:6px;font-size:10px;font-family:var(--font-mono);cursor:pointer;transition:all .2s;}
+  .ss-refresh:hover{border-color:var(--accent);color:var(--accent);}
 </style>
 </head>
 <body>
@@ -127,6 +200,10 @@
   <header>
     <div class="logo">UMAMI <span>PANEL</span></div>
     <div class="header-right">
+      <button class="btn-sinstock" onclick="openSinStock()" id="btnSinStock">
+        ⚠️ Sin Stock
+        <span class="ss-count" id="ssHeaderCount"></span>
+      </button>
       <button class="btn-icon" onclick="reloadApp()">↻ Recargar Sheets</button>
       <div class="user-badge"><div class="user-dot"></div><span id="userName">—</span></div>
       <button class="btn-icon danger" onclick="logout()">⏻ Salir</button>
@@ -137,6 +214,10 @@
     <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value" id="sTotal">—</div></div>
     <div class="stat-card"><div class="stat-label">Activas</div><div class="stat-value sv-green" id="sActivas">—</div></div>
     <div class="stat-card"><div class="stat-label">Pausadas</div><div class="stat-value sv-orange" id="sPausadas">—</div></div>
+    <div class="stat-card ss-card" onclick="openSinStock()" title="Ver productos sin stock">
+      <div class="stat-label">⚠️ Sin Stock</div>
+      <div class="stat-value" style="color:var(--red)" id="sSinStock">—</div>
+    </div>
     <div class="stat-card"><div class="stat-label">🟢 ≥60%</div><div class="stat-value sv-green" id="sVerde">—</div></div>
     <div class="stat-card"><div class="stat-label">🟡 50–60%</div><div class="stat-value sv-yellow" id="sAmarillo">—</div></div>
     <div class="stat-card"><div class="stat-label">🔴 &lt;50%</div><div class="stat-value sv-orange" id="sRojo">—</div></div>
@@ -194,13 +275,49 @@
   </div>
 </div>
 
-<!-- Modal actualización -->
+<!-- Modal actualización masiva -->
 <div id="updateModal">
   <div class="modal-box">
     <div class="modal-title">⚡ Actualizando precios en ML</div>
     <div class="modal-sub" id="modalSub">Preparando...</div>
     <div class="modal-progress"><div class="modal-bar" id="modalBar" style="width:0%"></div></div>
     <div class="modal-count" id="modalCount">0 / 0</div>
+  </div>
+</div>
+
+<!-- ── PANEL SIN STOCK ──────────────────────────────── -->
+<div id="sinStockPanel">
+  <div class="ss-drawer">
+    <div class="ss-header">
+      <div class="ss-title">
+        ⚠️ Sin Stock — Pausados recientes
+        <span class="ss-badge" id="ssBadge">0 productos</span>
+      </div>
+      <button class="ss-close" onclick="closeSinStock()">✕</button>
+    </div>
+    <div class="ss-subheader">
+      <span class="ss-sort-label">Ordenar por:</span>
+      <button class="ss-sort-btn active" onclick="setSsSort('recent',this)">🕐 Más recientes</button>
+      <button class="ss-sort-btn" onclick="setSsSort('name',this)">A–Z Nombre</button>
+      <button class="ss-sort-btn" onclick="setSsSort('margin',this)">📈 Mayor margen</button>
+      <span style="margin-left:auto;font-size:10px;" id="ssLastUpdate"></span>
+    </div>
+    <div class="ss-body" id="ssBody">
+      <div class="ss-loading" id="ssLoading">
+        <div class="ss-loader"></div>
+        <span>Consultando ML...</span>
+      </div>
+      <div class="ss-list" id="ssList" style="display:none;"></div>
+      <div class="ss-empty" id="ssEmpty" style="display:none;">
+        <div class="ss-empty-icon">✅</div>
+        <div class="ss-empty-title">¡Todo con stock!</div>
+        <div style="font-size:12px;color:var(--muted);">No hay publicaciones pausadas por stock 0.</div>
+      </div>
+    </div>
+    <div class="ss-footer">
+      <span id="ssFooterInfo">—</span>
+      <button class="ss-refresh" onclick="loadSinStock()">↻ Actualizar</button>
+    </div>
   </div>
 </div>
 
@@ -211,366 +328,659 @@ const ML_APP_ID  = '2267364561876653';
 const SHEET_ID   = '1ytO7tU_tWg25Tu--h6d5epX3XLirKYVJz-06runTQ98';
 const SHEET_NAME = 'PRODUCTOS';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
-const DIFF_THRESHOLD = 5; // diferencia mínima en $ para considerar distinto
+const DIFF_THRESHOLD = 5;
 
-// ── VARIABLES DE COSTOS ML (actualizado 12/03/2026) ──
 const V = {
-  comision: 0.135,               // 13.5% para FULL y NO FULL
-  precioEnvioGratis: 33000,      // umbral envío gratis
-  costoEnvioGratis: 9800,       // costo logístico envío gratis
+  comision: 0.135,
+  precioEnvioGratis: 33000,
+  costoEnvioGratis: 9800,
   descuentos: { I: 0.25, N: 0.20, F: 0.0 },
-  // NO FULL — costos fijos por tramo (5 a 8 kg)
   nf: [
-    { hasta: 15999,      cf: 1275 },
-    { hasta: 23999,      cf: 2500 },
-    { hasta: 32999,      cf: 3030 },
-    { hasta: Infinity,   cf: 0    }
+    { hasta: 15999, cf: 1275 },
+    { hasta: 23999, cf: 2500 },
+    { hasta: 32999, cf: 3030 },
+    { hasta: Infinity, cf: 0 }
   ],
-  // FULL — costos fijos por tramo (5 a 8 kg)
   full: [
-    { hasta: 3499,       cf: 290  },
-    { hasta: 4999,       cf: 550  },
-    { hasta: 7999,       cf: 750  },
-    { hasta: 15999,      cf: 1000 },
-    { hasta: 32999,      cf: 1750 },
-    { hasta: Infinity,   cf: 0    }
+    { hasta: 3499,  cf: 290  },
+    { hasta: 4999,  cf: 550  },
+    { hasta: 7999,  cf: 750  },
+    { hasta: 15999, cf: 1000 },
+    { hasta: 32999, cf: 1750 },
+    { hasta: Infinity, cf: 0 }
   ]
 };
 
-// Calcula precio ML con lógica de tramos consistente (sin circularidad)
 function calcPrecioML(costo, margen, tipo) {
   const base = costo * (1 + margen);
   const tabla = tipo === 'FULL' ? V.full : V.nf;
   const com = V.comision;
-
-  // Para cada tramo, calcular el precio final que resultaría con ese CF
-  // y verificar que sea consistente con ese tramo
   let cf = tabla[tabla.length - 1].cf;
   for (const tramo of tabla) {
     const pFinal = (base + tramo.cf) / (1 - com);
     if (pFinal <= tramo.hasta) { cf = tramo.cf; break; }
     cf = tramo.cf;
   }
-
   let p = (base + cf) / (1 - com);
   if (p >= V.precioEnvioGratis) p += V.costoEnvioGratis / (1 - com);
   return Math.round(p / 5) * 5;
 }
 
-// Calcula ganancia real en pesos sobre el precio ML publicado
 function calcGanReal(precio_ml, costo, tipo) {
   const tabla = tipo === 'FULL' ? V.full : V.nf;
   let cf = 0;
-  for (const tramo of tabla) {
-    cf = tramo.cf;
-    if (precio_ml <= tramo.hasta) break;
-  }
+  for (const tramo of tabla) { cf = tramo.cf; if (precio_ml <= tramo.hasta) break; }
   const envio = precio_ml >= V.precioEnvioGratis ? V.costoEnvioGratis : 0;
   return precio_ml - (precio_ml * V.comision) - cf - envio - costo;
 }
 
-function fmt(n){return'$'+Math.round(n).toLocaleString('es-AR');}
-function fmtP(n){return n.toFixed(1)+'%';}
-function scClass(s){return s<=3?'stock-low':s<=8?'stock-mid':'stock-ok';}
-function hasDiff(p){return p.precio_ml_real>0&&Math.abs(p.precio_ml_calc-p.precio_ml_real)>=DIFF_THRESHOLD;}
-
-function loginML(){
-  window.location.href=`https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${ML_APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+function calcGanPct(precio_ml, costo, tipo) {
+  const gan = calcGanReal(precio_ml, costo, tipo);
+  return costo > 0 ? (gan / costo) * 100 : 0;
 }
-async function handleCallback(code){
-  showLoading('Autenticando...',0);
-  try{
-    const resp=await fetch('/api/token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,redirect_uri:REDIRECT_URI})});
-    const data=await resp.json();
-    if(!data.access_token)throw new Error(data.message||'Error');
-    accessToken=data.access_token;mlUserId=data.user_id;
-    localStorage.setItem('ml_token',accessToken);localStorage.setItem('ml_user_id',mlUserId);
-    window.history.replaceState({},'',window.location.pathname);
+
+function fmt(n) { return '$' + Math.round(n).toLocaleString('es-AR'); }
+function fmtP(n) { return n.toFixed(1) + '%'; }
+function scClass(s) { return s <= 3 ? 'stock-low' : s <= 8 ? 'stock-mid' : 'stock-ok'; }
+function hasDiff(p) { return p.precio_ml_real > 0 && Math.abs(p.precio_ml_calc - p.precio_ml_real) >= DIFF_THRESHOLD; }
+
+function timeAgo(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 3600) return `hace ${Math.round(diff/60)}m`;
+  if (diff < 86400) return `hace ${Math.round(diff/3600)}h`;
+  if (diff < 604800) return `hace ${Math.round(diff/86400)}d`;
+  return d.toLocaleDateString('es-AR',{day:'numeric',month:'short'});
+}
+
+function loginML() {
+  window.location.href = `https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=${ML_APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+}
+async function handleCallback(code) {
+  showLoading('Autenticando...', 0);
+  try {
+    const resp = await fetch('/api/token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, redirect_uri: REDIRECT_URI }) });
+    const data = await resp.json();
+    if (!data.access_token) throw new Error(data.message || 'Error');
+    accessToken = data.access_token; mlUserId = data.user_id;
+    localStorage.setItem('ml_token', accessToken); localStorage.setItem('ml_user_id', mlUserId);
+    window.history.replaceState({}, '', window.location.pathname);
     await initApp();
-  }catch(e){
-    showToast('❌ '+e.message,'error');
-    document.getElementById('loginScreen').style.display='flex';
-    document.getElementById('app').style.display='none';
+  } catch(e) {
+    showToast('❌ ' + e.message, 'error');
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
   }
 }
-function logout(){
-  localStorage.removeItem('ml_token');localStorage.removeItem('ml_user_id');
-  accessToken=null;mlUserId=null;products=[];
-  document.getElementById('app').style.display='none';
-  document.getElementById('loginScreen').style.display='flex';
+function logout() {
+  localStorage.removeItem('ml_token'); localStorage.removeItem('ml_user_id');
+  accessToken = null; mlUserId = null; products = [];
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
 }
 
-// ── GOOGLE SHEETS ──
-async function loadFromSheets(){
-  const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
-  const r=await fetch(url);
-  const text=await r.text();
-  const json=JSON.parse(text.replace(/^[^(]+\(/,'').replace(/\);?$/,''));
-  return json.table.rows.map(row=>{
-    const c=row.c;
-    const get=(i)=>c[i]&&c[i].v!=null?c[i].v:'';
-    const mla=String(get(0)).trim();
-    if(!mla.startsWith('MLA'))return null;
-    const descRaw=String(get(5)||'N').trim().toUpperCase();
-    const tipoRaw=String(get(8)||'').trim().toUpperCase();
-    const margenRaw=get(7);
-    return{
-      mla,
-      sku:String(get(1)).trim(),
-      name:String(get(2)).trim(),
-      precio_asia:typeof get(3)==='number'?get(3):0,
-      descuento:['I','N','F'].includes(descRaw)?descRaw:'N',
-      margen:typeof margenRaw==='number'?margenRaw:0.7,
-      tipo:tipoRaw.includes('FULL')&&!tipoRaw.includes('NO')?'FULL':'NO FULL',
-      precio_sheets:typeof get(9)==='number'?get(9):0,
+async function loadFromSheets() {
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+  const r = await fetch(url);
+  const text = await r.text();
+  const json = JSON.parse(text.replace(/^[^(]+\(/, '').replace(/\);?$/, ''));
+  return json.table.rows.map(row => {
+    const c = row.c;
+    const get = (i) => c[i] && c[i].v != null ? c[i].v : '';
+    const mla = String(get(0)).trim();
+    if (!mla.startsWith('MLA')) return null;
+    const descRaw = String(get(5) || 'N').trim().toUpperCase();
+    const tipoRaw = String(get(8) || '').trim().toUpperCase();
+    const margenRaw = get(7);
+    return {
+      mla, sku: String(get(1)).trim(), name: String(get(2)).trim(),
+      precio_asia: typeof get(3) === 'number' ? get(3) : 0,
+      descuento: ['I','N','F'].includes(descRaw) ? descRaw : 'N',
+      margen: typeof margenRaw === 'number' ? margenRaw : 0.7,
+      tipo: tipoRaw.includes('FULL') && !tipoRaw.includes('NO') ? 'FULL' : 'NO FULL',
+      precio_sheets: typeof get(9) === 'number' ? get(9) : 0,
     };
   }).filter(Boolean);
 }
 
-// ── ML PROXY ──
-async function mlFetch(path){
-  const r=await fetch(`/api/ml?path=${encodeURIComponent(path)}`,{headers:{'Authorization':'Bearer '+accessToken}});
-  if(r.status===401){logout();throw new Error('Sesión expirada');}
+async function mlFetch(path) {
+  const r = await fetch(`/api/ml?path=${encodeURIComponent(path)}`, { headers: { 'Authorization': 'Bearer ' + accessToken } });
+  if (r.status === 401) { logout(); throw new Error('Sesión expirada'); }
   return r.json();
 }
-async function mlPut(path,body){
-  const r=await fetch(`/api/ml?path=${encodeURIComponent(path)}`,{
-    method:'PUT',headers:{'Authorization':'Bearer '+accessToken,'Content-Type':'application/json'},
-    body:JSON.stringify(body)
+async function mlPut(path, body) {
+  const r = await fetch(`/api/ml?path=${encodeURIComponent(path)}`, {
+    method: 'PUT', headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
   });
-  if(r.status===401){logout();throw new Error('Sesión expirada');}
+  if (r.status === 401) { logout(); throw new Error('Sesión expirada'); }
   return r.json();
 }
 
-async function fetchMLData(rows){
-  const mlMap={};
-  for(let i=0;i<rows.length;i+=20){
-    const batch=rows.slice(i,i+20).map(r=>r.mla).join(',');
-    try{
-      const items=await mlFetch(`/items?ids=${batch}&attributes=id,price,available_quantity,status,thumbnail`);
-      items.forEach(it=>{if(it.code===200)mlMap[it.body.id]={precio_ml_real:it.body.price||0,stock:it.body.available_quantity||0,status:it.body.status==='active'?'active':'paused',thumbnail:it.body.thumbnail||''};});
-    }catch(e){console.error('batch error',e);}
-    const pct=50+((i+20)/rows.length)*45;
-    showLoading(`Consultando ML... ${Math.min(i+20,rows.length)}/${rows.length}`,Math.min(pct,95));
+async function fetchMLData(rows) {
+  const mlMap = {};
+  for (let i = 0; i < rows.length; i += 20) {
+    const batch = rows.slice(i, i + 20).map(r => r.mla).join(',');
+    try {
+      const items = await mlFetch(`/items?ids=${batch}&attributes=id,price,available_quantity,status,thumbnail`);
+      items.forEach(it => { if (it.code === 200) mlMap[it.body.id] = { precio_ml_real: it.body.price || 0, stock: it.body.available_quantity || 0, status: it.body.status === 'active' ? 'active' : 'paused', thumbnail: it.body.thumbnail || '' }; });
+    } catch(e) { console.error('batch error', e); }
+    const pct = 50 + ((i + 20) / rows.length) * 45;
+    showLoading(`Consultando ML... ${Math.min(i + 20, rows.length)}/${rows.length}`, Math.min(pct, 95));
   }
   return mlMap;
 }
 
-function buildProducts(rows,mlMap){
-  return rows.map((row,idx)=>{
-    const ml=mlMap[row.mla]||{};
-    const precio_ml_real=ml.precio_ml_real||0;
-    const stock=ml.stock||0;
-    const status=ml.status||'paused';
-    const thumbnail=ml.thumbnail||'';
-    const costo=row.precio_asia*(1-(V.descuentos[row.descuento]||0));
-    const precio_ml_calc=row.precio_sheets>0?row.precio_sheets:calcPrecioML(costo,row.margen,row.tipo);
-    const gan_pesos=precio_ml_real>0?calcGanReal(precio_ml_real,costo,row.tipo):calcGanReal(precio_ml_calc,costo,row.tipo);
-    const gan_pct=costo>0?Math.round((gan_pesos/costo)*1000)/10:0;
-    return{
-      id:idx,mla:row.mla,sku:row.sku,name:row.name,
-      status,stock,tipo:row.tipo,descuento:row.descuento,
-      precio_asia:row.precio_asia,margen:row.margen,costo,
-      thumbnail,
-      precio_ml_calc,precio_ml_real,
-      gan_pesos,gan_pct,
-      semaforo:gan_pct>=60?'🟢':gan_pct>=50?'🟡':'🔴'
+function buildProducts(rows, mlMap) {
+  return rows.map((row, idx) => {
+    const ml = mlMap[row.mla] || {};
+    const precio_ml_real = ml.precio_ml_real || 0;
+    const stock = ml.stock || 0;
+    const status = ml.status || 'paused';
+    const thumbnail = ml.thumbnail || '';
+    const costo = row.precio_asia * (1 - (V.descuentos[row.descuento] || 0));
+    const precio_ml_calc = row.precio_sheets > 0 ? row.precio_sheets : calcPrecioML(costo, row.margen, row.tipo);
+    const gan_pesos = precio_ml_real > 0 ? calcGanReal(precio_ml_real, costo, row.tipo) : calcGanReal(precio_ml_calc, costo, row.tipo);
+    const gan_pct = costo > 0 ? Math.round((gan_pesos / costo) * 1000) / 10 : 0;
+    return {
+      id: idx, mla: row.mla, sku: row.sku, name: row.name,
+      status, stock, tipo: row.tipo, descuento: row.descuento,
+      precio_asia: row.precio_asia, margen: row.margen, costo, thumbnail,
+      precio_ml_calc, precio_ml_real, gan_pesos, gan_pct,
+      semaforo: gan_pct >= 60 ? '🟢' : gan_pct >= 50 ? '🟡' : '🔴'
     };
   });
 }
 
-let accessToken=localStorage.getItem('ml_token')||null;
-let mlUserId=localStorage.getItem('ml_user_id')||null;
-let products=[],filtered=[],currentFilter='all',currentPage=1;
-const PAGE=30;
+let accessToken = localStorage.getItem('ml_token') || null;
+let mlUserId = localStorage.getItem('ml_user_id') || null;
+let products = [], filtered = [], currentFilter = 'all', currentPage = 1;
+const PAGE = 30;
 let toastTimer;
+let ssItems = [], ssSortMode = 'recent', ssLoaded = false;
+// Map MLA → datos de Sheet para cruzar en sin-stock
+let sheetsByMla = {};
 
-async function initApp(){
-  document.getElementById('loginScreen').style.display='none';
-  document.getElementById('app').style.display='block';
-  document.getElementById('panelContent').style.display='none';
-  showLoading('Iniciando...',0);
-  try{
-    const user=await mlFetch('/users/me');
-    document.getElementById('userName').textContent=user.nickname||'ML';
-    showLoading('Leyendo Google Sheets...',5);
-    const rows=await loadFromSheets();
-    showLoading(`${rows.length} productos en Sheets — consultando ML...`,48);
-    const mlMap=await fetchMLData(rows);
-    products=buildProducts(rows,mlMap);
-    setProgress(100);hideLoading();doFilter();
-    showToast(`✅ ${products.length} publicaciones listas`,'success');
-  }catch(e){hideLoading();showToast('❌ '+e.message,'error');console.error(e);}
+async function initApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('panelContent').style.display = 'none';
+  showLoading('Iniciando...', 0);
+  try {
+    const user = await mlFetch('/users/me');
+    document.getElementById('userName').textContent = user.nickname || 'ML';
+    showLoading('Leyendo Google Sheets...', 5);
+    const rows = await loadFromSheets();
+    // Guardar mapa por MLA para usar en sin-stock
+    sheetsByMla = {};
+    rows.forEach(r => { sheetsByMla[r.mla] = r; });
+    showLoading(`${rows.length} productos en Sheets — consultando ML...`, 48);
+    const mlMap = await fetchMLData(rows);
+    products = buildProducts(rows, mlMap);
+    setProgress(100); hideLoading(); doFilter();
+    showToast(`✅ ${products.length} publicaciones listas`, 'success');
+    // Actualizar contador sin stock en header
+    updateSsCounter();
+  } catch(e) { hideLoading(); showToast('❌ ' + e.message, 'error'); console.error(e); }
 }
 
-async function reloadApp(){
-  document.getElementById('panelContent').style.display='none';
-  showLoading('Recargando Sheets...',0);
-  try{
-    const rows=await loadFromSheets();
-    showLoading(`${rows.length} productos — actualizando ML...`,48);
-    const mlMap=await fetchMLData(rows);
-    products=buildProducts(rows,mlMap);
-    setProgress(100);hideLoading();doFilter();
-    showToast(`✅ Recargado — ${products.length} productos`,'success');
-  }catch(e){hideLoading();showToast('❌ '+e.message,'error');}
+async function reloadApp() {
+  document.getElementById('panelContent').style.display = 'none';
+  showLoading('Recargando Sheets...', 0);
+  try {
+    const rows = await loadFromSheets();
+    sheetsByMla = {};
+    rows.forEach(r => { sheetsByMla[r.mla] = r; });
+    showLoading(`${rows.length} productos — actualizando ML...`, 48);
+    const mlMap = await fetchMLData(rows);
+    products = buildProducts(rows, mlMap);
+    setProgress(100); hideLoading(); doFilter();
+    ssLoaded = false; // forzar recarga sin stock
+    updateSsCounter();
+    showToast(`✅ Recargado — ${products.length} productos`, 'success');
+  } catch(e) { hideLoading(); showToast('❌ ' + e.message, 'error'); }
 }
 
-async function updateDiffPrices(){
-  const toUpdate=products.filter(p=>hasDiff(p));
-  if(!toUpdate.length){showToast('✅ Todos los precios están al día','success');return;}
-  const modal=document.getElementById('updateModal');
+async function updateDiffPrices() {
+  const toUpdate = products.filter(p => hasDiff(p));
+  if (!toUpdate.length) { showToast('✅ Todos los precios están al día', 'success'); return; }
+  const modal = document.getElementById('updateModal');
   modal.classList.add('show');
-  const btn=document.getElementById('btnUpdate');
-  btn.disabled=true;btn.classList.add('loading');
-  let ok=0,errors=0;
-  for(let i=0;i<toUpdate.length;i++){
-    const p=toUpdate[i];
-    const pct=((i+1)/toUpdate.length)*100;
-    document.getElementById('modalBar').style.width=pct+'%';
-    document.getElementById('modalSub').textContent=`Actualizando: ${p.name.slice(0,40)}...`;
-    document.getElementById('modalCount').textContent=`${i+1} / ${toUpdate.length}`;
-    try{
-      await mlPut(`/items/${p.mla}`,{price:p.precio_ml_calc});
-      p.precio_ml_real=p.precio_ml_calc;ok++;
-    }catch(e){errors++;console.error(p.mla,e);}
-    await new Promise(r=>setTimeout(r,80));
+  const btn = document.getElementById('btnUpdate');
+  btn.disabled = true; btn.classList.add('loading');
+  let ok = 0, errors = 0;
+  for (let i = 0; i < toUpdate.length; i++) {
+    const p = toUpdate[i];
+    const pct = ((i + 1) / toUpdate.length) * 100;
+    document.getElementById('modalBar').style.width = pct + '%';
+    document.getElementById('modalSub').textContent = `Actualizando: ${p.name.slice(0, 40)}...`;
+    document.getElementById('modalCount').textContent = `${i + 1} / ${toUpdate.length}`;
+    try { await mlPut(`/items/${p.mla}`, { price: p.precio_ml_calc }); p.precio_ml_real = p.precio_ml_calc; ok++; }
+    catch(e) { errors++; console.error(p.mla, e); }
+    await new Promise(r => setTimeout(r, 80));
   }
   modal.classList.remove('show');
   btn.classList.remove('loading');
   doFilter();
-  if(errors===0) showToast(`✅ ${ok} precios actualizados en ML`,'success');
-  else showToast(`⚠️ ${ok} OK · ${errors} errores`,'error');
-  btn.disabled=products.filter(p=>hasDiff(p)).length===0;
+  if (errors === 0) showToast(`✅ ${ok} precios actualizados en ML`, 'success');
+  else showToast(`⚠️ ${ok} OK · ${errors} errores`, 'error');
+  btn.disabled = products.filter(p => hasDiff(p)).length === 0;
 }
 
-function showLoading(msg,pct){
-  document.getElementById('loadingMsg').textContent=msg;
-  document.getElementById('loadingScreen').style.display='flex';
-  document.getElementById('panelContent').style.display='none';
-  if(pct!==undefined)setProgress(pct);
+function showLoading(msg, pct) {
+  document.getElementById('loadingMsg').textContent = msg;
+  document.getElementById('loadingScreen').style.display = 'flex';
+  document.getElementById('panelContent').style.display = 'none';
+  if (pct !== undefined) setProgress(pct);
 }
-function setProgress(pct){document.getElementById('loadBar').style.width=pct+'%';}
-function hideLoading(){document.getElementById('loadingScreen').style.display='none';document.getElementById('panelContent').style.display='block';}
+function setProgress(pct) { document.getElementById('loadBar').style.width = pct + '%'; }
+function hideLoading() { document.getElementById('loadingScreen').style.display = 'none'; document.getElementById('panelContent').style.display = 'block'; }
 
-function doFilter(){
-  const q=document.getElementById('searchInput').value.toLowerCase();
-  filtered=products.filter(p=>{
-    const mq=!q||p.name.toLowerCase().includes(q)||p.mla.toLowerCase().includes(q)||p.sku.toLowerCase().includes(q);
-    const mf=currentFilter==='all'?true
-      :currentFilter==='active'?p.status==='active'
-      :currentFilter==='paused'?p.status==='paused'
-      :currentFilter==='diff'?hasDiff(p)
-      :currentFilter==='verde'?p.semaforo==='🟢'
-      :currentFilter==='amarillo'?p.semaforo==='🟡'
-      :currentFilter==='rojo'?p.semaforo==='🔴'
-      :currentFilter==='full'?p.tipo==='FULL'
-      :currentFilter==='nofull'?p.tipo==='NO FULL':true;
-    return mq&&mf;
+function doFilter() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  filtered = products.filter(p => {
+    const mq = !q || p.name.toLowerCase().includes(q) || p.mla.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
+    const mf = currentFilter === 'all' ? true
+      : currentFilter === 'active' ? p.status === 'active'
+      : currentFilter === 'paused' ? p.status === 'paused'
+      : currentFilter === 'diff' ? hasDiff(p)
+      : currentFilter === 'verde' ? p.semaforo === '🟢'
+      : currentFilter === 'amarillo' ? p.semaforo === '🟡'
+      : currentFilter === 'rojo' ? p.semaforo === '🔴'
+      : currentFilter === 'full' ? p.tipo === 'FULL'
+      : currentFilter === 'nofull' ? p.tipo === 'NO FULL' : true;
+    return mq && mf;
   });
-  currentPage=1;renderTable();renderStats();
+  currentPage = 1; renderTable(); renderStats();
 }
-function setFilter(f,btn){currentFilter=f;document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');doFilter();}
+function setFilter(f, btn) { currentFilter = f; document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); doFilter(); }
 
-function renderStats(){
-  const diffCount=products.filter(p=>hasDiff(p)).length;
-  document.getElementById('sTotal').textContent=products.length;
-  document.getElementById('sActivas').textContent=products.filter(p=>p.status==='active').length;
-  document.getElementById('sPausadas').textContent=products.filter(p=>p.status==='paused').length;
-  document.getElementById('sVerde').textContent=products.filter(p=>p.semaforo==='🟢').length;
-  document.getElementById('sAmarillo').textContent=products.filter(p=>p.semaforo==='🟡').length;
-  document.getElementById('sRojo').textContent=products.filter(p=>p.semaforo==='🔴').length;
-  document.getElementById('sDiff').textContent=diffCount;
-  document.getElementById('diffCount').textContent=diffCount;
-  const btn=document.getElementById('btnUpdate');
-  btn.disabled=diffCount===0;
+function renderStats() {
+  const sinStockCount = products.filter(p => p.stock === 0 && p.status === 'paused').length;
+  const diffCount = products.filter(p => hasDiff(p)).length;
+  document.getElementById('sTotal').textContent = products.length;
+  document.getElementById('sActivas').textContent = products.filter(p => p.status === 'active').length;
+  document.getElementById('sPausadas').textContent = products.filter(p => p.status === 'paused').length;
+  document.getElementById('sSinStock').textContent = sinStockCount;
+  document.getElementById('sVerde').textContent = products.filter(p => p.semaforo === '🟢').length;
+  document.getElementById('sAmarillo').textContent = products.filter(p => p.semaforo === '🟡').length;
+  document.getElementById('sRojo').textContent = products.filter(p => p.semaforo === '🔴').length;
+  document.getElementById('sDiff').textContent = diffCount;
+  document.getElementById('diffCount').textContent = diffCount;
+  const btn = document.getElementById('btnUpdate');
+  btn.disabled = diffCount === 0;
 }
 
-function renderTable(){
-  const tbody=document.getElementById('tbody');const empty=document.getElementById('empty');
-  const start=(currentPage-1)*PAGE;const page=filtered.slice(start,start+PAGE);
-  if(!filtered.length){tbody.innerHTML='';empty.style.display='block';document.getElementById('pInfo').textContent='';document.getElementById('pBtns').innerHTML='';return;}
-  empty.style.display='none';
-  tbody.innerHTML=page.map(p=>{
-    const sc=scClass(p.stock||0);
-    const diff=hasDiff(p);
-    const priceCell=diff
-      ?`<span class="price-calc">${fmt(p.precio_ml_calc)}</span> <span class="diff-arrow">→</span> <span class="price-real diff">${fmt(p.precio_ml_real)}</span>`
-      :`<span class="price-calc">${fmt(p.precio_ml_calc)}</span> <span class="price-real">${p.precio_ml_real>0?fmt(p.precio_ml_real):'—'}</span>`;
-    return`<tr id="row-${p.id}" class="${diff?'has-diff':''}">
-      <td>${p.thumbnail?`<img class="prod-thumb" src="${p.thumbnail}" alt="" loading="lazy">`:`<div class="prod-thumb-placeholder">□</div>`}</td>
+function updateSsCounter() {
+  const count = products.filter(p => p.stock === 0 && p.status === 'paused').length;
+  const el = document.getElementById('ssHeaderCount');
+  if (count > 0) { el.textContent = count; el.classList.add('visible'); }
+  else { el.classList.remove('visible'); }
+}
+
+function renderTable() {
+  const tbody = document.getElementById('tbody'); const empty = document.getElementById('empty');
+  const start = (currentPage - 1) * PAGE; const page = filtered.slice(start, start + PAGE);
+  if (!filtered.length) { tbody.innerHTML = ''; empty.style.display = 'block'; document.getElementById('pInfo').textContent = ''; document.getElementById('pBtns').innerHTML = ''; return; }
+  empty.style.display = 'none';
+  tbody.innerHTML = page.map(p => {
+    const sc = scClass(p.stock || 0);
+    const diff = hasDiff(p);
+    const priceCell = diff
+      ? `<span class="price-calc">${fmt(p.precio_ml_calc)}</span> <span class="diff-arrow">→</span> <span class="price-real diff">${fmt(p.precio_ml_real)}</span>`
+      : `<span class="price-calc">${fmt(p.precio_ml_calc)}</span> <span class="price-real">${p.precio_ml_real > 0 ? fmt(p.precio_ml_real) : '—'}</span>`;
+    return `<tr id="row-${p.id}" class="${diff ? 'has-diff' : ''}">
+      <td>${p.thumbnail ? `<img class="prod-thumb" src="${p.thumbnail}" alt="" loading="lazy">` : `<div class="prod-thumb-placeholder">□</div>`}</td>
       <td><span class="mla-code">${p.mla}</span></td>
       <td><span class="sku-code">${p.sku}</span></td>
       <td><div class="product-name" title="${p.name}">${p.name}</div></td>
-      <td><button class="status-badge ${p.status==='active'?'s-active':'s-paused'}" onclick="toggleStatus(${p.id})" id="st-${p.id}"><span class="s-dot"></span>${p.status==='active'?'Activa':'Pausada'}</button></td>
+      <td><button class="status-badge ${p.status === 'active' ? 's-active' : 's-paused'}" onclick="toggleStatus(${p.id})" id="st-${p.id}"><span class="s-dot"></span>${p.status === 'active' ? 'Activa' : 'Pausada'}</button></td>
       <td><span class="stock-val ${sc}" onclick="startStockEdit(${p.id})" id="v-stock-${p.id}">${p.stock} u.</span><input class="cell-input ci-stock" type="number" id="i-stock-${p.id}" onblur="saveStock(${p.id})" onkeydown="hkStock(event,${p.id})"><span class="spin-cell" id="sp-stock-${p.id}"></span></td>
       <td><span style="font-size:10px;color:var(--${p.descuento==='I'?'blue':p.descuento==='N'?'green':'muted'})">${p.descuento} ${p.descuento==='I'?'25%':p.descuento==='N'?'20%':'0%'}</span></td>
       <td><span style="font-size:10px;color:var(--${p.tipo==='FULL'?'accent':'muted'})">${p.tipo}</span></td>
-      <td><span style="font-size:11px;color:var(--text)">${fmt(p.precio_asia||0)}</span></td>
-      <td><span style="font-size:11px;color:var(--muted)">${fmt(p.costo||0)}</span></td>
-      <td><span style="font-size:11px;color:var(--blue)">${fmtP(p.margen*100)}</span></td>
+      <td><span style="font-size:11px;color:var(--text)">${fmt(p.precio_asia || 0)}</span></td>
+      <td><span style="font-size:11px;color:var(--muted)">${fmt(p.costo || 0)}</span></td>
+      <td><span style="font-size:11px;color:var(--blue)">${fmtP(p.margen * 100)}</span></td>
       <td>${priceCell}</td>
       <td><span style="font-size:11px;color:var(--green)">${fmt(p.gan_pesos)}</span></td>
       <td><span style="font-size:11px;color:var(--green)">${fmtP(p.gan_pct)}</span></td>
       <td><span class="semaforo">${p.semaforo}</span></td>
     </tr>`;
   }).join('');
-  const total=filtered.length,pages=Math.ceil(total/PAGE);
-  document.getElementById('pInfo').textContent=`Mostrando ${start+1}–${Math.min(start+PAGE,total)} de ${total} productos`;
-  let btns=`<button class="page-btn" onclick="goPage(${currentPage-1})" ${currentPage===1?'disabled':''}>←</button>`;
-  for(let i=Math.max(1,currentPage-3);i<=Math.min(pages,currentPage+3);i++) btns+=`<button class="page-btn ${i===currentPage?'active':''}" onclick="goPage(${i})">${i}</button>`;
-  btns+=`<button class="page-btn" onclick="goPage(${currentPage+1})" ${currentPage===pages?'disabled':''}>→</button>`;
-  document.getElementById('pBtns').innerHTML=btns;
+  const total = filtered.length, pages = Math.ceil(total / PAGE);
+  document.getElementById('pInfo').textContent = `Mostrando ${start + 1}–${Math.min(start + PAGE, total)} de ${total} productos`;
+  let btns = `<button class="page-btn" onclick="goPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>←</button>`;
+  for (let i = Math.max(1, currentPage - 3); i <= Math.min(pages, currentPage + 3); i++) btns += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="goPage(${i})">${i}</button>`;
+  btns += `<button class="page-btn" onclick="goPage(${currentPage + 1})" ${currentPage === pages ? 'disabled' : ''}>→</button>`;
+  document.getElementById('pBtns').innerHTML = btns;
 }
-function goPage(p){const pages=Math.ceil(filtered.length/PAGE);if(p<1||p>pages)return;currentPage=p;renderTable();}
+function goPage(p) { const pages = Math.ceil(filtered.length / PAGE); if (p < 1 || p > pages) return; currentPage = p; renderTable(); }
 
-function startStockEdit(id){
-  const p=products.find(x=>x.id===id);
-  document.getElementById(`v-stock-${id}`).style.display='none';
-  const inp=document.getElementById(`i-stock-${id}`);
-  inp.style.display='inline-block';inp.value=p.stock;inp.focus();inp.select();
+function startStockEdit(id) {
+  const p = products.find(x => x.id === id);
+  document.getElementById(`v-stock-${id}`).style.display = 'none';
+  const inp = document.getElementById(`i-stock-${id}`);
+  inp.style.display = 'inline-block'; inp.value = p.stock; inp.focus(); inp.select();
 }
-function hkStock(e,id){if(e.key==='Enter')saveStock(id);if(e.key==='Escape'){document.getElementById(`v-stock-${id}`).style.display='inline-block';document.getElementById(`i-stock-${id}`).style.display='none';}}
-async function saveStock(id){
-  const p=products.find(x=>x.id===id);
-  const inp=document.getElementById(`i-stock-${id}`);
-  const sp=document.getElementById(`sp-stock-${id}`);
-  const v=document.getElementById(`v-stock-${id}`);
-  const newVal=parseInt(inp.value);
-  if(isNaN(newVal)||newVal<0){v.style.display='inline-block';inp.style.display='none';return;}
-  inp.style.display='none';sp.style.display='inline-block';v.style.display='inline-block';
-  try{
-    await mlPut(`/items/${p.mla}`,{available_quantity:newVal});
-    p.stock=newVal;v.textContent=`${newVal} u.`;v.className=`stock-val ${scClass(newVal)}`;
-    showToast('📦 Stock actualizado en ML','success');
-  }catch(e){showToast('❌ '+e.message,'error');}
-  sp.style.display='none';
-}
-
-async function toggleStatus(id){
-  const p=products.find(x=>x.id===id);const btn=document.getElementById(`st-${id}`);
-  btn.style.opacity='.5';const ns=p.status==='active'?'paused':'active';
-  try{
-    await mlPut(`/items/${p.mla}`,{status:ns});p.status=ns;
-    btn.className=`status-badge ${ns==='active'?'s-active':'s-paused'}`;
-    btn.innerHTML=`<span class="s-dot"></span>${ns==='active'?'Activa':'Pausada'}`;
-    renderStats();showToast(ns==='active'?'✅ Activada en ML':'⏸️ Pausada en ML','success');
-  }catch(e){showToast('❌ '+e.message,'error');}
-  btn.style.opacity='1';
+function hkStock(e, id) { if (e.key === 'Enter') saveStock(id); if (e.key === 'Escape') { document.getElementById(`v-stock-${id}`).style.display = 'inline-block'; document.getElementById(`i-stock-${id}`).style.display = 'none'; } }
+async function saveStock(id) {
+  const p = products.find(x => x.id === id);
+  const inp = document.getElementById(`i-stock-${id}`);
+  const sp = document.getElementById(`sp-stock-${id}`);
+  const v = document.getElementById(`v-stock-${id}`);
+  const newVal = parseInt(inp.value);
+  if (isNaN(newVal) || newVal < 0) { v.style.display = 'inline-block'; inp.style.display = 'none'; return; }
+  inp.style.display = 'none'; sp.style.display = 'inline-block'; v.style.display = 'inline-block';
+  try {
+    await mlPut(`/items/${p.mla}`, { available_quantity: newVal });
+    p.stock = newVal; v.textContent = `${newVal} u.`; v.className = `stock-val ${scClass(newVal)}`;
+    showToast('📦 Stock actualizado en ML', 'success');
+  } catch(e) { showToast('❌ ' + e.message, 'error'); }
+  sp.style.display = 'none';
 }
 
-function showToast(msg,type='success'){
-  const t=document.getElementById('toast');document.getElementById('tMsg').textContent=msg;
-  t.className=`show t-${type}`;clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>{t.className='';},4000);
+async function toggleStatus(id) {
+  const p = products.find(x => x.id === id); const btn = document.getElementById(`st-${id}`);
+  btn.style.opacity = '.5'; const ns = p.status === 'active' ? 'paused' : 'active';
+  try {
+    await mlPut(`/items/${p.mla}`, { status: ns }); p.status = ns;
+    btn.className = `status-badge ${ns === 'active' ? 's-active' : 's-paused'}`;
+    btn.innerHTML = `<span class="s-dot"></span>${ns === 'active' ? 'Activa' : 'Pausada'}`;
+    renderStats(); showToast(ns === 'active' ? '✅ Activada en ML' : '⏸️ Pausada en ML', 'success');
+  } catch(e) { showToast('❌ ' + e.message, 'error'); }
+  btn.style.opacity = '1';
 }
 
-(function boot(){
-  const params=new URLSearchParams(window.location.search);
-  const code=params.get('code');
-  if(code){document.getElementById('loginScreen').style.display='none';handleCallback(code);}
-  else if(accessToken){document.getElementById('loginScreen').style.display='none';initApp();}
-  else{document.getElementById('loginScreen').style.display='flex';}
+// ════════════════════════════════════════════════
+// SIN STOCK — LÓGICA COMPLETA
+// ════════════════════════════════════════════════
+
+function openSinStock() {
+  document.getElementById('sinStockPanel').classList.add('open');
+  if (!ssLoaded) loadSinStock();
+}
+function closeSinStock() {
+  document.getElementById('sinStockPanel').classList.remove('open');
+}
+// Cerrar con Escape
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSinStock(); });
+// Cerrar al clickear overlay
+document.getElementById('sinStockPanel').addEventListener('click', function(e) {
+  if (e.target === this) closeSinStock();
+});
+
+function setSsSort(mode, btn) {
+  ssSortMode = mode;
+  document.querySelectorAll('.ss-sort-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderSsList();
+}
+
+async function loadSinStock() {
+  // Reset UI
+  document.getElementById('ssLoading').style.display = 'flex';
+  document.getElementById('ssList').style.display = 'none';
+  document.getElementById('ssEmpty').style.display = 'none';
+  document.getElementById('ssBadge').textContent = '...';
+  document.getElementById('ssFooterInfo').textContent = 'Cargando...';
+
+  try {
+    // Traer TODOS los items pausados de la cuenta en lotes
+    let allPaused = [];
+    let offset = 0;
+    const limit = 50;
+    
+    while (true) {
+      const res = await mlFetch(`/users/${mlUserId}/items/search?status=paused&limit=${limit}&offset=${offset}&sort=last_updated_desc`);
+      if (!res.results || res.results.length === 0) break;
+      allPaused = allPaused.concat(res.results);
+      if (allPaused.length >= res.paging.total || res.results.length < limit) break;
+      offset += limit;
+      // Máximo 500 para no abusar
+      if (allPaused.length >= 500) break;
+    }
+
+    if (allPaused.length === 0) {
+      ssItems = [];
+      ssLoaded = true;
+      renderSsList();
+      return;
+    }
+
+    // Traer detalles en lotes de 20 con stock + last_updated
+    let detailMap = {};
+    for (let i = 0; i < allPaused.length; i += 20) {
+      const batch = allPaused.slice(i, i + 20).join(',');
+      try {
+        const items = await mlFetch(`/items?ids=${batch}&attributes=id,title,price,available_quantity,status,thumbnail,last_updated,sub_status`);
+        items.forEach(it => {
+          if (it.code === 200) {
+            const b = it.body;
+            // Solo los que están pausados por stock 0 (sub_status out_of_stock o stock = 0)
+            const isOutOfStock = b.available_quantity === 0 || (b.sub_status && b.sub_status.includes('out_of_stock'));
+            if (b.status === 'paused' && isOutOfStock) {
+              detailMap[b.id] = {
+                mla: b.id,
+                title: b.title,
+                price: b.price,
+                stock: b.available_quantity,
+                thumbnail: b.thumbnail,
+                last_updated: b.last_updated,
+              };
+            }
+          }
+        });
+      } catch(e) { console.error('ss batch', e); }
+    }
+
+    // Cruzar con datos de Sheet para tener costo y margen
+    ssItems = Object.values(detailMap).map(item => {
+      const sheet = sheetsByMla[item.mla];
+      let costo = 0, precio_calc = item.price, gan_pct = null, tipo = '—';
+      if (sheet) {
+        costo = sheet.precio_asia * (1 - (V.descuentos[sheet.descuento] || 0));
+        tipo = sheet.tipo;
+        precio_calc = sheet.precio_sheets > 0 ? sheet.precio_sheets : calcPrecioML(costo, sheet.margen, sheet.tipo);
+        gan_pct = calcGanPct(precio_calc, costo, sheet.tipo);
+      }
+      return { ...item, costo, precio_calc, gan_pct, tipo, sheet };
+    });
+
+    ssLoaded = true;
+    renderSsList();
+
+    // Actualizar contador en header y stats
+    const el = document.getElementById('ssHeaderCount');
+    if (ssItems.length > 0) { el.textContent = ssItems.length; el.classList.add('visible'); }
+    else el.classList.remove('visible');
+
+    const now = new Date();
+    document.getElementById('ssLastUpdate').textContent = `Actualizado ${now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}`;
+
+  } catch(e) {
+    document.getElementById('ssLoading').style.display = 'none';
+    document.getElementById('ssList').style.display = 'none';
+    showToast('❌ Error cargando sin stock: ' + e.message, 'error');
+    console.error(e);
+  }
+}
+
+function sortSsItems(items) {
+  const sorted = [...items];
+  if (ssSortMode === 'recent') {
+    sorted.sort((a, b) => new Date(b.last_updated) - new Date(a.last_updated));
+  } else if (ssSortMode === 'name') {
+    sorted.sort((a, b) => a.title.localeCompare(b.title));
+  } else if (ssSortMode === 'margin') {
+    sorted.sort((a, b) => (b.gan_pct || 0) - (a.gan_pct || 0));
+  }
+  return sorted;
+}
+
+function renderSsList() {
+  document.getElementById('ssLoading').style.display = 'none';
+  const list = document.getElementById('ssList');
+  const empty = document.getElementById('ssEmpty');
+
+  if (!ssItems.length) {
+    list.style.display = 'none';
+    empty.style.display = 'block';
+    document.getElementById('ssBadge').textContent = '0 productos';
+    document.getElementById('ssFooterInfo').textContent = 'Sin productos pausados por stock 0';
+    return;
+  }
+
+  const sorted = sortSsItems(ssItems);
+  document.getElementById('ssBadge').textContent = `${ssItems.length} producto${ssItems.length !== 1 ? 's' : ''}`;
+  document.getElementById('ssFooterInfo').textContent = `${ssItems.length} publicaciones pausadas por stock 0 · ordenadas por ${ssSortMode === 'recent' ? 'más recientes' : ssSortMode === 'name' ? 'nombre' : 'margen'}`;
+
+  list.innerHTML = sorted.map((item, idx) => {
+    const marginClass = item.gan_pct === null ? '' : item.gan_pct >= 60 ? 'margin' : item.gan_pct >= 50 ? 'margin warn' : 'margin bad';
+    const marginText = item.gan_pct !== null ? fmtP(item.gan_pct) : '—';
+    const priceDiff = item.precio_calc !== item.price;
+
+    return `<div class="ss-card" id="ssc-${item.mla}">
+      ${item.thumbnail
+        ? `<img class="ss-thumb" src="${item.thumbnail}" alt="" loading="lazy">`
+        : `<div class="ss-thumb-ph">□</div>`}
+      <div class="ss-info">
+        <div class="ss-name" title="${item.title}">${item.title}</div>
+        <div class="ss-meta">
+          <span class="ss-mla">${item.mla}</span>
+          <span class="ss-tipo ${item.tipo === 'FULL' ? 'full' : 'nofull'}">${item.tipo}</span>
+          <span class="ss-date">🕐 ${timeAgo(item.last_updated)}</span>
+        </div>
+        <div class="ss-prices">
+          <div class="ss-price-item">
+            <div class="ss-price-label">Precio calc.</div>
+            <div class="ss-price-val calc">${fmt(item.precio_calc)}</div>
+          </div>
+          ${priceDiff ? `
+          <div class="ss-divider"></div>
+          <div class="ss-price-item">
+            <div class="ss-price-label">Publicado</div>
+            <div class="ss-price-val pub">${fmt(item.price)}</div>
+          </div>` : ''}
+          <div class="ss-divider"></div>
+          <div class="ss-price-item">
+            <div class="ss-price-label">Margen</div>
+            <div class="ss-price-val ${marginClass}">${marginText}</div>
+          </div>
+          <div class="ss-divider"></div>
+          <div class="ss-price-item">
+            <div class="ss-price-label">Costo</div>
+            <div class="ss-price-val pub">${item.costo > 0 ? fmt(item.costo) : '—'}</div>
+          </div>
+        </div>
+      </div>
+      <div class="ss-controls">
+        <div class="ss-input-row">
+          <span class="ss-input-label">Precio $</span>
+          <input class="ss-input price-input" type="number" id="ss-price-${item.mla}" 
+            value="${Math.round(item.precio_calc)}" inputmode="numeric"
+            onchange="recalcSsMargin('${item.mla}')">
+        </div>
+        <div class="ss-input-row">
+          <span class="ss-input-label">Stock</span>
+          <input class="ss-input stock-input" type="number" id="ss-stock-${item.mla}" 
+            value="1" min="1" inputmode="numeric">
+        </div>
+        <button class="ss-btn-reactivar" onclick="reactivarItem('${item.mla}', ${idx})">
+          ✅ Reactivar
+        </button>
+        <span class="ss-reactivated-tag">✅ Reactivado</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  list.style.display = 'flex';
+  empty.style.display = 'none';
+}
+
+function recalcSsMargin(mla) {
+  const item = ssItems.find(i => i.mla === mla);
+  if (!item || !item.sheet) return;
+  const newPrice = parseFloat(document.getElementById(`ss-price-${mla}`).value);
+  if (isNaN(newPrice) || newPrice <= 0) return;
+  const ganPct = calcGanPct(newPrice, item.costo, item.tipo);
+  // Actualizar en el DOM sin re-renderizar todo
+  const card = document.getElementById(`ssc-${mla}`);
+  if (!card) return;
+  const marginEl = card.querySelector('.ss-price-val.margin, .ss-price-val.margin.warn, .ss-price-val.margin.bad');
+  if (marginEl) {
+    const cls = ganPct >= 60 ? 'margin' : ganPct >= 50 ? 'margin warn' : 'margin bad';
+    marginEl.className = `ss-price-val ${cls}`;
+    marginEl.textContent = fmtP(ganPct);
+  }
+}
+
+async function reactivarItem(mla, idx) {
+  const priceInput = document.getElementById(`ss-price-${mla}`);
+  const stockInput = document.getElementById(`ss-stock-${mla}`);
+  const newPrice = parseInt(priceInput.value);
+  const newStock = parseInt(stockInput.value);
+
+  if (isNaN(newPrice) || newPrice <= 0) { showToast('❌ Precio inválido', 'error'); return; }
+  if (isNaN(newStock) || newStock <= 0) { showToast('❌ Stock debe ser ≥ 1', 'error'); return; }
+
+  const card = document.getElementById(`ssc-${mla}`);
+  const btn = card.querySelector('.ss-btn-reactivar');
+  btn.disabled = true; btn.textContent = '⏳ Guardando...';
+  card.classList.add('reactivating');
+
+  try {
+    // 1. Actualizar precio si cambió
+    const item = ssItems.find(i => i.mla === mla);
+    if (Math.abs(newPrice - item.price) >= 1) {
+      await mlPut(`/items/${mla}`, { price: newPrice });
+    }
+    // 2. Actualizar stock (esto lo activa automáticamente si era out_of_stock)
+    await mlPut(`/items/${mla}`, { available_quantity: newStock });
+    // 3. Reactivar explícitamente
+    await mlPut(`/items/${mla}`, { status: 'active' });
+
+    card.classList.remove('reactivating');
+    card.classList.add('reactivated');
+
+    // Remover de la lista interna
+    ssItems = ssItems.filter(i => i.mla !== mla);
+    document.getElementById('ssBadge').textContent = `${ssItems.length} producto${ssItems.length !== 1 ? 's' : ''}`;
+
+    // Actualizar en products también si está cargado
+    const prod = products.find(p => p.mla === mla);
+    if (prod) { prod.stock = newStock; prod.status = 'active'; prod.precio_ml_real = newPrice; renderStats(); updateSsCounter(); }
+
+    showToast(`✅ ${mla} reactivado con stock ${newStock}`, 'success');
+
+    // Animar salida después de 2s
+    setTimeout(() => {
+      card.style.transition = 'opacity .4s, transform .4s';
+      card.style.opacity = '0';
+      card.style.transform = 'translateX(40px)';
+      setTimeout(() => { card.remove(); if (ssItems.length === 0) renderSsList(); }, 400);
+    }, 2000);
+
+  } catch(e) {
+    card.classList.remove('reactivating');
+    btn.disabled = false; btn.textContent = '✅ Reactivar';
+    showToast('❌ ' + e.message, 'error');
+    console.error(e);
+  }
+}
+
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast'); document.getElementById('tMsg').textContent = msg;
+  t.className = `show t-${type}`; clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = ''; }, 4000);
+}
+
+(function boot() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  if (code) { document.getElementById('loginScreen').style.display = 'none'; handleCallback(code); }
+  else if (accessToken) { document.getElementById('loginScreen').style.display = 'none'; initApp(); }
+  else { document.getElementById('loginScreen').style.display = 'flex'; }
 })();
 </script>
 </body>
