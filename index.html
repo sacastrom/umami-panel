@@ -718,7 +718,6 @@ function setSsSort(mode, btn) {
 }
 
 async function loadSinStock() {
-  // Reset UI
   document.getElementById('ssLoading').style.display = 'flex';
   document.getElementById('ssList').style.display = 'none';
   document.getElementById('ssEmpty').style.display = 'none';
@@ -726,41 +725,26 @@ async function loadSinStock() {
   document.getElementById('ssFooterInfo').textContent = 'Cargando...';
 
   try {
-    // Traer TODOS los items pausados de la cuenta en lotes (sin límite)
-    // Pero solo nos interesan los que están en el Sheet — los MLAs conocidos
-    let allPaused = [];
-    let offset = 0;
-    const limit = 50;
-    let totalML = null;
-
-    while (true) {
-      const res = await mlFetch(`/users/${mlUserId}/items/search?status=paused&limit=${limit}&offset=${offset}`);
-      if (!res.results || res.results.length === 0) break;
-      if (totalML === null) totalML = res.paging.total;
-      // Agregar todos los pausados
-      res.results.forEach(mla => allPaused.push(mla));
-      offset += limit;
-      if (offset >= res.paging.total || res.results.length < limit) break;
-    }
-
-    if (allPaused.length === 0) {
+    // Estrategia: consultar directamente los MLAs del Sheet en lotes de 20
+    // y filtrar los que estén pausados con stock 0
+    const mlas = Object.keys(sheetsByMla);
+    if (!mlas.length) {
       ssItems = [];
       ssLoaded = true;
       renderSsList();
       return;
     }
 
-    // Traer detalles en lotes de 20 con stock + last_updated
-    let detailMap = {};
-    for (let i = 0; i < allPaused.length; i += 20) {
-      const batch = allPaused.slice(i, i + 20).join(',');
+    const detailMap = {};
+    for (let i = 0; i < mlas.length; i += 20) {
+      const batch = mlas.slice(i, i + 20).join(',');
       try {
         const items = await mlFetch(`/items?ids=${batch}&attributes=id,title,price,available_quantity,status,thumbnail,last_updated,sub_status`);
         items.forEach(it => {
           if (it.code === 200) {
             const b = it.body;
-            // Solo los que están pausados por stock 0 (sub_status out_of_stock o stock = 0)
-            const isOutOfStock = b.available_quantity === 0 || b.available_quantity === null || (b.sub_status && (b.sub_status.includes('out_of_stock') || b.sub_status.includes('deleted')));
+            const isOutOfStock = b.available_quantity === 0 || b.available_quantity === null ||
+              (b.sub_status && (b.sub_status.includes('out_of_stock') || b.sub_status.includes('deleted')));
             if (b.status === 'paused' && isOutOfStock) {
               detailMap[b.id] = {
                 mla: b.id,
@@ -776,7 +760,7 @@ async function loadSinStock() {
       } catch(e) { console.error('ss batch', e); }
     }
 
-    // Cruzar con datos de Sheet — si no está en Sheet igual se muestra
+    // Cruzar con datos de Sheet — todos tienen Sheet porque consultamos desde el Sheet
     ssItems = Object.values(detailMap).map(item => {
       const sheet = sheetsByMla[item.mla];
       let costo = 0, precio_calc = item.price, gan_pct = null, tipo = '—';
@@ -793,7 +777,6 @@ async function loadSinStock() {
     ssLoaded = true;
     renderSsList();
 
-    // Actualizar contador en header y stats
     const el = document.getElementById('ssHeaderCount');
     if (ssItems.length > 0) { el.textContent = ssItems.length; el.classList.add('visible'); }
     else el.classList.remove('visible');
@@ -803,7 +786,6 @@ async function loadSinStock() {
 
   } catch(e) {
     document.getElementById('ssLoading').style.display = 'none';
-    document.getElementById('ssList').style.display = 'none';
     showToast('❌ Error cargando sin stock: ' + e.message, 'error');
     console.error(e);
   }
