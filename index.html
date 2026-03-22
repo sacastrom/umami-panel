@@ -728,20 +728,19 @@ async function loadSinStock() {
   try {
     // Traer TODOS los items pausados de la cuenta en lotes (sin límite)
     // Pero solo nos interesan los que están en el Sheet — los MLAs conocidos
-    const mlaEnSheet = new Set(Object.keys(sheetsByMla));
     let allPaused = [];
     let offset = 0;
     const limit = 50;
     let totalML = null;
 
     while (true) {
-      const res = await mlFetch(`/users/${mlUserId}/items/search?status=paused&limit=${limit}&offset=${offset}&sort=last_updated_desc`);
+      const res = await mlFetch(`/users/${mlUserId}/items/search?status=paused&limit=${limit}&offset=${offset}`);
       if (!res.results || res.results.length === 0) break;
       if (totalML === null) totalML = res.paging.total;
-      // Agregar solo los que están en el Sheet
-      res.results.forEach(mla => { if (mlaEnSheet.has(mla)) allPaused.push(mla); });
-      if (offset + limit >= res.paging.total || res.results.length < limit) break;
+      // Agregar todos los pausados
+      res.results.forEach(mla => allPaused.push(mla));
       offset += limit;
+      if (offset >= res.paging.total || res.results.length < limit) break;
     }
 
     if (allPaused.length === 0) {
@@ -761,7 +760,7 @@ async function loadSinStock() {
           if (it.code === 200) {
             const b = it.body;
             // Solo los que están pausados por stock 0 (sub_status out_of_stock o stock = 0)
-            const isOutOfStock = b.available_quantity === 0 || (b.sub_status && b.sub_status.includes('out_of_stock'));
+            const isOutOfStock = b.available_quantity === 0 || b.available_quantity === null || (b.sub_status && (b.sub_status.includes('out_of_stock') || b.sub_status.includes('deleted')));
             if (b.status === 'paused' && isOutOfStock) {
               detailMap[b.id] = {
                 mla: b.id,
@@ -777,17 +776,18 @@ async function loadSinStock() {
       } catch(e) { console.error('ss batch', e); }
     }
 
-    // Cruzar con datos de Sheet para tener costo y margen
+    // Cruzar con datos de Sheet — si no está en Sheet igual se muestra
     ssItems = Object.values(detailMap).map(item => {
       const sheet = sheetsByMla[item.mla];
       let costo = 0, precio_calc = item.price, gan_pct = null, tipo = '—';
+      const sinSheet = !sheet;
       if (sheet) {
         costo = sheet.precio_asia * (1 - (V.descuentos[sheet.descuento] || 0));
         tipo = sheet.tipo;
         precio_calc = sheet.precio_sheets > 0 ? sheet.precio_sheets : calcPrecioML(costo, sheet.margen, sheet.tipo);
         gan_pct = calcGanPct(precio_calc, costo, sheet.tipo);
       }
-      return { ...item, costo, precio_calc, gan_pct, tipo, sheet };
+      return { ...item, costo, precio_calc, gan_pct, tipo, sheet, sinSheet };
     });
 
     ssLoaded = true;
@@ -853,18 +853,20 @@ function renderSsList() {
           <span class="ss-mla">${item.mla}</span>
           <span class="ss-tipo ${item.tipo === 'FULL' ? 'full' : 'nofull'}">${item.tipo}</span>
           <span class="ss-date">🕐 ${timeAgo(item.last_updated)}</span>
+          ${item.sinSheet ? '<span style="font-size:9px;padding:1px 6px;border-radius:10px;background:rgba(107,107,138,.15);color:var(--muted);border:1px solid var(--border);">⚠️ Sin datos en Sheet</span>' : ''}
         </div>
         <div class="ss-prices">
           <div class="ss-price-item">
-            <div class="ss-price-label">Precio calc.</div>
-            <div class="ss-price-val calc">${fmt(item.precio_calc)}</div>
+            <div class="ss-price-label">${item.sinSheet ? 'Precio ML' : 'Precio calc.'}</div>
+            <div class="ss-price-val ${item.sinSheet ? 'pub' : 'calc'}">${fmt(item.precio_calc)}</div>
           </div>
-          ${priceDiff ? `
+          ${!item.sinSheet && priceDiff ? `
           <div class="ss-divider"></div>
           <div class="ss-price-item">
             <div class="ss-price-label">Publicado</div>
             <div class="ss-price-val pub">${fmt(item.price)}</div>
           </div>` : ''}
+          ${!item.sinSheet ? `
           <div class="ss-divider"></div>
           <div class="ss-price-item">
             <div class="ss-price-label">Margen</div>
@@ -879,7 +881,7 @@ function renderSsList() {
           <div class="ss-price-item">
             <div class="ss-price-label">Costo</div>
             <div class="ss-price-val pub">${item.costo > 0 ? fmt(item.costo) : '—'}</div>
-          </div>
+          </div>` : ''}
         </div>
       </div>
       <div class="ss-controls">
