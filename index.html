@@ -296,15 +296,10 @@
       <button class="ss-close" onclick="closeSinStock()">✕</button>
     </div>
     <div class="ss-subheader">
-      <span class="ss-sort-label">Período:</span>
-      <button class="ss-sort-btn active" onclick="setSsPeriod(7,this)">Últ. 7 días</button>
-      <button class="ss-sort-btn" onclick="setSsPeriod(30,this)">Últ. 30 días</button>
-      <button class="ss-sort-btn" onclick="setSsPeriod(0,this)">Todos</button>
-      <span style="width:1px;height:16px;background:var(--border);margin:0 4px;"></span>
-      <span class="ss-sort-label">Ordenar:</span>
-      <button class="ss-sort-btn active" id="ssSort-recent" onclick="setSsSort('recent',this)">🕐 Recientes</button>
-      <button class="ss-sort-btn" id="ssSort-name" onclick="setSsSort('name',this)">A–Z</button>
-      <button class="ss-sort-btn" id="ssSort-margin" onclick="setSsSort('margin',this)">📈 Margen</button>
+      <span class="ss-sort-label">Ordenar por:</span>
+      <button class="ss-sort-btn active" onclick="setSsSort('recent',this)">🕐 Más recientes</button>
+      <button class="ss-sort-btn" onclick="setSsSort('name',this)">A–Z Nombre</button>
+      <button class="ss-sort-btn" onclick="setSsSort('margin',this)">📈 Mayor margen</button>
       <span style="margin-left:auto;font-size:10px;" id="ssLastUpdate"></span>
     </div>
     <div class="ss-body" id="ssBody">
@@ -503,7 +498,7 @@ let mlUserId = localStorage.getItem('ml_user_id') || null;
 let products = [], filtered = [], currentFilter = 'all', currentPage = 1;
 const PAGE = 30;
 let toastTimer;
-let ssItems = [], ssAllItems = [], ssSortMode = 'recent', ssPeriodDays = 7, ssLoaded = false;
+let ssItems = [], ssSortMode = 'recent', ssLoaded = false;
 // Map MLA → datos de Sheet para cruzar en sin-stock
 let sheetsByMla = {};
 
@@ -715,23 +710,6 @@ document.getElementById('sinStockPanel').addEventListener('click', function(e) {
   if (e.target === this) closeSinStock();
 });
 
-function setSsPeriod(days, btn) {
-  ssPeriodDays = days;
-  document.querySelectorAll('.ss-subheader .ss-sort-btn').forEach(b => {
-    if (b.textContent.includes('día') || b.textContent.includes('Todos')) b.classList.remove('active');
-  });
-  btn.classList.add('active');
-  // Filtrar ssItems desde ssAllItems según período
-  if (days === 0) {
-    ssItems = [...ssAllItems];
-  } else {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - days);
-    ssItems = ssAllItems.filter(i => !i.last_updated || new Date(i.last_updated) >= cutoff);
-  }
-  renderSsList();
-}
-
 function setSsSort(mode, btn) {
   ssSortMode = mode;
   document.querySelectorAll('.ss-sort-btn').forEach(b => b.classList.remove('active'));
@@ -812,12 +790,7 @@ async function loadSinStock() {
       return { ...item, costo, precio_calc, gan_pct, tipo, sheet, sinSheet };
     });
 
-    ssAllItems = [...ssItems];
     ssLoaded = true;
-    // Aplicar filtro de período inicial (7 días)
-    const cutoff7 = new Date();
-    cutoff7.setDate(cutoff7.getDate() - 7);
-    ssItems = ssAllItems.filter(i => !i.last_updated || new Date(i.last_updated) >= cutoff7);
     renderSsList();
 
     // Actualizar contador en header y stats
@@ -863,8 +836,7 @@ function renderSsList() {
 
   const sorted = sortSsItems(ssItems);
   document.getElementById('ssBadge').textContent = `${ssItems.length} producto${ssItems.length !== 1 ? 's' : ''}`;
-  const periodoLabel = ssPeriodDays === 7 ? 'últimos 7 días' : ssPeriodDays === 30 ? 'últimos 30 días' : 'todos los períodos';
-  document.getElementById('ssFooterInfo').textContent = `${ssItems.length} de ${ssAllItems.length} pausadas por stock 0 · ${periodoLabel} · por ${ssSortMode === 'recent' ? 'más recientes' : ssSortMode === 'name' ? 'nombre' : 'margen'}`;
+    document.getElementById('ssFooterInfo').textContent = `${ssItems.length} publicaciones pausadas por stock 0 · ordenadas por ${ssSortMode === 'recent' ? 'más recientes' : ssSortMode === 'name' ? 'nombre' : 'margen'}`;
 
   list.innerHTML = sorted.map((item, idx) => {
     const marginClass = item.gan_pct === null ? '' : item.gan_pct >= 60 ? 'margin' : item.gan_pct >= 50 ? 'margin warn' : 'margin bad';
