@@ -179,6 +179,24 @@
   .ss-footer{padding:12px 24px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;font-size:10px;color:var(--muted);}
   .ss-refresh{background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:6px;font-size:10px;font-family:var(--font-mono);cursor:pointer;transition:all .2s;}
   .ss-refresh:hover{border-color:var(--accent);color:var(--accent);}
+
+  /* ── GONDOLA FILTER ── */
+  .gondola-wrap{position:relative;display:inline-block;}
+  .gondola-btn{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:5px 12px;border-radius:6px;font-family:var(--font-mono);font-size:11px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:6px;white-space:nowrap;}
+  .gondola-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .gondola-btn.has-filter{border-color:var(--accent);color:var(--accent);background:rgba(99,102,241,.08);}
+  .gondola-badge{background:var(--accent);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;}
+  .gondola-dropdown{position:absolute;top:calc(100% + 6px);left:0;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.4);min-width:220px;max-height:320px;overflow-y:auto;display:none;flex-direction:column;}
+  .gondola-dropdown.open{display:flex;}
+  .gondola-dropdown-header{padding:8px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  .gondola-clear{background:none;border:none;color:var(--accent);font-size:10px;cursor:pointer;font-family:var(--font-mono);}
+  .gondola-clear:hover{text-decoration:underline;}
+  .gondola-option{padding:7px 12px;display:flex;align-items:center;gap:8px;cursor:pointer;transition:background .15s;font-size:11px;font-family:var(--font-mono);}
+  .gondola-option:hover{background:rgba(255,255,255,.04);}
+  .gondola-option input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:pointer;}
+  .gondola-option.selected{color:var(--accent);}
+  /* Sin Stock gondola filter */
+  .ss-gondola-wrap{position:relative;display:inline-block;}
 </style>
 </head>
 <body>
@@ -247,6 +265,18 @@
     <button class="filter-btn" onclick="setFilter('rojo',this)">🔴 Rojo</button>
     <button class="filter-btn" onclick="setFilter('full',this)">FULL</button>
     <button class="filter-btn" onclick="setFilter('nofull',this)">NO FULL</button>
+    <div class="gondola-wrap" id="gondolaWrap">
+      <button class="gondola-btn" id="gondolaBtn" onclick="toggleGondolaDropdown()">
+        🏪 Góndola <span class="gondola-badge" id="gondolaBadge" style="display:none"></span> ▾
+      </button>
+      <div class="gondola-dropdown" id="gondolaDropdown">
+        <div class="gondola-dropdown-header">
+          <span style="font-size:10px;color:var(--muted);font-family:var(--font-mono);">FILTRAR POR GÓNDOLA</span>
+          <button class="gondola-clear" onclick="clearGondolaFilter()">Limpiar</button>
+        </div>
+        <div id="gondolaOptions"></div>
+      </div>
+    </div>
   </div>
 
   <div id="loadingScreen" style="display:flex;">
@@ -261,7 +291,7 @@
       <table>
         <thead><tr>
           <th>Foto</th><th>Código ML</th><th>SKU</th><th>Producto</th><th>Estado</th><th>Stock ✏️</th>
-          <th>Desc.</th><th>Tipo</th><th>Precio ASIA</th><th>Costo</th>
+          <th>Desc.</th><th>Tipo</th><th>Góndola</th><th>Precio ASIA</th><th>Costo</th>
           <th>% Gan.</th><th>Precio calc. / publicado</th><th>Gan. $</th><th>Gan. %</th><th>🚦</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
@@ -300,6 +330,18 @@
       <button class="ss-sort-btn active" onclick="setSsSort('recent',this)">🕐 Más recientes</button>
       <button class="ss-sort-btn" onclick="setSsSort('name',this)">A–Z Nombre</button>
       <button class="ss-sort-btn" onclick="setSsSort('margin',this)">📈 Mayor margen</button>
+      <div class="ss-gondola-wrap" style="margin-left:12px;">
+        <button class="gondola-btn" id="ssGondolaBtn" onclick="toggleSsGondolaDropdown()">
+          🏪 Góndola <span class="gondola-badge" id="ssGondolaBadge" style="display:none"></span> ▾
+        </button>
+        <div class="gondola-dropdown" id="ssGondolaDropdown">
+          <div class="gondola-dropdown-header">
+            <span style="font-size:10px;color:var(--muted);font-family:var(--font-mono);">FILTRAR POR GÓNDOLA</span>
+            <button class="gondola-clear" onclick="clearSsGondolaFilter()">Limpiar</button>
+          </div>
+          <div id="ssGondolaOptions"></div>
+        </div>
+      </div>
       <span style="margin-left:auto;font-size:10px;" id="ssLastUpdate"></span>
     </div>
     <div class="ss-body" id="ssBody">
@@ -440,6 +482,7 @@ async function loadFromSheets() {
       margen: typeof margenRaw === 'number' ? margenRaw : 0.7,
       tipo: tipoRaw.includes('FULL') && !tipoRaw.includes('NO') ? 'FULL' : 'NO FULL',
       precio_sheets: typeof get(9) === 'number' ? get(9) : 0,
+      gondola: String(get(13) || '').trim().toUpperCase(),
     };
   }).filter(Boolean);
 }
@@ -488,6 +531,7 @@ function buildProducts(rows, mlMap) {
       status, stock, tipo: row.tipo, descuento: row.descuento,
       precio_asia: row.precio_asia, margen: row.margen, costo, thumbnail,
       precio_ml_calc, precio_ml_real, gan_pesos, gan_pct,
+      gondola: row.gondola || '',
       semaforo: gan_pct >= 60 ? '🟢' : gan_pct >= 50 ? '🟡' : '🔴'
     };
   });
@@ -499,6 +543,8 @@ let products = [], filtered = [], currentFilter = 'all', currentPage = 1;
 const PAGE = 30;
 let toastTimer;
 let ssItems = [], ssSortMode = 'recent', ssLoaded = false;
+let selectedGondolas = new Set(); // filtro multi-select gondola
+let ssSelectedGondolas = new Set(); // filtro gondola en Sin Stock
 // Map MLA → datos de Sheet para cruzar en sin-stock
 let sheetsByMla = {};
 
@@ -590,7 +636,8 @@ function doFilter() {
       : currentFilter === 'rojo' ? p.semaforo === '🔴'
       : currentFilter === 'full' ? p.tipo === 'FULL'
       : currentFilter === 'nofull' ? p.tipo === 'NO FULL' : true;
-    return mq && mf;
+    const mg = selectedGondolas.size === 0 || selectedGondolas.has(p.gondola);
+    return mq && mf && mg;
   });
   currentPage = 1; renderTable(); renderStats();
 }
@@ -639,6 +686,7 @@ function renderTable() {
       <td><span class="stock-val ${sc}" onclick="startStockEdit(${p.id})" id="v-stock-${p.id}">${p.stock} u.</span><input class="cell-input ci-stock" type="number" id="i-stock-${p.id}" onblur="saveStock(${p.id})" onkeydown="hkStock(event,${p.id})"><span class="spin-cell" id="sp-stock-${p.id}"></span></td>
       <td><span style="font-size:10px;color:var(--${p.descuento==='I'?'blue':p.descuento==='N'?'green':'muted'})">${p.descuento} ${p.descuento==='I'?'25%':p.descuento==='N'?'20%':'0%'}</span></td>
       <td><span style="font-size:10px;color:var(--${p.tipo==='FULL'?'accent':'muted'})">${p.tipo}</span></td>
+      <td><span style="font-size:10px;color:var(--accent);background:rgba(99,102,241,.1);padding:2px 6px;border-radius:10px;white-space:nowrap;">${p.gondola || '—'}</span></td>
       <td><span style="font-size:11px;color:var(--text)">${fmt(p.precio_asia || 0)}</span></td>
       <td><span style="font-size:11px;color:var(--muted)">${fmt(p.costo || 0)}</span></td>
       <td><span style="font-size:11px;color:var(--blue)">${fmtP(p.margen * 100)}</span></td>
@@ -771,7 +819,7 @@ async function loadSinStock() {
         precio_calc = sheet.precio_sheets > 0 ? sheet.precio_sheets : calcPrecioML(costo, sheet.margen, sheet.tipo);
         gan_pct = calcGanPct(precio_calc, costo, sheet.tipo);
       }
-      return { ...item, costo, precio_calc, gan_pct, tipo, sheet, sinSheet };
+      return { ...item, costo, precio_calc, gan_pct, tipo, sheet, sinSheet, gondola: sheet ? (sheet.gondola || '') : '' };
     });
 
     ssLoaded = true;
@@ -816,14 +864,28 @@ function renderSsList() {
     return;
   }
 
-  const sorted = sortSsItems(ssItems);
-  document.getElementById('ssBadge').textContent = `${ssItems.length} producto${ssItems.length !== 1 ? 's' : ''}`;
-    document.getElementById('ssFooterInfo').textContent = `${ssItems.length} publicaciones pausadas por stock 0 · ordenadas por ${ssSortMode === 'recent' ? 'más recientes' : ssSortMode === 'name' ? 'nombre' : 'margen'}`;
+  // Aplicar filtro gondola
+  const visibleItems = ssSelectedGondolas.size === 0
+    ? ssItems
+    : ssItems.filter(i => ssSelectedGondolas.has(i.gondola));
+
+  const sorted = sortSsItems(visibleItems);
+  document.getElementById('ssBadge').textContent = `${visibleItems.length}${ssSelectedGondolas.size > 0 ? ' (filtrado)' : ''} de ${ssItems.length} producto${ssItems.length !== 1 ? 's' : ''}`;
+  document.getElementById('ssFooterInfo').textContent = `${visibleItems.length} publicaciones · ordenadas por ${ssSortMode === 'recent' ? 'más recientes' : ssSortMode === 'name' ? 'nombre' : 'margen'}`;
+
+  if (!sorted.length) {
+    list.style.display = 'none';
+    empty.style.display = 'block';
+    document.getElementById('ssEmpty').querySelector('.ss-empty-title').textContent = 'Sin resultados para esta góndola';
+    return;
+  }
+  empty.style.display = 'none';
 
   list.innerHTML = sorted.map((item, idx) => {
     const marginClass = item.gan_pct === null ? '' : item.gan_pct >= 60 ? 'margin' : item.gan_pct >= 50 ? 'margin warn' : 'margin bad';
     const marginText = item.gan_pct !== null ? fmtP(item.gan_pct) : '—';
     const priceDiff = item.precio_calc !== item.price;
+    const gondolaBadge = item.gondola ? `<span style="font-size:9px;padding:1px 7px;border-radius:10px;background:rgba(99,102,241,.12);color:var(--accent);border:1px solid rgba(99,102,241,.25);">🏪 ${item.gondola}</span>` : '';
 
     return `<div class="ss-card" id="ssc-${item.mla}">
       ${item.thumbnail
@@ -835,6 +897,7 @@ function renderSsList() {
           <span class="ss-mla">${item.mla}</span>
           <span class="ss-tipo ${item.tipo === 'FULL' ? 'full' : 'nofull'}">${item.tipo}</span>
           <span class="ss-date">🕐 ${timeAgo(item.last_updated)}</span>
+          ${gondolaBadge}
           ${item.sinSheet ? '<span style="font-size:9px;padding:1px 6px;border-radius:10px;background:rgba(107,107,138,.15);color:var(--muted);border:1px solid var(--border);">⚠️ Sin datos en Sheet</span>' : ''}
         </div>
         <div class="ss-prices">
@@ -887,7 +950,6 @@ function renderSsList() {
   }).join('');
 
   list.style.display = 'flex';
-  empty.style.display = 'none';
 }
 
 function recalcSsMargin(mla) {
@@ -966,6 +1028,107 @@ function showToast(msg, type = 'success') {
   t.className = `show t-${type}`; clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { t.className = ''; }, 4000);
 }
+
+
+// ── GONDOLA FILTER ────────────────────────────────────────────
+const GONDOLAS = ['BAZAR','BEBIDAS','CONDIMENTOS ORIENTALES','COREANO','FIDEOS','FIDEOS INSTANTANEOS','GOLOSINAS','PICKLES','NACIONAL','SALSAS','SNACKS','SOJU','TE','VALLE IMPERIAL','VALLE IMPERIAL CONDIMENTOS'];
+
+function buildGondolaOptions() {
+  const container = document.getElementById('gondolaOptions');
+  if (!container) return;
+  container.innerHTML = GONDOLAS.map(g => `
+    <label class="gondola-option ${selectedGondolas.has(g) ? 'selected' : ''}" onclick="toggleGondola('${g}',this)">
+      <input type="checkbox" ${selectedGondolas.has(g) ? 'checked' : ''} onclick="event.stopPropagation()"> ${g}
+    </label>`).join('');
+}
+
+function buildSsGondolaOptions() {
+  const container = document.getElementById('ssGondolaOptions');
+  if (!container) return;
+  container.innerHTML = GONDOLAS.map(g => `
+    <label class="gondola-option ${ssSelectedGondolas.has(g) ? 'selected' : ''}" onclick="toggleSsGondola('${g}',this)">
+      <input type="checkbox" ${ssSelectedGondolas.has(g) ? 'checked' : ''} onclick="event.stopPropagation()"> ${g}
+    </label>`).join('');
+}
+
+function toggleGondola(g, el) {
+  if (selectedGondolas.has(g)) { selectedGondolas.delete(g); el.classList.remove('selected'); el.querySelector('input').checked = false; }
+  else { selectedGondolas.add(g); el.classList.add('selected'); el.querySelector('input').checked = true; }
+  updateGondolaBtnState();
+  doFilter();
+}
+
+function toggleSsGondola(g, el) {
+  if (ssSelectedGondolas.has(g)) { ssSelectedGondolas.delete(g); el.classList.remove('selected'); el.querySelector('input').checked = false; }
+  else { ssSelectedGondolas.add(g); el.classList.add('selected'); el.querySelector('input').checked = true; }
+  updateSsGondolaBtnState();
+  renderSsList();
+}
+
+function updateGondolaBtnState() {
+  const btn = document.getElementById('gondolaBtn');
+  const badge = document.getElementById('gondolaBadge');
+  if (selectedGondolas.size > 0) {
+    btn.classList.add('has-filter');
+    badge.textContent = selectedGondolas.size;
+    badge.style.display = 'inline';
+  } else {
+    btn.classList.remove('has-filter');
+    badge.style.display = 'none';
+  }
+}
+
+function updateSsGondolaBtnState() {
+  const btn = document.getElementById('ssGondolaBtn');
+  const badge = document.getElementById('ssGondolaBadge');
+  if (ssSelectedGondolas.size > 0) {
+    btn.classList.add('has-filter');
+    badge.textContent = ssSelectedGondolas.size;
+    badge.style.display = 'inline';
+  } else {
+    btn.classList.remove('has-filter');
+    badge.style.display = 'none';
+  }
+}
+
+function clearGondolaFilter() {
+  selectedGondolas.clear();
+  buildGondolaOptions();
+  updateGondolaBtnState();
+  doFilter();
+}
+
+function clearSsGondolaFilter() {
+  ssSelectedGondolas.clear();
+  buildSsGondolaOptions();
+  updateSsGondolaBtnState();
+  renderSsList();
+}
+
+function toggleGondolaDropdown() {
+  const dd = document.getElementById('gondolaDropdown');
+  const isOpen = dd.classList.contains('open');
+  closeAllDropdowns();
+  if (!isOpen) { buildGondolaOptions(); dd.classList.add('open'); }
+}
+
+function toggleSsGondolaDropdown() {
+  const dd = document.getElementById('ssGondolaDropdown');
+  const isOpen = dd.classList.contains('open');
+  closeAllDropdowns();
+  if (!isOpen) { buildSsGondolaOptions(); dd.classList.add('open'); }
+}
+
+function closeAllDropdowns() {
+  document.querySelectorAll('.gondola-dropdown').forEach(d => d.classList.remove('open'));
+}
+
+// Cerrar dropdowns al hacer click fuera
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.gondola-wrap') && !e.target.closest('.ss-gondola-wrap')) {
+    closeAllDropdowns();
+  }
+});
 
 (function boot() {
   const params = new URLSearchParams(window.location.search);
