@@ -1012,6 +1012,8 @@ async function updateDiffTNPrices() {
   if (errors === 0) showToast(`✅ ${ok} precios TN actualizados`, 'success');
   else showToast(`⚠️ ${ok} OK · ${errors} errores`, 'error');
 }
+
+async function toggleStatus(id) {
   const p = products.find(x => x.id === id); const btn = document.getElementById(`st-${id}`);
   btn.style.opacity = '.5'; const ns = p.status === 'active' ? 'paused' : 'active';
   try {
