@@ -113,7 +113,15 @@
   .price-real.diff{color:var(--orange);text-decoration:line-through;}
   .diff-arrow{font-size:10px;color:var(--accent);margin:0 3px;}
   .semaforo{font-size:13px;}
-  .prod-thumb{width:44px;height:44px;border-radius:8px;object-fit:cover;background:var(--surface2);border:1px solid var(--border);display:block;}
+  .prod-thumb{width:44px;height:44px;border-radius:8px;object-fit:cover;background:var(--surface2);border:1px solid var(--border);display:block;cursor:zoom-in;transition:opacity .15s;}
+  .prod-thumb:hover{opacity:.85;}
+  /* ── LIGHTBOX ── */
+  #lightbox{display:none;position:fixed;inset:0;background:rgba(26,27,46,.75);z-index:999;align-items:center;justify-content:center;backdrop-filter:blur(6px);cursor:zoom-out;}
+  #lightbox.open{display:flex;}
+  #lightboxImg{max-width:90vw;max-height:85vh;border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,.35);object-fit:contain;animation:lbIn .2s cubic-bezier(.34,1.2,.64,1);}
+  @keyframes lbIn{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+  #lightboxClose{position:fixed;top:20px;right:20px;background:var(--surface);border:1px solid var(--border);color:var(--text);width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-md);transition:all .2s;}
+  #lightboxClose:hover{background:var(--red);color:#fff;border-color:var(--red);}
   .prod-thumb-placeholder{width:44px;height:44px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted2);font-size:16px;flex-shrink:0;}
 
   /* ── PAGINACIÓN ── */
@@ -176,7 +184,8 @@
   .ss-card:hover{box-shadow:var(--shadow);}
   .ss-card.reactivating{opacity:.5;pointer-events:none;}
   .ss-card.reactivated{border-color:var(--green);background:var(--green-light);}
-  .ss-thumb{width:52px;height:52px;border-radius:8px;object-fit:cover;border:1px solid var(--border);}
+  .ss-thumb{width:52px;height:52px;border-radius:8px;object-fit:cover;border:1px solid var(--border);cursor:zoom-in;transition:opacity .15s;}
+  .ss-thumb:hover{opacity:.85;}
   .ss-thumb-ph{width:52px;height:52px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted2);font-size:20px;flex-shrink:0;}
   .ss-info{min-width:0;}
   .ss-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:5px;color:var(--text);}
@@ -438,6 +447,12 @@
 </div>
 
 <div id="toast"><span id="tMsg"></span></div>
+
+<!-- ── LIGHTBOX ── -->
+<div id="lightbox" onclick="closeLightbox()">
+  <button id="lightboxClose" onclick="closeLightbox()">✕</button>
+  <img id="lightboxImg" src="" alt="">
+</div>
 
 <script>
 const ML_APP_ID  = '2267364561876653';
@@ -752,7 +767,7 @@ function renderTable() {
       ? `<span class="price-calc">${fmt(p.precio_ml_calc)}</span> <span class="diff-arrow">→</span> <span class="price-real diff">${fmt(p.precio_ml_real)}</span>`
       : `<span class="price-calc">${fmt(p.precio_ml_calc)}</span> <span class="price-real">${p.precio_ml_real > 0 ? fmt(p.precio_ml_real) : '—'}</span>`;
     return `<tr id="row-${p.id}" class="${diff ? 'has-diff' : ''}">
-      <td>${p.thumbnail ? `<img class="prod-thumb" src="${p.thumbnail}" alt="" loading="lazy">` : `<div class="prod-thumb-placeholder">□</div>`}</td>
+      <td>${p.thumbnail ? `<img class="prod-thumb" src="${p.thumbnail}" alt="" loading="lazy" onclick="openLightbox('${p.thumbnail}')">` : `<div class="prod-thumb-placeholder">□</div>`}</td>
       <td><span class="mla-code">${p.mla}</span></td>
       <td><span class="sku-code">${p.sku}</span></td>
       <td><div class="product-name" title="${p.name}">${p.name}</div></td>
@@ -963,7 +978,7 @@ function renderSsList() {
 
     return `<div class="ss-card" id="ssc-${item.mla}">
       ${item.thumbnail
-        ? `<img class="ss-thumb" src="${item.thumbnail}" alt="" loading="lazy">`
+        ? `<img class="ss-thumb" src="${item.thumbnail}" alt="" loading="lazy" onclick="openLightbox('${item.thumbnail}')">`
         : `<div class="ss-thumb-ph">□</div>`}
       <div class="ss-info">
         <div class="ss-name" title="${item.title}">${item.title}</div>
@@ -1098,7 +1113,19 @@ async function reactivarItem(mla, idx) {
   }
 }
 
-function showToast(msg, type = 'success') {
+function openLightbox(src) {
+  const lb = document.getElementById('lightbox');
+  const img = document.getElementById('lightboxImg');
+  // ML devuelve thumbnails en baja res — pedimos imagen más grande reemplazando el sufijo
+  img.src = src.replace(/-[A-Z]\.jpg/, '-O.jpg').replace(/-[A-Z]\.webp/, '-O.webp');
+  lb.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
   const t = document.getElementById('toast'); document.getElementById('tMsg').textContent = msg;
   t.className = `show t-${type}`; clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { t.className = ''; }, 4000);
