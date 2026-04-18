@@ -305,7 +305,13 @@
         ⚠️ Sin Stock
         <span class="ss-count" id="ssHeaderCount"></span>
       </button>
-      <button class="btn-icon" onclick="reloadApp()">↻ Recargar Sheets</button>
+      <div class="user-badge" style="gap:6px;">
+        <div class="user-dot" id="tnDot" style="background:var(--muted2);"></div>
+        <span id="tnLabel">TN desconectada</span>
+        <button class="btn-icon" id="btnTnLogin" onclick="loginTN()" style="padding:2px 8px;font-size:10px;display:none;">Conectar TN</button>
+        <button class="btn-icon danger" id="btnTnLogout" onclick="logoutTN()" style="padding:2px 8px;font-size:10px;display:none;">✕</button>
+      </div>
+      <button class="btn-icon" onclick="reloadApp()">↻ Recargar</button>
       <div class="user-badge"><div class="user-dot"></div><span id="userName">—</span></div>
       <button class="btn-icon danger" onclick="logout()">⏻ Salir</button>
     </div>
@@ -322,16 +328,22 @@
     <div class="stat-card"><div class="stat-label">🟢 ≥60%</div><div class="stat-value sv-green" id="sVerde">—</div></div>
     <div class="stat-card"><div class="stat-label">🟡 50–60%</div><div class="stat-value sv-yellow" id="sAmarillo">—</div></div>
     <div class="stat-card"><div class="stat-label">🔴 &lt;50%</div><div class="stat-value sv-orange" id="sRojo">—</div></div>
-    <div class="stat-card"><div class="stat-label">💛 Con diff</div><div class="stat-value sv-blue" id="sDiff">—</div></div>
+    <div class="stat-card"><div class="stat-label">💛 Con diff ML</div><div class="stat-value sv-blue" id="sDiff">—</div></div>
+    <div class="stat-card"><div class="stat-label">🛍️ Con diff TN</div><div class="stat-value" style="color:var(--orange)" id="sDiffTN">—</div></div>
   </div>
 
   <div class="update-bar">
     <div class="update-info">
-      <strong id="diffCount">—</strong> productos con precio calculado distinto al publicado en ML
+      <strong id="diffCount">—</strong> con diff ML &nbsp;·&nbsp; <strong id="diffCountTN">—</strong> con diff TN
     </div>
-    <button class="btn-update" id="btnUpdate" onclick="updateDiffPrices()" disabled>
-      <span class="sync-icon">⚡</span> Actualizar precios en ML
-    </button>
+    <div style="display:flex;gap:8px;">
+      <button class="btn-update" id="btnUpdate" onclick="updateDiffPrices()" disabled>
+        <span class="sync-icon">⚡</span> Actualizar ML
+      </button>
+      <button class="btn-update" id="btnUpdateTN" onclick="updateDiffTNPrices()" disabled style="background:var(--orange);box-shadow:0 2px 8px rgba(234,88,12,.25);">
+        <span class="sync-icon">⚡</span> Actualizar TN
+      </button>
+    </div>
   </div>
 
   <div class="toolbar">
@@ -375,7 +387,8 @@
         <thead><tr>
           <th>Foto</th><th>Código ML</th><th>SKU</th><th>Producto</th><th>Estado</th><th>Stock ✏️</th>
           <th>Desc.</th><th>Tipo</th><th>Góndola</th><th>Precio ASIA</th><th>Costo</th>
-          <th>% Gan.</th><th>Precio calc. / publicado</th><th>Gan. $</th><th>Gan. %</th><th>🚦</th>
+          <th>% Gan.</th><th>Precio calc. / publicado ML</th><th>Gan. $</th><th>Gan. %</th><th>🚦</th>
+          <th>Precio TN sheet</th><th>Precio TN pub.</th><th>Stock TN</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
       </table>
@@ -456,6 +469,7 @@
 
 <script>
 const ML_APP_ID  = '2267364561876653';
+const TN_APP_ID  = '30033';
 const SHEET_ID   = '1ytO7tU_tWg25Tu--h6d5epX3XLirKYVJz-06runTQ98';
 const SHEET_NAME = 'PRODUCTOS';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
@@ -567,6 +581,7 @@ async function loadFromSheets() {
     return {
       mla, sku: String(get(1)).trim(), name: String(get(2)).trim(),
       precio_asia: typeof get(3) === 'number' ? get(3) : 0,
+      precio_tn_sheet: typeof get(4) === 'number' ? get(4) : 0,
       descuento: ['I','N','F'].includes(descRaw) ? descRaw : 'N',
       margen: typeof margenRaw === 'number' ? margenRaw : 0.7,
       tipo: tipoRaw.includes('FULL') && !tipoRaw.includes('NO') ? 'FULL' : 'NO FULL',
@@ -615,12 +630,19 @@ function buildProducts(rows, mlMap) {
     const precio_ml_calc = row.precio_sheets > 0 ? row.precio_sheets : calcPrecioML(costo, row.margen, row.tipo);
     const gan_pesos = precio_ml_real > 0 ? calcGanReal(precio_ml_real, costo, row.tipo) : calcGanReal(precio_ml_calc, costo, row.tipo);
     const gan_pct = costo > 0 ? Math.round((gan_pesos / costo) * 1000) / 10 : 0;
+    // TN
+    const tn = tnBySku[row.sku] || null;
     return {
       id: idx, mla: row.mla, sku: row.sku, name: row.name,
       status, stock, tipo: row.tipo, descuento: row.descuento,
       precio_asia: row.precio_asia, margen: row.margen, costo, thumbnail,
       precio_ml_calc, precio_ml_real, gan_pesos, gan_pct,
       gondola: row.gondola || '',
+      precio_tn_sheet: row.precio_tn_sheet || 0,
+      tn_product_id: tn ? tn.product_id : null,
+      tn_variant_id: tn ? tn.variant_id : null,
+      precio_tn: tn ? tn.precio_tn : null,
+      stock_tn: tn ? tn.stock_tn : null,
       semaforo: gan_pct >= 60 ? '🟢' : gan_pct >= 50 ? '🟡' : '🔴'
     };
   });
@@ -628,14 +650,120 @@ function buildProducts(rows, mlMap) {
 
 let accessToken = localStorage.getItem('ml_token') || null;
 let mlUserId = localStorage.getItem('ml_user_id') || null;
+let tnToken = localStorage.getItem('tn_token') || null;
+let tnStoreId = localStorage.getItem('tn_store_id') || null;
 let products = [], filtered = [], currentFilter = 'all', currentPage = 1;
 const PAGE = 30;
 let toastTimer;
 let ssItems = [], ssSortMode = 'recent', ssLoaded = false;
-let selectedGondolas = new Set(); // filtro multi-select gondola
-let ssSelectedGondolas = new Set(); // filtro gondola en Sin Stock
-// Map MLA → datos de Sheet para cruzar en sin-stock
+let selectedGondolas = new Set();
+let ssSelectedGondolas = new Set();
 let sheetsByMla = {};
+let tnBySku = {}; // SKU → { product_id, variant_id, precio_tn, stock_tn }
+
+// ── TN AUTH ─────────────────────────────────────────
+function loginTN() {
+  localStorage.setItem('tn_pending_auth', '1');
+  window.location.href = `https://www.tiendanube.com/apps/${TN_APP_ID}/authorize`;
+}
+function logoutTN() {
+  localStorage.removeItem('tn_token');
+  localStorage.removeItem('tn_store_id');
+  tnToken = null; tnStoreId = null; tnBySku = {};
+  updateTnStatus();
+  showToast('TN desconectada', 'info');
+}
+function updateTnStatus() {
+  const dot = document.getElementById('tnDot');
+  const label = document.getElementById('tnLabel');
+  const btnLogin = document.getElementById('btnTnLogin');
+  const btnLogout = document.getElementById('btnTnLogout');
+  if (tnToken && tnStoreId) {
+    dot.style.background = 'var(--green)';
+    label.textContent = 'TN conectada';
+    btnLogin.style.display = 'none';
+    btnLogout.style.display = 'inline-flex';
+  } else {
+    dot.style.background = 'var(--muted2)';
+    label.textContent = 'TN desconectada';
+    btnLogin.style.display = 'inline-flex';
+    btnLogout.style.display = 'none';
+  }
+}
+
+async function handleTnCallback(code) {
+  showLoading('Conectando Tienda Nube...', 10);
+  try {
+    const r = await fetch('/api/tn?action=token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code })
+    });
+    const data = await r.json();
+    if (!data.access_token) throw new Error(data.error || 'Error obteniendo token TN');
+    tnToken = data.access_token;
+    tnStoreId = String(data.user_id);
+    localStorage.setItem('tn_token', tnToken);
+    localStorage.setItem('tn_store_id', tnStoreId);
+    // Limpiar el code de la URL
+    window.history.replaceState({}, '', window.location.pathname);
+    showToast('✅ Tienda Nube conectada', 'success');
+    updateTnStatus();
+    // Si ML ya está logueado, recargar datos
+    if (accessToken) initApp();
+    else hideLoading();
+  } catch(e) {
+    hideLoading();
+    showToast('❌ Error TN: ' + e.message, 'error');
+  }
+}
+
+async function tnFetch(path) {
+  const r = await fetch(`/api/tn?path=${encodeURIComponent(path)}`, {
+    headers: {
+      'Authorization': 'Bearer ' + tnToken,
+      'X-Store-Id': tnStoreId
+    }
+  });
+  return r.json();
+}
+async function tnPut(path, body) {
+  const r = await fetch(`/api/tn?path=${encodeURIComponent(path)}`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': 'Bearer ' + tnToken,
+      'X-Store-Id': tnStoreId,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+  return r.json();
+}
+
+async function fetchTNData() {
+  if (!tnToken || !tnStoreId) return {};
+  const map = {};
+  let page = 1;
+  while (true) {
+    const items = await tnFetch(`/products?per_page=200&page=${page}&fields=id,variants`);
+    if (!Array.isArray(items) || !items.length) break;
+    items.forEach(prod => {
+      const v = prod.variants && prod.variants[0];
+      if (!v) return;
+      const sku = String(v.sku || '').trim();
+      if (sku) map[sku] = {
+        product_id: prod.id,
+        variant_id: v.id,
+        precio_tn: parseFloat(v.price) || 0,
+        stock_tn: v.stock === null ? null : (parseInt(v.stock) || 0)
+      };
+    });
+    if (items.length < 200) break;
+    page++;
+    showLoading(`Cargando TN... ${Object.keys(map).length} productos`, 90);
+  }
+  return map;
+}
 
 async function initApp() {
   document.getElementById('loginScreen').style.display = 'none';
@@ -647,31 +775,40 @@ async function initApp() {
     document.getElementById('userName').textContent = user.nickname || 'ML';
     showLoading('Leyendo Google Sheets...', 5);
     const rows = await loadFromSheets();
-    // Guardar mapa por MLA para usar en sin-stock
     sheetsByMla = {};
     rows.forEach(r => { sheetsByMla[r.mla] = r; });
-    showLoading(`${rows.length} productos en Sheets — consultando ML...`, 48);
+    showLoading(`${rows.length} productos en Sheets — consultando ML...`, 40);
     const mlMap = await fetchMLData(rows);
+    if (tnToken && tnStoreId) {
+      showLoading('Consultando Tienda Nube...', 88);
+      tnBySku = await fetchTNData();
+    }
     products = buildProducts(rows, mlMap);
     setProgress(100); hideLoading(); doFilter();
-    showToast(`✅ ${products.length} publicaciones listas`, 'success');
-    // Actualizar contador sin stock en header
+    const tnCount = Object.keys(tnBySku).length;
+    const msg = tnCount > 0 ? `✅ ${products.length} ML · ${tnCount} TN listos` : `✅ ${products.length} publicaciones listas`;
+    showToast(msg, 'success');
     updateSsCounter();
+    updateTnStatus();
   } catch(e) { hideLoading(); showToast('❌ ' + e.message, 'error'); console.error(e); }
 }
 
 async function reloadApp() {
   document.getElementById('panelContent').style.display = 'none';
-  showLoading('Recargando Sheets...', 0);
+  showLoading('Recargando...', 0);
   try {
     const rows = await loadFromSheets();
     sheetsByMla = {};
     rows.forEach(r => { sheetsByMla[r.mla] = r; });
-    showLoading(`${rows.length} productos — actualizando ML...`, 48);
+    showLoading(`${rows.length} productos — actualizando ML...`, 40);
     const mlMap = await fetchMLData(rows);
+    if (tnToken && tnStoreId) {
+      showLoading('Consultando Tienda Nube...', 88);
+      tnBySku = await fetchTNData();
+    }
     products = buildProducts(rows, mlMap);
     setProgress(100); hideLoading(); doFilter();
-    ssLoaded = false; // forzar recarga sin stock
+    ssLoaded = false;
     updateSsCounter();
     showToast(`✅ Recargado — ${products.length} productos`, 'success');
   } catch(e) { hideLoading(); showToast('❌ ' + e.message, 'error'); }
@@ -735,6 +872,7 @@ function setFilter(f, btn) { currentFilter = f; document.querySelectorAll('.filt
 function renderStats() {
   const sinStockCount = products.filter(p => p.stock === 0 && p.status === 'paused').length;
   const diffCount = products.filter(p => hasDiff(p)).length;
+  const diffTNCount = products.filter(p => hasDiffTN(p)).length;
   document.getElementById('sTotal').textContent = products.length;
   document.getElementById('sActivas').textContent = products.filter(p => p.status === 'active').length;
   document.getElementById('sPausadas').textContent = products.filter(p => p.status === 'paused').length;
@@ -743,9 +881,11 @@ function renderStats() {
   document.getElementById('sAmarillo').textContent = products.filter(p => p.semaforo === '🟡').length;
   document.getElementById('sRojo').textContent = products.filter(p => p.semaforo === '🔴').length;
   document.getElementById('sDiff').textContent = diffCount;
+  document.getElementById('sDiffTN').textContent = diffTNCount;
   document.getElementById('diffCount').textContent = diffCount;
-  const btn = document.getElementById('btnUpdate');
-  btn.disabled = diffCount === 0;
+  document.getElementById('diffCountTN').textContent = diffTNCount;
+  document.getElementById('btnUpdate').disabled = diffCount === 0;
+  document.getElementById('btnUpdateTN').disabled = diffTNCount === 0 || !tnToken;
 }
 
 function updateSsCounter() {
@@ -783,6 +923,17 @@ function renderTable() {
       <td><span style="font-size:11px;color:var(--green)">${fmt(p.gan_pesos)}</span></td>
       <td><span style="font-size:11px;color:var(--green)">${fmtP(p.gan_pct)}</span></td>
       <td><span class="semaforo">${p.semaforo}</span></td>
+      <td><span style="font-size:11px;color:var(--accent);font-weight:600;">${p.precio_tn_sheet > 0 ? fmt(p.precio_tn_sheet) : '—'}</span></td>
+      <td>${p.tn_variant_id
+        ? (hasDiffTN(p)
+          ? `<span style="font-size:11px;color:var(--orange);text-decoration:line-through;">${fmt(p.precio_tn)}</span>`
+          : `<span style="font-size:11px;color:var(--muted);">${fmt(p.precio_tn)}</span>`)
+        : `<span style="font-size:10px;color:var(--muted2);">—</span>`
+      }</td>
+      <td>${p.tn_variant_id
+        ? `<span style="font-size:11px;color:var(--${scClass(p.stock_tn || 0).replace('stock-','').replace('low','red').replace('mid','orange').replace('ok','text')});">${p.stock_tn !== null ? p.stock_tn + ' u.' : '∞'}</span>`
+        : `<span style="font-size:10px;color:var(--muted2);">—</span>`
+      }</td>
     </tr>`;
   }).join('');
   const total = filtered.length, pages = Math.ceil(total / PAGE);
@@ -809,15 +960,58 @@ async function saveStock(id) {
   const newVal = parseInt(inp.value);
   if (isNaN(newVal) || newVal < 0) { v.style.display = 'inline-block'; inp.style.display = 'none'; return; }
   inp.style.display = 'none'; sp.style.display = 'inline-block'; v.style.display = 'inline-block';
+  const promises = [];
+  promises.push(mlPut(`/items/${p.mla}`, { available_quantity: newVal }));
+  if (tnToken && p.tn_variant_id) {
+    promises.push(tnPut(`/products/${p.tn_product_id}/variants/${p.tn_variant_id}`, { stock: newVal }));
+  }
   try {
-    await mlPut(`/items/${p.mla}`, { available_quantity: newVal });
-    p.stock = newVal; v.textContent = `${newVal} u.`; v.className = `stock-val ${scClass(newVal)}`;
-    showToast('📦 Stock actualizado en ML', 'success');
+    await Promise.all(promises);
+    p.stock = newVal; p.stock_tn = newVal;
+    v.textContent = `${newVal} u.`; v.className = `stock-val ${scClass(newVal)}`;
+    const tnSync = tnToken && p.tn_variant_id ? ' + TN' : '';
+    showToast(`📦 Stock actualizado en ML${tnSync}`, 'success');
   } catch(e) { showToast('❌ ' + e.message, 'error'); }
   sp.style.display = 'none';
 }
 
-async function toggleStatus(id) {
+function hasDiffTN(p) {
+  if (!p.tn_variant_id || p.precio_tn === null) return false;
+  const target = p.precio_tn_sheet > 0 ? p.precio_tn_sheet : 0;
+  if (!target) return false;
+  return Math.abs(target - p.precio_tn) >= DIFF_THRESHOLD;
+}
+
+async function updateDiffTNPrices() {
+  if (!tnToken) { showToast('⚠️ Conectá Tienda Nube primero', 'error'); return; }
+  const toUpdate = products.filter(p => hasDiffTN(p));
+  if (!toUpdate.length) { showToast('✅ Todos los precios TN están al día', 'info'); return; }
+  const modal = document.getElementById('updateModal');
+  modal.classList.add('show');
+  document.getElementById('modalSub').textContent = 'Actualizando precios en Tienda Nube...';
+  document.getElementById('modalCount').textContent = `0 / ${toUpdate.length}`;
+  document.getElementById('modalBar').style.width = '0%';
+  const btn = document.getElementById('btnUpdateTN');
+  btn.disabled = true;
+  let ok = 0, errors = 0;
+  for (let i = 0; i < toUpdate.length; i++) {
+    const p = toUpdate[i];
+    const pct = ((i + 1) / toUpdate.length) * 100;
+    document.getElementById('modalBar').style.width = pct + '%';
+    document.getElementById('modalSub').textContent = `TN: ${p.name.slice(0, 40)}...`;
+    document.getElementById('modalCount').textContent = `${i + 1} / ${toUpdate.length}`;
+    try {
+      await tnPut(`/products/${p.tn_product_id}/variants/${p.tn_variant_id}`, { price: String(p.precio_tn_sheet) });
+      p.precio_tn = p.precio_tn_sheet; ok++;
+    } catch(e) { errors++; console.error(p.sku, e); }
+    await new Promise(r => setTimeout(r, 100));
+  }
+  modal.classList.remove('show');
+  btn.disabled = false;
+  doFilter();
+  if (errors === 0) showToast(`✅ ${ok} precios TN actualizados`, 'success');
+  else showToast(`⚠️ ${ok} OK · ${errors} errores`, 'error');
+}
   const p = products.find(x => x.id === id); const btn = document.getElementById(`st-${id}`);
   btn.style.opacity = '.5'; const ns = p.status === 'active' ? 'paused' : 'active';
   try {
@@ -1236,11 +1430,32 @@ document.addEventListener('click', function(e) {
 
 (function boot() {
   initOverlayListeners();
+  updateTnStatus();
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
-  if (code) { document.getElementById('loginScreen').style.display = 'none'; handleCallback(code); }
-  else if (accessToken) { document.getElementById('loginScreen').style.display = 'none'; initApp(); }
-  else { document.getElementById('loginScreen').style.display = 'flex'; }
+  const isTnCallback = localStorage.getItem('tn_pending_auth') === '1';
+
+  if (code && isTnCallback) {
+    // Callback de Tienda Nube
+    localStorage.removeItem('tn_pending_auth');
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    handleTnCallback(code);
+  } else if (code && !isTnCallback) {
+    // Callback de ML
+    document.getElementById('loginScreen').style.display = 'none';
+    handleCallback(code);
+  } else if (accessToken) {
+    document.getElementById('loginScreen').style.display = 'none';
+    initApp();
+  } else {
+    document.getElementById('loginScreen').style.display = 'flex';
+  }
+  // Link conectar TN en pantalla de login
+  if (!tnToken) {
+    const note = document.querySelector('.login-note');
+    if (note) note.innerHTML += ' &nbsp;·&nbsp; <a href="#" onclick="loginTN()" style="color:var(--accent);">Conectar Tienda Nube</a>';
+  }
 })();
 </script>
 </body>
