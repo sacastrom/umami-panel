@@ -318,9 +318,9 @@
   </header>
 
   <div class="stats-bar">
-    <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value" id="sTotal">—</div></div>
-    <div class="stat-card"><div class="stat-label">Activas</div><div class="stat-value sv-green" id="sActivas">—</div></div>
-    <div class="stat-card"><div class="stat-label">Pausadas</div><div class="stat-value sv-orange" id="sPausadas">—</div></div>
+    <div class="stat-card"><div class="stat-label">Total ML</div><div class="stat-value" id="sTotal">—</div></div>
+    <div class="stat-card"><div class="stat-label">Activas ML</div><div class="stat-value sv-green" id="sActivas">—</div></div>
+    <div class="stat-card"><div class="stat-label">Pausadas ML</div><div class="stat-value sv-orange" id="sPausadas">—</div></div>
     <div class="stat-card ss-card" onclick="openSinStock()" title="Ver productos sin stock">
       <div class="stat-label">⚠️ Sin Stock</div>
       <div class="stat-value" style="color:var(--red)" id="sSinStock">—</div>
@@ -328,8 +328,15 @@
     <div class="stat-card"><div class="stat-label">🟢 ≥60%</div><div class="stat-value sv-green" id="sVerde">—</div></div>
     <div class="stat-card"><div class="stat-label">🟡 50–60%</div><div class="stat-value sv-yellow" id="sAmarillo">—</div></div>
     <div class="stat-card"><div class="stat-label">🔴 &lt;50%</div><div class="stat-value sv-orange" id="sRojo">—</div></div>
-    <div class="stat-card"><div class="stat-label">💛 Con diff ML</div><div class="stat-value sv-blue" id="sDiff">—</div></div>
-    <div class="stat-card"><div class="stat-label">🛍️ Con diff TN</div><div class="stat-value" style="color:var(--orange)" id="sDiffTN">—</div></div>
+    <div class="stat-card"><div class="stat-label">💛 Diff ML</div><div class="stat-value sv-blue" id="sDiff">—</div></div>
+    <div style="width:1px;background:var(--border);margin:4px 2px;flex-shrink:0;"></div>
+    <div class="stat-card" style="border-color:rgba(108,99,255,.2);background:var(--accent-light);"><div class="stat-label">🛍️ Total TN</div><div class="stat-value" style="color:var(--accent)" id="sTNTotal">—</div></div>
+    <div class="stat-card" style="border-color:rgba(108,99,255,.2);background:var(--accent-light);"><div class="stat-label">🛍️ Activas TN</div><div class="stat-value sv-green" id="sTNActivas">—</div></div>
+    <div class="stat-card" style="border-color:rgba(108,99,255,.2);background:var(--accent-light);"><div class="stat-label">🛍️ Pausadas TN</div><div class="stat-value sv-orange" id="sTNPausadas">—</div></div>
+    <div class="stat-card" style="border-color:rgba(234,88,12,.2);background:rgba(234,88,12,.06);cursor:pointer;" onclick="setFilterTN()" title="Ver con diferencia de precio en TN">
+      <div class="stat-label">🟠 Diff TN</div>
+      <div class="stat-value" style="color:var(--orange)" id="sDiffTN">—</div>
+    </div>
   </div>
 
   <div class="update-bar">
@@ -354,7 +361,8 @@
     <button class="filter-btn active" onclick="setFilter('all',this)">Todos</button>
     <button class="filter-btn" onclick="setFilter('active',this)">Activas</button>
     <button class="filter-btn" onclick="setFilter('paused',this)">Pausadas</button>
-    <button class="filter-btn diff-btn" onclick="setFilter('diff',this)">💛 Con diferencia</button>
+    <button class="filter-btn diff-btn" onclick="setFilter('diff',this)">💛 Diff ML</button>
+    <button class="filter-btn" onclick="setFilter('difftn',this)" id="btnFilterDiffTN" style="border-color:rgba(234,88,12,.3);color:var(--orange);">🟠 Diff TN</button>
     <button class="filter-btn" onclick="setFilter('verde',this)">🟢 Verde</button>
     <button class="filter-btn" onclick="setFilter('amarillo',this)">🟡 Amarillo</button>
     <button class="filter-btn" onclick="setFilter('rojo',this)">🔴 Rojo</button>
@@ -857,6 +865,7 @@ function doFilter() {
       : currentFilter === 'active' ? p.status === 'active'
       : currentFilter === 'paused' ? p.status === 'paused'
       : currentFilter === 'diff' ? hasDiff(p)
+      : currentFilter === 'difftn' ? hasDiffTN(p)
       : currentFilter === 'verde' ? p.semaforo === '🟢'
       : currentFilter === 'amarillo' ? p.semaforo === '🟡'
       : currentFilter === 'rojo' ? p.semaforo === '🔴'
@@ -873,6 +882,9 @@ function renderStats() {
   const sinStockCount = products.filter(p => p.stock === 0 && p.status === 'paused').length;
   const diffCount = products.filter(p => hasDiff(p)).length;
   const diffTNCount = products.filter(p => hasDiffTN(p)).length;
+  const tnProducts = products.filter(p => p.tn_variant_id !== null);
+  const tnActivas = tnProducts.filter(p => p.status === 'active').length;
+  const tnPausadas = tnProducts.filter(p => p.status === 'paused').length;
   document.getElementById('sTotal').textContent = products.length;
   document.getElementById('sActivas').textContent = products.filter(p => p.status === 'active').length;
   document.getElementById('sPausadas').textContent = products.filter(p => p.status === 'paused').length;
@@ -882,10 +894,21 @@ function renderStats() {
   document.getElementById('sRojo').textContent = products.filter(p => p.semaforo === '🔴').length;
   document.getElementById('sDiff').textContent = diffCount;
   document.getElementById('sDiffTN').textContent = diffTNCount;
+  document.getElementById('sTNTotal').textContent = tnProducts.length || '—';
+  document.getElementById('sTNActivas').textContent = tnProducts.length ? tnActivas : '—';
+  document.getElementById('sTNPausadas').textContent = tnProducts.length ? tnPausadas : '—';
   document.getElementById('diffCount').textContent = diffCount;
   document.getElementById('diffCountTN').textContent = diffTNCount;
   document.getElementById('btnUpdate').disabled = diffCount === 0;
   document.getElementById('btnUpdateTN').disabled = diffTNCount === 0 || !tnToken;
+}
+
+function setFilterTN() {
+  currentFilter = 'difftn';
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('btnFilterDiffTN');
+  if (btn) btn.classList.add('active');
+  doFilter();
 }
 
 function updateSsCounter() {
