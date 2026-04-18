@@ -841,11 +841,12 @@ function closeSinStock() {
   document.getElementById('sinStockPanel').classList.remove('open');
 }
 // Cerrar con Escape
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSinStock(); });
-// Cerrar al clickear overlay
-document.getElementById('sinStockPanel').addEventListener('click', function(e) {
-  if (e.target === this) closeSinStock();
-});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeSinStock(); closeLightbox(); } });
+// Cerrar al clickear overlay — se registra en boot para garantizar que el DOM existe
+function initOverlayListeners() {
+  const sp = document.getElementById('sinStockPanel');
+  if (sp) sp.addEventListener('click', function(e) { if (e.target === this) closeSinStock(); });
+}
 
 function setSsSort(mode, btn) {
   ssSortMode = mode;
@@ -1125,7 +1126,8 @@ function closeLightbox() {
   document.getElementById('lightbox').classList.remove('open');
   document.body.style.overflow = '';
 }
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+function showToast(msg, type = 'success') {
   const t = document.getElementById('toast'); document.getElementById('tMsg').textContent = msg;
   t.className = `show t-${type}`; clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { t.className = ''; }, 4000);
@@ -1233,6 +1235,7 @@ document.addEventListener('click', function(e) {
 });
 
 (function boot() {
+  initOverlayListeners();
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
   if (code) { document.getElementById('loginScreen').style.display = 'none'; handleCallback(code); }
