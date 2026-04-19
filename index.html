@@ -341,14 +341,17 @@
 
   <div class="update-bar">
     <div class="update-info">
-      <strong id="diffCount">—</strong> con diff ML &nbsp;·&nbsp; <strong id="diffCountTN">—</strong> con diff TN
+      <strong id="diffCount">—</strong> diff ML &nbsp;·&nbsp; <strong id="diffCountTN">—</strong> diff precio TN &nbsp;·&nbsp; <strong id="diffStockTN">—</strong> diff stock TN
     </div>
-    <div style="display:flex;gap:8px;">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <button class="btn-update" id="btnUpdate" onclick="updateDiffPrices()" disabled>
         <span class="sync-icon">⚡</span> Actualizar ML
       </button>
       <button class="btn-update" id="btnUpdateTN" onclick="updateDiffTNPrices()" disabled style="background:var(--orange);box-shadow:0 2px 8px rgba(234,88,12,.25);">
-        <span class="sync-icon">⚡</span> Actualizar TN
+        <span class="sync-icon">⚡</span> Precio TN
+      </button>
+      <button class="btn-update" id="btnSyncStockTN" onclick="syncStockToTN()" disabled style="background:var(--blue);box-shadow:0 2px 8px rgba(37,99,235,.25);">
+        <span class="sync-icon">📦</span> Stock → TN
       </button>
     </div>
   </div>
@@ -899,8 +902,11 @@ function renderStats() {
   document.getElementById('sTNPausadas').textContent = tnProducts.length ? tnPausadas : '—';
   document.getElementById('diffCount').textContent = diffCount;
   document.getElementById('diffCountTN').textContent = diffTNCount;
+  const diffStockTNCount = products.filter(p => p.tn_variant_id && p.stock_tn !== null && p.stock !== p.stock_tn).length;
+  document.getElementById('diffStockTN').textContent = diffStockTNCount;
   document.getElementById('btnUpdate').disabled = diffCount === 0;
   document.getElementById('btnUpdateTN').disabled = diffTNCount === 0 || !tnToken;
+  document.getElementById('btnSyncStockTN').disabled = diffStockTNCount === 0 || !tnToken;
 }
 
 function setFilterTN() {
@@ -1033,6 +1039,37 @@ async function updateDiffTNPrices() {
   btn.disabled = false;
   doFilter();
   if (errors === 0) showToast(`✅ ${ok} precios TN actualizados`, 'success');
+  else showToast(`⚠️ ${ok} OK · ${errors} errores`, 'error');
+}
+
+async function syncStockToTN() {
+  if (!tnToken) { showToast('⚠️ Conectá Tienda Nube primero', 'error'); return; }
+  const toSync = products.filter(p => p.tn_variant_id && p.stock_tn !== null && p.stock !== p.stock_tn);
+  if (!toSync.length) { showToast('✅ Stock TN ya está sincronizado', 'info'); return; }
+  const modal = document.getElementById('updateModal');
+  modal.classList.add('show');
+  document.getElementById('modalSub').textContent = 'Sincronizando stock a Tienda Nube...';
+  document.getElementById('modalCount').textContent = `0 / ${toSync.length}`;
+  document.getElementById('modalBar').style.width = '0%';
+  const btn = document.getElementById('btnSyncStockTN');
+  btn.disabled = true;
+  let ok = 0, errors = 0;
+  for (let i = 0; i < toSync.length; i++) {
+    const p = toSync[i];
+    const pct = ((i + 1) / toSync.length) * 100;
+    document.getElementById('modalBar').style.width = pct + '%';
+    document.getElementById('modalSub').textContent = `Stock TN: ${p.name.slice(0, 40)}...`;
+    document.getElementById('modalCount').textContent = `${i + 1} / ${toSync.length}`;
+    try {
+      await tnPut(`/products/${p.tn_product_id}/variants/${p.tn_variant_id}`, { stock: p.stock });
+      p.stock_tn = p.stock; ok++;
+    } catch(e) { errors++; console.error(p.sku, e); }
+    await new Promise(r => setTimeout(r, 100));
+  }
+  modal.classList.remove('show');
+  btn.disabled = false;
+  renderStats();
+  if (errors === 0) showToast(`✅ ${ok} stocks sincronizados a TN`, 'success');
   else showToast(`⚠️ ${ok} OK · ${errors} errores`, 'error');
 }
 
@@ -1299,10 +1336,17 @@ async function reactivarItem(mla, idx) {
     if (Math.abs(newPrice - item.price) >= 1) {
       await mlPut(`/items/${mla}`, { price: newPrice });
     }
-    // 2. Actualizar stock (esto lo activa automáticamente si era out_of_stock)
+    // 2. Actualizar stock en ML (esto lo activa automáticamente si era out_of_stock)
     await mlPut(`/items/${mla}`, { available_quantity: newStock });
-    // 3. Reactivar explícitamente
+    // 3. Reactivar explícitamente en ML
     await mlPut(`/items/${mla}`, { status: 'active' });
+    // 4. Sincronizar stock a TN si tiene match
+    const prod = products.find(p => p.mla === mla);
+    if (tnToken && prod && prod.tn_variant_id) {
+      try {
+        await tnPut(`/products/${prod.tn_product_id}/variants/${prod.tn_variant_id}`, { stock: newStock });
+      } catch(tnErr) { console.warn('TN stock sync failed:', tnErr); }
+    }
 
     card.classList.remove('reactivating');
     card.classList.add('reactivated');
@@ -1312,10 +1356,9 @@ async function reactivarItem(mla, idx) {
     document.getElementById('ssBadge').textContent = `${ssItems.length} producto${ssItems.length !== 1 ? 's' : ''}`;
 
     // Actualizar en products también si está cargado
-    const prod = products.find(p => p.mla === mla);
-    if (prod) { prod.stock = newStock; prod.status = 'active'; prod.precio_ml_real = newPrice; renderStats(); updateSsCounter(); }
-
-    showToast(`✅ ${mla} reactivado con stock ${newStock}`, 'success');
+    if (prod) { prod.stock = newStock; prod.stock_tn = newStock; prod.status = 'active'; prod.precio_ml_real = newPrice; renderStats(); updateSsCounter(); }
+    const tnMsg = tnToken && prod && prod.tn_variant_id ? ' + TN' : '';
+    showToast(`✅ ${mla} reactivado · stock ${newStock}${tnMsg}`, 'success');
 
     // Animar salida después de 2s
     setTimeout(() => {
