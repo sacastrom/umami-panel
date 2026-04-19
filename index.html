@@ -159,6 +159,8 @@
   /* ── SIN STOCK PANEL ── */
   #sinStockPanel{display:none;position:fixed;inset:0;background:rgba(26,27,46,.45);z-index:300;backdrop-filter:blur(5px);}
   #sinStockPanel.open{display:flex;align-items:flex-start;justify-content:center;padding:20px;}
+  #tnHuerfanosPanel{display:none;position:fixed;inset:0;background:rgba(26,27,46,.45);z-index:300;backdrop-filter:blur(5px);}
+  #tnHuerfanosPanel.open{display:flex;align-items:flex-start;justify-content:center;padding:20px;}
   .ss-drawer{background:var(--surface);border:1px solid var(--border);border-radius:20px;width:100%;max-width:900px;max-height:calc(100vh - 40px);display:flex;flex-direction:column;overflow:hidden;animation:ssSlide .25s cubic-bezier(.34,1.2,.64,1);box-shadow:var(--shadow-md);}
   @keyframes ssSlide{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
   .ss-header{padding:16px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);}
@@ -262,6 +264,8 @@
     /* Sin Stock mobile */
     #sinStockPanel{padding:0;}
     #sinStockPanel.open{align-items:flex-end;}
+    #tnHuerfanosPanel{padding:0;}
+    #tnHuerfanosPanel.open{align-items:flex-end;}
     .ss-drawer{border-radius:20px 20px 0 0;max-height:92vh;}
     .ss-card{grid-template-columns:44px 1fr;gap:10px;}
     .ss-controls{grid-column:1/-1;flex-direction:row;align-items:center;flex-wrap:wrap;gap:8px;padding-top:8px;border-top:1px solid var(--border);}
@@ -304,6 +308,10 @@
       <button class="btn-sinstock" onclick="openSinStock()" id="btnSinStock">
         ⚠️ Sin Stock
         <span class="ss-count" id="ssHeaderCount"></span>
+      </button>
+      <button class="btn-sinstock" onclick="openTNHuerfanos()" id="btnTNHuerfanos" style="border-color:rgba(108,99,255,.4);color:var(--accent);background:var(--accent-light);display:none;">
+        🛍️ Sin match TN
+        <span class="ss-count" id="tnHuerfanosCount" style="background:var(--accent);"></span>
       </button>
       <div class="user-badge" style="gap:6px;">
         <div class="user-dot" id="tnDot" style="background:var(--muted2);"></div>
@@ -471,6 +479,35 @@
 </div>
 
 <div id="toast"><span id="tMsg"></span></div>
+
+<!-- ── PANEL TN SIN MATCH ── -->
+<div id="tnHuerfanosPanel">
+  <div class="ss-drawer" style="max-width:820px;">
+    <div class="ss-header">
+      <div class="ss-title">
+        🛍️ TN sin match en Sheet
+        <span class="ss-badge" id="tnHuerfanosBadge" style="background:var(--accent-light);color:var(--accent);border-color:rgba(108,99,255,.2);">0 productos</span>
+      </div>
+      <button class="ss-close" onclick="closeTNHuerfanos()">✕</button>
+    </div>
+    <div class="ss-subheader" style="gap:8px;">
+      <span style="font-size:10px;color:var(--muted);">Productos en Tienda Nube que no cruzaron con ningún SKU de la Sheet</span>
+      <input type="text" id="tnHuerfanosSearch" placeholder="Buscar..." oninput="renderTNHuerfanos()"
+        style="margin-left:auto;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:5px 10px;font-size:11px;font-family:var(--font-mono);outline:none;width:180px;">
+    </div>
+    <div class="ss-body" style="background:var(--bg);">
+      <div class="ss-list" id="tnHuerfanosList"></div>
+      <div class="ss-empty" id="tnHuerfanosEmpty" style="display:none;">
+        <div class="ss-empty-icon">✅</div>
+        <div class="ss-empty-title">¡Todos con match!</div>
+        <div style="font-size:12px;color:var(--muted);">Todos los productos de TN tienen su SKU en la Sheet.</div>
+      </div>
+    </div>
+    <div class="ss-footer">
+      <span id="tnHuerfanosFooter">—</span>
+    </div>
+  </div>
+</div>
 
 <!-- ── LIGHTBOX ── -->
 <div id="lightbox" onclick="closeLightbox()">
@@ -754,25 +791,32 @@ async function tnPut(path, body) {
 async function fetchTNData() {
   if (!tnToken || !tnStoreId) return {};
   const map = {};
+  const allTNProducts = []; // todos los productos de TN para detectar huérfanos
   let page = 1;
   while (true) {
-    const items = await tnFetch(`/products?per_page=200&page=${page}&fields=id,variants`);
+    const items = await tnFetch(`/products?per_page=200&page=${page}&fields=id,name,variants`);
     if (!Array.isArray(items) || !items.length) break;
     items.forEach(prod => {
       const v = prod.variants && prod.variants[0];
       if (!v) return;
       const sku = String(v.sku || '').trim();
-      if (sku) map[sku] = {
+      const entry = {
         product_id: prod.id,
         variant_id: v.id,
+        name: prod.name && (prod.name.es || prod.name.pt || Object.values(prod.name)[0] || ''),
+        sku,
         precio_tn: parseFloat(v.price) || 0,
         stock_tn: v.stock === null ? null : (parseInt(v.stock) || 0)
       };
+      if (sku) map[sku] = entry;
+      allTNProducts.push(entry);
     });
     if (items.length < 200) break;
     page++;
-    showLoading(`Cargando TN... ${Object.keys(map).length} productos`, 90);
+    showLoading(`Cargando TN... ${allTNProducts.length} productos`, 90);
   }
+  // Guardar globalmente para detectar huérfanos después de cruzar con Sheet
+  window._allTNProducts = allTNProducts;
   return map;
 }
 
@@ -795,6 +839,7 @@ async function initApp() {
       tnBySku = await fetchTNData();
     }
     products = buildProducts(rows, mlMap);
+    calcTNHuerfanos();
     setProgress(100); hideLoading(); doFilter();
     const tnCount = Object.keys(tnBySku).length;
     const msg = tnCount > 0 ? `✅ ${products.length} ML · ${tnCount} TN listos` : `✅ ${products.length} publicaciones listas`;
@@ -818,6 +863,7 @@ async function reloadApp() {
       tnBySku = await fetchTNData();
     }
     products = buildProducts(rows, mlMap);
+    calcTNHuerfanos();
     setProgress(100); hideLoading(); doFilter();
     ssLoaded = false;
     updateSsCounter();
@@ -1089,6 +1135,79 @@ async function toggleStatus(id) {
 // SIN STOCK — LÓGICA COMPLETA
 // ════════════════════════════════════════════════
 
+// ── TN SIN MATCH ─────────────────────────────────────
+let tnHuerfanos = [];
+
+function calcTNHuerfanos() {
+  if (!window._allTNProducts || !window._allTNProducts.length) { tnHuerfanos = []; updateTNHuerfanosCounter(); return; }
+  // SKUs que sí tienen match en Sheet
+  const skusEnSheet = new Set(Object.keys(tnBySku));
+  // Productos de TN cuyo SKU no está en la Sheet (o no tienen SKU)
+  tnHuerfanos = window._allTNProducts.filter(p => !p.sku || !skusEnSheet.has(p.sku));
+  updateTNHuerfanosCounter();
+}
+
+function updateTNHuerfanosCounter() {
+  const btn = document.getElementById('btnTNHuerfanos');
+  const badge = document.getElementById('tnHuerfanosCount');
+  if (!btn) return;
+  if (tnHuerfanos.length > 0) {
+    btn.style.display = 'flex';
+    badge.textContent = tnHuerfanos.length;
+    badge.classList.add('visible');
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+function openTNHuerfanos() {
+  document.getElementById('tnHuerfanosPanel').classList.add('open');
+  document.getElementById('tnHuerfanosSearch').value = '';
+  renderTNHuerfanos();
+}
+
+function closeTNHuerfanos() {
+  document.getElementById('tnHuerfanosPanel').classList.remove('open');
+}
+
+function renderTNHuerfanos() {
+  const q = (document.getElementById('tnHuerfanosSearch').value || '').toLowerCase();
+  const list = document.getElementById('tnHuerfanosList');
+  const empty = document.getElementById('tnHuerfanosEmpty');
+  const visible = tnHuerfanos.filter(p =>
+    !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || String(p.product_id).includes(q)
+  );
+  document.getElementById('tnHuerfanosBadge').textContent = `${visible.length}${q ? ' (filtrado)' : ''} de ${tnHuerfanos.length} productos`;
+  document.getElementById('tnHuerfanosFooter').textContent = `${visible.length} productos de TN sin SKU en la Sheet`;
+  if (!visible.length) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  list.innerHTML = visible.map(p => `
+    <div class="ss-card" style="grid-template-columns:1fr auto;">
+      <div class="ss-info">
+        <div class="ss-name">${p.name || '(sin nombre)'}</div>
+        <div class="ss-meta" style="margin-top:4px;">
+          <span class="ss-mla">TN ID: ${p.product_id}</span>
+          ${p.sku
+            ? `<span class="ss-mla" style="color:var(--orange);border-color:rgba(234,88,12,.3);">SKU: ${p.sku} ⚠️ no está en Sheet</span>`
+            : `<span class="ss-mla" style="color:var(--red);border-color:rgba(220,38,38,.2);">Sin SKU</span>`
+          }
+          <span class="ss-mla">${fmt(p.precio_tn)}</span>
+          <span class="ss-mla">Stock: ${p.stock_tn !== null ? p.stock_tn : '∞'}</span>
+        </div>
+      </div>
+      <a href="https://${tnStoreId ? 'umamishopba.mitiendanube.com' : ''}/admin/products/${p.product_id}" 
+         target="_blank" 
+         style="font-size:10px;color:var(--accent);text-decoration:none;white-space:nowrap;padding:4px 8px;border:1px solid rgba(108,99,255,.3);border-radius:6px;">
+        Ver en TN ↗
+      </a>
+    </div>
+  `).join('');
+}
+
 function openSinStock() {
   document.getElementById('sinStockPanel').classList.add('open');
   if (!ssLoaded) loadSinStock();
@@ -1097,11 +1216,13 @@ function closeSinStock() {
   document.getElementById('sinStockPanel').classList.remove('open');
 }
 // Cerrar con Escape
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeSinStock(); closeLightbox(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeSinStock(); closeLightbox(); closeTNHuerfanos(); } });
 // Cerrar al clickear overlay — se registra en boot para garantizar que el DOM existe
 function initOverlayListeners() {
   const sp = document.getElementById('sinStockPanel');
   if (sp) sp.addEventListener('click', function(e) { if (e.target === this) closeSinStock(); });
+  const tp = document.getElementById('tnHuerfanosPanel');
+  if (tp) tp.addEventListener('click', function(e) { if (e.target === this) closeTNHuerfanos(); });
 }
 
 function setSsSort(mode, btn) {
