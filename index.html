@@ -373,7 +373,10 @@
     <button class="filter-btn" onclick="setFilter('active',this)">Activas</button>
     <button class="filter-btn" onclick="setFilter('paused',this)">Pausadas</button>
     <button class="filter-btn diff-btn" onclick="setFilter('diff',this)">💛 Diff ML</button>
-    <button class="filter-btn" onclick="setFilter('difftn',this)" id="btnFilterDiffTN" style="border-color:rgba(234,88,12,.3);color:var(--orange);">🟠 Diff TN</button>
+    <button class="filter-btn" onclick="setFilter('difftn',this)" id="btnFilterDiffTN" style="border-color:rgba(234,88,12,.3);color:var(--orange);">🟠 Diff precio TN</button>
+    <button class="filter-btn" onclick="setFilter('diffstocktn',this)" style="border-color:rgba(37,99,235,.3);color:var(--blue);">📦 Diff stock TN</button>
+    <button class="filter-btn" onclick="setFilter('tnactive',this)" style="border-color:rgba(108,99,255,.3);color:var(--accent);">🛍️ Activas TN</button>
+    <button class="filter-btn" onclick="setFilter('tnpaused',this)" style="border-color:rgba(108,99,255,.3);color:var(--accent);">🛍️ Pausadas TN</button>
     <button class="filter-btn" onclick="setFilter('verde',this)">🟢 Verde</button>
     <button class="filter-btn" onclick="setFilter('amarillo',this)">🟡 Amarillo</button>
     <button class="filter-btn" onclick="setFilter('rojo',this)">🔴 Rojo</button>
@@ -915,6 +918,9 @@ function doFilter() {
       : currentFilter === 'paused' ? p.status === 'paused'
       : currentFilter === 'diff' ? hasDiff(p)
       : currentFilter === 'difftn' ? hasDiffTN(p)
+      : currentFilter === 'diffstocktn' ? (p.tn_variant_id && p.stock_tn !== null && p.stock !== p.stock_tn)
+      : currentFilter === 'tnactive' ? (p.tn_variant_id !== null && p.status === 'active')
+      : currentFilter === 'tnpaused' ? (p.tn_variant_id !== null && p.status === 'paused')
       : currentFilter === 'verde' ? p.semaforo === '🟢'
       : currentFilter === 'amarillo' ? p.semaforo === '🟡'
       : currentFilter === 'rojo' ? p.semaforo === '🔴'
