@@ -260,7 +260,35 @@
   .gondola-option.selected{color:var(--accent);background:var(--accent-light);}
   .ss-gondola-wrap{position:relative;display:inline-block;}
 
-  /* ── MOBILE RESPONSIVE ── */
+  /* ── TABS PRINCIPALES ── */
+  .main-tabs{display:flex;gap:4px;padding:10px 20px 0;background:var(--surface);border-bottom:1px solid var(--border);}
+  .main-tab{padding:8px 18px;border-radius:8px 8px 0 0;border:1px solid transparent;font-family:var(--font-mono);font-size:12px;cursor:pointer;transition:all .2s;color:var(--muted);background:transparent;border-bottom:none;}
+  .main-tab:hover{color:var(--text);}
+  .main-tab.active{background:var(--surface);border-color:var(--border);border-bottom-color:var(--surface);color:var(--accent);font-weight:600;margin-bottom:-1px;z-index:1;}
+  /* ── MÉTRICAS ── */
+  #metricasContent{display:none;padding:16px 20px;}
+  .met-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+  .met-sort-btn{background:var(--bg);border:1px solid var(--border);color:var(--muted);padding:6px 14px;border-radius:8px;font-family:var(--font-mono);font-size:11px;cursor:pointer;transition:all .2s;}
+  .met-sort-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .met-sort-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .met-grid{display:flex;flex-direction:column;gap:8px;}
+  .met-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.04);transition:box-shadow .2s;}
+  .met-card:hover{box-shadow:var(--shadow);}
+  .met-stats{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px;}
+  .met-stat{display:flex;flex-direction:column;gap:1px;min-width:60px;}
+  .met-stat-label{font-size:8px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;}
+  .met-stat-val{font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--text);}
+  .met-divider{width:1px;height:28px;background:var(--border);}
+  .met-sugerencia{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:600;font-family:var(--font-mono);white-space:nowrap;}
+  .sug-subir{background:rgba(22,163,74,.1);color:var(--green);border:1px solid rgba(22,163,74,.2);}
+  .sug-bajar{background:rgba(220,38,38,.1);color:var(--red);border:1px solid rgba(220,38,38,.2);}
+  .sug-visibilidad{background:rgba(37,99,235,.1);color:var(--blue);border:1px solid rgba(37,99,235,.2);}
+  .sug-ok{background:rgba(108,99,255,.1);color:var(--accent);border:1px solid rgba(108,99,255,.2);}
+  .sug-revisar{background:rgba(107,107,138,.1);color:var(--muted);border:1px solid var(--border);}
+  .met-loading{display:flex;align-items:center;justify-content:center;gap:12px;padding:60px;color:var(--muted);font-size:13px;}
+  .met-empty{text-align:center;padding:60px;color:var(--muted2);}
+  .conv-bar{height:4px;border-radius:2px;background:var(--border);margin-top:4px;overflow:hidden;width:80px;}
+  .conv-fill{height:100%;border-radius:2px;background:var(--accent);transition:width .4s;}
   @media(max-width:768px){
     header{padding:0 12px;height:50px;}
     .logo{font-size:15px;}
@@ -426,6 +454,12 @@
     <div class="load-progress"><div class="load-bar" id="loadBar" style="width:0%"></div></div>
   </div>
 
+  <!-- TABS PRINCIPALES -->
+  <div class="main-tabs" id="mainTabs" style="display:none;">
+    <button class="main-tab active" id="tabPublicaciones" onclick="switchTab('publicaciones')">📋 Publicaciones</button>
+    <button class="main-tab" id="tabMetricas" onclick="switchTab('metricas')">📊 Métricas</button>
+  </div>
+
   <div id="panelContent" style="display:none;">
     <div class="hint">✏️ Stock y Estado se editan en vivo · Precio calculado (amarillo) vs precio publicado (gris) · ⚡ Actualizar sube los precios calculados a ML</div>
     <div class="table-wrap">
@@ -443,6 +477,29 @@
     <div class="pagination">
       <span id="pInfo">—</span>
       <div class="page-btns" id="pBtns"></div>
+    </div>
+  </div>
+
+  <!-- MÉTRICAS -->
+  <div id="metricasContent">
+    <div class="met-toolbar">
+      <span style="font-size:11px;color:var(--muted);font-family:var(--font-mono);">Ordenar por:</span>
+      <button class="met-sort-btn active" id="metSort-visitas" onclick="setMetSort('visitas',this)">👁️ Más visitados</button>
+      <button class="met-sort-btn" id="metSort-ventas" onclick="setMetSort('ventas',this)">🛒 Más vendidos</button>
+      <button class="met-sort-btn" id="metSort-conv" onclick="setMetSort('conv',this)">📈 Mayor conversión</button>
+      <button class="met-sort-btn" id="metSort-conv_asc" onclick="setMetSort('conv_asc',this)">📉 Menor conversión</button>
+      <span style="margin-left:auto;font-size:10px;color:var(--muted2);" id="metLastUpdate"></span>
+      <button class="ss-refresh" onclick="loadMetricas(true)">↻ Actualizar</button>
+    </div>
+    <div id="metLoading" class="met-loading" style="display:none;">
+      <div class="loader" style="width:24px;height:24px;border-width:2px;"></div>
+      <span id="metLoadingMsg">Cargando visitas...</span>
+    </div>
+    <div id="metGrid" class="met-grid"></div>
+    <div id="metEmpty" class="met-empty" style="display:none;">
+      <div style="font-size:32px;margin-bottom:12px;">📊</div>
+      <div style="font-family:var(--font-head);font-size:16px;color:var(--text);margin-bottom:6px;">Sin datos de métricas</div>
+      <div style="font-size:12px;">Hacé click en Actualizar para cargar las visitas de los últimos 30 días.</div>
     </div>
   </div>
 </div>
@@ -973,7 +1030,11 @@ function showLoading(msg, pct) {
   if (pct !== undefined) setProgress(pct);
 }
 function setProgress(pct) { document.getElementById('loadBar').style.width = pct + '%'; }
-function hideLoading() { document.getElementById('loadingScreen').style.display = 'none'; document.getElementById('panelContent').style.display = 'block'; }
+function hideLoading() {
+  document.getElementById('loadingScreen').style.display = 'none';
+  document.getElementById('panelContent').style.display = 'block';
+  document.getElementById('mainTabs').style.display = 'flex';
+}
 
 function doFilter() {
   const q = document.getElementById('searchInput').value.toLowerCase();
@@ -1454,6 +1515,183 @@ async function actualizarStockCritico(id) {
     btn.disabled = false; btn.textContent = '📦 Actualizar';
     showToast('❌ ' + e.message, 'error');
   }
+}
+
+// ── TABS PRINCIPALES ──────────────────────────────────
+let currentTab = 'publicaciones';
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tabPublicaciones').classList.toggle('active', tab === 'publicaciones');
+  document.getElementById('tabMetricas').classList.toggle('active', tab === 'metricas');
+  document.getElementById('panelContent').style.display = tab === 'publicaciones' ? 'block' : 'none';
+  document.getElementById('metricasContent').style.display = tab === 'metricas' ? 'block' : 'none';
+  document.getElementById('toolbar-wrap') && (document.getElementById('toolbar-wrap').style.display = tab === 'publicaciones' ? 'block' : 'none');
+  if (tab === 'metricas' && !metLoaded) {
+    document.getElementById('metEmpty').style.display = 'block';
+  }
+}
+
+// ── MÉTRICAS ──────────────────────────────────────────
+const MET_CACHE_KEY = 'met_visitas_cache';
+const MET_CACHE_TTL = 4 * 60 * 60 * 1000; // 4 horas
+let metData = []; // array de { mla, visitas, ventas, conv, sugerencia, ...product }
+let metSortMode = 'visitas';
+let metLoaded = false;
+
+function setMetSort(mode, btn) {
+  metSortMode = mode;
+  document.querySelectorAll('.met-sort-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderMetricas();
+}
+
+async function loadMetricas(forceRefresh) {
+  // Intentar caché
+  if (!forceRefresh) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(MET_CACHE_KEY) || 'null');
+      if (cached && cached.version === 1 && (Date.now() - cached.ts) < MET_CACHE_TTL) {
+        metData = cached.data;
+        metLoaded = true;
+        renderMetricas();
+        const d = new Date(cached.ts);
+        document.getElementById('metLastUpdate').textContent = `Cache: ${d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}`;
+        return;
+      }
+    } catch(e) {}
+    localStorage.removeItem(MET_CACHE_KEY);
+  }
+
+  document.getElementById('metLoading').style.display = 'flex';
+  document.getElementById('metGrid').innerHTML = '';
+  document.getElementById('metEmpty').style.display = 'none';
+
+  try {
+    // Traer visitas en lotes de 50 MLAs
+    const visitasMap = {};
+    const mlas = products.map(p => p.mla);
+    for (let i = 0; i < mlas.length; i += 50) {
+      const batch = mlas.slice(i, i + 50).join(',');
+      document.getElementById('metLoadingMsg').textContent = `Cargando visitas... ${Math.min(i + 50, mlas.length)} / ${mlas.length}`;
+      try {
+        const data = await mlFetch(`/items/visits?ids=${batch}&date_from=${getDateFrom(30)}&date_to=${getDateTo()}`);
+        if (data && Array.isArray(data)) {
+          data.forEach(d => { if (d.id) visitasMap[d.id] = d.total_visits || 0; });
+        }
+      } catch(e) { console.warn('visitas batch error', e); }
+      await new Promise(r => setTimeout(r, 100));
+    }
+
+    // Construir metData cruzando con ventas (saVentas) y visitas
+    const ahora = Date.now();
+    const desde30 = ahora - 30 * 24 * 60 * 60 * 1000;
+    metData = products.map(p => {
+      const visitas = visitasMap[p.mla] || 0;
+      const ventasArr = saVentas[p.mla] || [];
+      const ventas = ventasArr.filter(v => v.t >= desde30).reduce((s, v) => s + v.q, 0);
+      const conv = visitas > 0 ? (ventas / visitas) * 100 : 0;
+      const sugerencia = getSugerencia(visitas, ventas, conv);
+      return { ...p, visitas, ventas, conv, sugerencia };
+    }).filter(p => p.visitas > 0 || p.ventas > 0);
+
+    metLoaded = true;
+    localStorage.setItem(MET_CACHE_KEY, JSON.stringify({ ts: Date.now(), version: 1, data: metData }));
+    const now = new Date();
+    document.getElementById('metLastUpdate').textContent = `Actualizado ${now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}`;
+    document.getElementById('metLoading').style.display = 'none';
+    renderMetricas();
+  } catch(e) {
+    document.getElementById('metLoading').style.display = 'none';
+    showToast('❌ Error cargando métricas: ' + e.message, 'error');
+    console.error(e);
+  }
+}
+
+function getDateFrom(dias) {
+  const d = new Date();
+  d.setDate(d.getDate() - dias);
+  return d.toISOString().split('T')[0];
+}
+function getDateTo() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function getSugerencia(visitas, ventas, conv) {
+  if (visitas === 0 && ventas === 0) return { texto: '👁️ Sin tráfico', clase: 'sug-revisar', detalle: 'Revisar título, fotos y categoría' };
+  if (visitas > 100 && conv >= 3) return { texto: '🚀 Subir precio', clase: 'sug-subir', detalle: 'Alta conversión — el producto tiene demanda' };
+  if (visitas > 50 && conv < 1) return { texto: '💰 Bajar precio', clase: 'sug-bajar', detalle: 'Muchas visitas pero poca conversión' };
+  if (visitas < 20 && ventas > 3) return { texto: '📣 Más visibilidad', clase: 'sug-visibilidad', detalle: 'Se vende bien pero falta tráfico' };
+  if (conv >= 2) return { texto: '✅ Producto sano', clase: 'sug-ok', detalle: 'Buen equilibrio visitas/ventas' };
+  return { texto: '🔍 Monitorear', clase: 'sug-revisar', detalle: 'Conversión baja, seguir de cerca' };
+}
+
+function renderMetricas() {
+  const grid = document.getElementById('metGrid');
+  const empty = document.getElementById('metEmpty');
+
+  if (!metData.length) {
+    grid.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const sorted = [...metData].sort((a, b) => {
+    if (metSortMode === 'visitas') return b.visitas - a.visitas;
+    if (metSortMode === 'ventas') return b.ventas - a.ventas;
+    if (metSortMode === 'conv') return b.conv - a.conv;
+    if (metSortMode === 'conv_asc') return a.conv - b.conv;
+    return 0;
+  });
+
+  const maxVisitas = Math.max(...sorted.map(p => p.visitas), 1);
+
+  grid.innerHTML = sorted.map(p => {
+    const convPct = Math.min(p.conv, 20); // cap visual en 20%
+    const barWidth = Math.round((convPct / 20) * 100);
+    return `<div class="met-card">
+      ${p.thumbnail
+        ? `<img class="ss-thumb" src="${p.thumbnail}" alt="" loading="lazy" onclick="openLightbox('${p.thumbnail}')" style="width:44px;height:44px;">`
+        : `<div class="ss-thumb-ph" style="width:44px;height:44px;">□</div>`}
+      <div class="ss-info">
+        <div class="ss-name">${p.name}</div>
+        <div class="ss-meta" style="margin-bottom:4px;">
+          <span class="ss-mla">${p.mla}</span>
+          <span class="ss-mla" style="color:var(--blue);">SKU ${p.sku}</span>
+          ${p.gondola ? `<span class="ss-mla" style="color:var(--accent);">${p.gondola}</span>` : ''}
+          <span class="met-sugerencia ${p.sugerencia.clase}" title="${p.sugerencia.detalle}">${p.sugerencia.texto}</span>
+        </div>
+        <div class="met-stats">
+          <div class="met-stat">
+            <div class="met-stat-label">👁️ Visitas (30d)</div>
+            <div class="met-stat-val">${p.visitas.toLocaleString('es-AR')}</div>
+          </div>
+          <div class="met-divider"></div>
+          <div class="met-stat">
+            <div class="met-stat-label">🛒 Ventas (30d)</div>
+            <div class="met-stat-val">${p.ventas}</div>
+          </div>
+          <div class="met-divider"></div>
+          <div class="met-stat">
+            <div class="met-stat-label">📈 Conversión</div>
+            <div class="met-stat-val">${p.conv.toFixed(1)}%</div>
+            <div class="conv-bar"><div class="conv-fill" style="width:${barWidth}%;"></div></div>
+          </div>
+          <div class="met-divider"></div>
+          <div class="met-stat">
+            <div class="met-stat-label">💰 Precio ML</div>
+            <div class="met-stat-val">${fmt(p.precio_ml_real || p.precio_ml_calc)}</div>
+          </div>
+          <div class="met-divider"></div>
+          <div class="met-stat">
+            <div class="met-stat-label">📦 Stock</div>
+            <div class="met-stat-val ${scClass(p.stock)}">${p.stock} u.</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function calcTNHuerfanos() {
