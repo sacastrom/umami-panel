@@ -1329,7 +1329,8 @@ function renderStockAlerta() {
     const velDiaria = unidades / saPeriod;
     const diasRestantes = velDiaria > 0 ? Math.floor(p.stock / velDiaria) : Infinity;
     if (diasRestantes > saTab) return;
-    alertas.push({ ...p, velDiaria, diasRestantes, unidadesVendidas: unidades, diasBase: saPeriod });
+    const stockSugerido = Math.max(0, Math.ceil(velDiaria * saPeriod) - p.stock);
+    alertas.push({ ...p, velDiaria, diasRestantes, unidadesVendidas: unidades, diasBase: saPeriod, stockSugerido });
   });
 
   alertas.sort((a, b) => a.diasRestantes - b.diasRestantes);
@@ -1397,6 +1398,11 @@ function renderStockAlerta() {
           <div class="ss-price-item">
             <div class="ss-price-label">Por día</div>
             <div class="ss-price-val">${p.velDiaria.toFixed(1)} u/d</div>
+          </div>
+          <div class="ss-divider"></div>
+          <div class="ss-price-item">
+            <div class="ss-price-label">Comprar</div>
+            <div class="ss-price-val" style="color:var(--green);font-weight:700;">+${p.stockSugerido} u.</div>
           </div>
         </div>
       </div>
