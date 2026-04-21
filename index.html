@@ -1551,7 +1551,7 @@ async function loadMetricas(forceRefresh) {
   if (!forceRefresh) {
     try {
       const cached = JSON.parse(localStorage.getItem(MET_CACHE_KEY) || 'null');
-      if (cached && cached.version === 1 && (Date.now() - cached.ts) < MET_CACHE_TTL) {
+      if (cached && cached.version === 2 && (Date.now() - cached.ts) < MET_CACHE_TTL) {
         metData = cached.data;
         metLoaded = true;
         renderMetricas();
@@ -1577,7 +1577,13 @@ async function loadMetricas(forceRefresh) {
       try {
         const data = await mlFetch(`/items/visits?ids=${batch}&date_from=${getDateFrom(30)}&date_to=${getDateTo()}`);
         if (data && Array.isArray(data)) {
-          data.forEach(d => { if (d.id) visitasMap[d.id] = d.total_visits || 0; });
+          data.forEach(d => {
+            const mla = d.item_id || d.id;
+            if (!mla) return;
+            // La API devuelve un objeto por día — acumular total_visits
+            if (!visitasMap[mla]) visitasMap[mla] = 0;
+            visitasMap[mla] += d.total_visits || 0;
+          });
         }
       } catch(e) { console.warn('visitas batch error', e); }
       await new Promise(r => setTimeout(r, 100));
@@ -1596,7 +1602,7 @@ async function loadMetricas(forceRefresh) {
     }).filter(p => p.visitas > 0 || p.ventas > 0);
 
     metLoaded = true;
-    localStorage.setItem(MET_CACHE_KEY, JSON.stringify({ ts: Date.now(), version: 1, data: metData }));
+    localStorage.setItem(MET_CACHE_KEY, JSON.stringify({ ts: Date.now(), version: 2, data: metData }));
     const now = new Date();
     document.getElementById('metLastUpdate').textContent = `Actualizado ${now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}`;
     document.getElementById('metLoading').style.display = 'none';
