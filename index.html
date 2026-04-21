@@ -329,7 +329,7 @@
         ⚠️ Sin Stock
         <span class="ss-count" id="ssHeaderCount"></span>
       </button>
-      <button class="btn-sinstock" onclick="openStockAlerta()" id="btnStockAlerta" style="border-color:rgba(234,88,12,.4);color:var(--orange);background:rgba(234,88,12,.08);display:none;">
+      <button class="btn-sinstock" onclick="openStockAlerta()" id="btnStockAlerta" style="border-color:rgba(234,88,12,.4);color:var(--orange);background:rgba(234,88,12,.08);">
         📉 Stock crítico
         <span class="ss-count" id="stockAlertaCount" style="background:var(--orange);"></span>
       </button>
@@ -1339,7 +1339,7 @@ function renderStockAlerta() {
   // Ordenar por días restantes (más urgente primero)
   alertas.sort((a, b) => a.diasRestantes - b.diasRestantes);
 
-  // Actualizar badge del botón header
+  // Actualizar badge del botón header con críticos <7 días
   const totalCriticos = Object.keys(saVentas).length > 0
     ? products.filter(p => {
         if (p.stock <= 0) return false;
@@ -1351,14 +1351,12 @@ function renderStockAlerta() {
         return vel > 0 && Math.floor(p.stock / vel) < 7;
       }).length
     : 0;
-  const btnAlerta = document.getElementById('btnStockAlerta');
   const badgeAlerta = document.getElementById('stockAlertaCount');
   if (totalCriticos > 0) {
-    btnAlerta.style.display = 'flex';
     badgeAlerta.textContent = totalCriticos;
     badgeAlerta.classList.add('visible');
   } else {
-    btnAlerta.style.display = 'none';
+    badgeAlerta.classList.remove('visible');
   }
 
   document.getElementById('saTotal').textContent = `${alertas.length} producto${alertas.length !== 1 ? 's' : ''}`;
