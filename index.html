@@ -1375,6 +1375,7 @@ function renderStockAlerta() {
   list.innerHTML = alertas.map(p => {
     const urgClass = p.diasRestantes < 7 ? 'urgente' : p.diasRestantes < 15 ? 'pronto' : 'planificar';
     const diasColor = p.diasRestantes < 7 ? 'var(--red)' : p.diasRestantes < 15 ? 'var(--orange)' : 'var(--blue)';
+    const diasText = p.diasRestantes === 0 ? '<1' : String(p.diasRestantes);
     return `<div class="sa-card ${urgClass}">
       ${p.thumbnail
         ? `<img class="ss-thumb" src="${p.thumbnail}" alt="" loading="lazy" onclick="openLightbox('${p.thumbnail}')" style="width:44px;height:44px;">`
@@ -1403,10 +1404,10 @@ function renderStockAlerta() {
           </div>
         </div>
       </div>
-      <div class="sa-dias">
-        <div class="sa-dias-num" style="color:${diasColor};">${p.diasRestantes}</div>
-        <div class="sa-dias-label">días</div>
-        <div class="sa-dias-label" style="margin-top:2px;">restantes</div>
+      <div class="sa-dias" style="background:${diasColor}15;border-radius:10px;padding:8px 12px;border:1px solid ${diasColor}40;">
+        <div class="sa-dias-num" style="color:${diasColor};">${diasText}</div>
+        <div class="sa-dias-label" style="color:${diasColor};opacity:.8;">días</div>
+        <div class="sa-dias-label" style="color:${diasColor};opacity:.8;">restantes</div>
       </div>
     </div>`;
   }).join('');
