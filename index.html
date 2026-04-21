@@ -1373,7 +1373,8 @@ function renderStockAlerta() {
     const urgClass = p.diasRestantes < 7 ? 'urgente' : p.diasRestantes < 15 ? 'pronto' : 'planificar';
     const diasColor = p.diasRestantes < 7 ? 'var(--red)' : p.diasRestantes < 15 ? 'var(--orange)' : 'var(--blue)';
     const diasText = p.diasRestantes === 0 ? '<1' : String(p.diasRestantes);
-    return `<div class="sa-card ${urgClass}">
+    const nuevoStock = p.stock + p.stockSugerido;
+    return `<div class="sa-card ${urgClass}" id="sacard-${p.id}">
       ${p.thumbnail
         ? `<img class="ss-thumb" src="${p.thumbnail}" alt="" loading="lazy" onclick="openLightbox('${p.thumbnail}')" style="width:44px;height:44px;">`
         : `<div class="ss-thumb-ph" style="width:44px;height:44px;">□</div>`}
@@ -1405,6 +1406,16 @@ function renderStockAlerta() {
             <div class="ss-price-val" style="color:var(--green);font-weight:700;">+${p.stockSugerido} u.</div>
           </div>
         </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
+          <span style="font-size:9px;color:var(--muted);white-space:nowrap;">Nuevo stock:</span>
+          <input class="ss-input stock-input" type="number" id="sa-stock-${p.id}" 
+            value="${nuevoStock}" min="1" inputmode="numeric"
+            style="width:80px;">
+          <button class="ss-btn-reactivar" onclick="actualizarStockCritico(${p.id})" id="sa-btn-${p.id}">
+            📦 Actualizar
+          </button>
+          <span class="ss-reactivated-tag" id="sa-ok-${p.id}" style="display:none;">✅ Actualizado</span>
+        </div>
       </div>
       <div class="sa-dias" style="background:${diasColor}15;border-radius:10px;padding:8px 12px;border:1px solid ${diasColor}40;">
         <div class="sa-dias-num" style="color:${diasColor};">${diasText}</div>
@@ -1413,6 +1424,36 @@ function renderStockAlerta() {
       </div>
     </div>`;
   }).join('');
+}
+
+async function actualizarStockCritico(id) {
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  const inp = document.getElementById(`sa-stock-${id}`);
+  const btn = document.getElementById(`sa-btn-${id}`);
+  const ok = document.getElementById(`sa-ok-${id}`);
+  const newVal = parseInt(inp.value);
+  if (isNaN(newVal) || newVal < 1) { showToast('❌ Stock inválido', 'error'); return; }
+  btn.disabled = true; btn.textContent = '⏳ Guardando...';
+  try {
+    await mlPut(`/items/${p.mla}`, { available_quantity: newVal });
+    if (tnToken && p.tn_variant_id) {
+      try {
+        await tnPut(`/products/${p.tn_product_id}/variants/${p.tn_variant_id}`, { stock: newVal });
+      } catch(e) { console.warn('TN stock sync failed:', e); }
+    }
+    // Actualizar en products
+    p.stock = newVal; p.stock_tn = newVal;
+    btn.style.display = 'none';
+    inp.disabled = true;
+    ok.style.display = 'inline';
+    renderStats();
+    const tnMsg = tnToken && p.tn_variant_id ? ' + TN' : '';
+    showToast(`📦 Stock actualizado: ${newVal} u. en ML${tnMsg}`, 'success');
+  } catch(e) {
+    btn.disabled = false; btn.textContent = '📦 Actualizar';
+    showToast('❌ ' + e.message, 'error');
+  }
 }
 
 function calcTNHuerfanos() {
