@@ -161,6 +161,24 @@
   #sinStockPanel.open{display:flex;align-items:flex-start;justify-content:center;padding:20px;}
   #tnHuerfanosPanel{display:none;position:fixed;inset:0;background:rgba(26,27,46,.45);z-index:300;backdrop-filter:blur(5px);}
   #tnHuerfanosPanel.open{display:flex;align-items:flex-start;justify-content:center;padding:20px;}
+  #stockAlertaPanel{display:none;position:fixed;inset:0;background:rgba(26,27,46,.45);z-index:300;backdrop-filter:blur(5px);}
+  #stockAlertaPanel.open{display:flex;align-items:flex-start;justify-content:center;padding:20px;}
+  /* Tabs del panel stock alerta */
+  .sa-tabs{display:flex;gap:6px;padding:12px 22px;border-bottom:1px solid var(--border);background:var(--surface2);flex-shrink:0;flex-wrap:wrap;}
+  .sa-tab{padding:5px 14px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:11px;font-family:var(--font-mono);cursor:pointer;transition:all .2s;}
+  .sa-tab:hover{border-color:var(--orange);color:var(--orange);}
+  .sa-tab.active{background:var(--orange);color:#fff;border-color:var(--orange);}
+  .sa-tab.critico{border-color:rgba(220,38,38,.3);color:var(--red);}
+  .sa-tab.critico.active{background:var(--red);color:#fff;border-color:var(--red);}
+  /* Cards de alerta */
+  .sa-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.04);}
+  .sa-card.urgente{border-left:3px solid var(--red);}
+  .sa-card.pronto{border-left:3px solid var(--orange);}
+  .sa-card.planificar{border-left:3px solid var(--blue);}
+  .sa-dias{display:flex;flex-direction:column;align-items:center;min-width:60px;}
+  .sa-dias-num{font-family:var(--font-head);font-size:22px;font-weight:800;line-height:1;}
+  .sa-dias-label{font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+  .sa-periodo-info{font-size:9px;color:var(--muted2);margin-top:2px;}
   .ss-drawer{background:var(--surface);border:1px solid var(--border);border-radius:20px;width:100%;max-width:900px;max-height:calc(100vh - 40px);display:flex;flex-direction:column;overflow:hidden;animation:ssSlide .25s cubic-bezier(.34,1.2,.64,1);box-shadow:var(--shadow-md);}
   @keyframes ssSlide{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
   .ss-header{padding:16px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);}
@@ -266,6 +284,8 @@
     #sinStockPanel.open{align-items:flex-end;}
     #tnHuerfanosPanel{padding:0;}
     #tnHuerfanosPanel.open{align-items:flex-end;}
+    #stockAlertaPanel{padding:0;}
+    #stockAlertaPanel.open{align-items:flex-end;}
     .ss-drawer{border-radius:20px 20px 0 0;max-height:92vh;}
     .ss-card{grid-template-columns:44px 1fr;gap:10px;}
     .ss-controls{grid-column:1/-1;flex-direction:row;align-items:center;flex-wrap:wrap;gap:8px;padding-top:8px;border-top:1px solid var(--border);}
@@ -308,6 +328,10 @@
       <button class="btn-sinstock" onclick="openSinStock()" id="btnSinStock">
         ⚠️ Sin Stock
         <span class="ss-count" id="ssHeaderCount"></span>
+      </button>
+      <button class="btn-sinstock" onclick="openStockAlerta()" id="btnStockAlerta" style="border-color:rgba(234,88,12,.4);color:var(--orange);background:rgba(234,88,12,.08);display:none;">
+        📉 Stock crítico
+        <span class="ss-count" id="stockAlertaCount" style="background:var(--orange);"></span>
       </button>
       <button class="btn-sinstock" onclick="openTNHuerfanos()" id="btnTNHuerfanos" style="border-color:rgba(108,99,255,.4);color:var(--accent);background:var(--accent-light);display:none;">
         🛍️ Sin match TN
@@ -482,6 +506,48 @@
 </div>
 
 <div id="toast"><span id="tMsg"></span></div>
+
+<!-- ── PANEL STOCK CRÍTICO ── -->
+<div id="stockAlertaPanel">
+  <div class="ss-drawer" style="max-width:960px;">
+    <div class="ss-header">
+      <div class="ss-title">
+        📉 Stock crítico — Productos a reponer
+        <span class="ss-badge" id="saTotal" style="background:rgba(234,88,12,.1);color:var(--orange);border-color:rgba(234,88,12,.2);">0 productos</span>
+      </div>
+      <button class="ss-close" onclick="closeStockAlerta()">✕</button>
+    </div>
+    <!-- Selector período + tabs umbral -->
+    <div class="sa-tabs">
+      <span class="ss-sort-label" style="align-self:center;">Período:</span>
+      <button class="sa-tab active" id="saPeriod7" onclick="setSaPeriod(7,this)">7 días</button>
+      <button class="sa-tab" id="saPeriod15" onclick="setSaPeriod(15,this)">15 días</button>
+      <button class="sa-tab" id="saPeriod30" onclick="setSaPeriod(30,this)">30 días</button>
+      <div style="width:1px;background:var(--border);margin:0 6px;"></div>
+      <span class="ss-sort-label" style="align-self:center;">Urgencia:</span>
+      <button class="sa-tab critico active" id="saTab7" onclick="setSaTab(7,this)">🔴 &lt;7 días</button>
+      <button class="sa-tab" id="saTab15" onclick="setSaTab(15,this)">🟠 &lt;15 días</button>
+      <button class="sa-tab" id="saTab30" onclick="setSaTab(30,this)">🔵 &lt;30 días</button>
+      <span style="margin-left:auto;font-size:10px;color:var(--muted2);" id="saLastUpdate"></span>
+      <button class="ss-refresh" onclick="loadStockAlerta(true)">↻ Actualizar</button>
+    </div>
+    <div class="ss-body" style="background:var(--bg);" id="saBody">
+      <div class="ss-loading" id="saLoading" style="display:none;">
+        <div class="ss-loader" style="border-top-color:var(--orange);"></div>
+        <span>Cargando órdenes de ML...</span>
+      </div>
+      <div class="ss-list" id="saList"></div>
+      <div class="ss-empty" id="saEmpty" style="display:none;">
+        <div class="ss-empty-icon">✅</div>
+        <div class="ss-empty-title">¡Sin productos críticos!</div>
+        <div style="font-size:12px;color:var(--muted);">No hay productos con stock bajo según la velocidad de venta.</div>
+      </div>
+    </div>
+    <div class="ss-footer">
+      <span id="saFooter" style="font-size:10px;color:var(--muted);">—</span>
+    </div>
+  </div>
+</div>
 
 <!-- ── PANEL TN SIN MATCH ── -->
 <div id="tnHuerfanosPanel">
@@ -1144,6 +1210,209 @@ async function toggleStatus(id) {
 // ── TN SIN MATCH ─────────────────────────────────────
 let tnHuerfanos = [];
 
+// ── STOCK CRÍTICO ────────────────────────────────────
+const SA_CACHE_KEY = 'sa_ordenes_cache';
+const SA_CACHE_TTL = 4 * 60 * 60 * 1000; // 4 horas
+let saVentas = {}; // SKU → { unidades, primerVenta, ultimaVenta }
+let saPeriod = 7;  // período seleccionado para calcular velocidad
+let saTab = 7;     // umbral de días mostrado
+let saLoaded = false;
+
+function openStockAlerta() {
+  document.getElementById('stockAlertaPanel').classList.add('open');
+  if (!saLoaded) loadStockAlerta(false);
+}
+function closeStockAlerta() {
+  document.getElementById('stockAlertaPanel').classList.remove('open');
+}
+
+function setSaPeriod(p, btn) {
+  saPeriod = p;
+  document.querySelectorAll('.sa-tab[id^="saPeriod"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderStockAlerta();
+}
+function setSaTab(t, btn) {
+  saTab = t;
+  document.querySelectorAll('.sa-tab[id^="saTab"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderStockAlerta();
+}
+
+async function loadStockAlerta(forceRefresh) {
+  // Intentar usar caché
+  if (!forceRefresh) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(SA_CACHE_KEY) || 'null');
+      if (cached && (Date.now() - cached.ts) < SA_CACHE_TTL) {
+        saVentas = cached.ventas;
+        saLoaded = true;
+        renderStockAlerta();
+        const d = new Date(cached.ts);
+        document.getElementById('saLastUpdate').textContent = `Cache: ${d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}`;
+        return;
+      }
+    } catch(e) {}
+  }
+
+  // Cargar desde API
+  document.getElementById('saLoading').style.display = 'flex';
+  document.getElementById('saList').innerHTML = '';
+  document.getElementById('saEmpty').style.display = 'none';
+
+  try {
+    const desde = new Date();
+    desde.setDate(desde.getDate() - 30);
+    const fechaDesde = desde.toISOString().split('T')[0] + 'T00:00:00.000-03:00';
+
+    const ventasMap = {}; // SKU → { unidades, primerVenta, ultimaVenta }
+    let offset = 0;
+    let total = null;
+
+    while (total === null || offset < total) {
+      const data = await mlFetch(`/orders/search?seller=${mlUserId}&order.status=paid&order.date_created.from=${encodeURIComponent(fechaDesde)}&limit=50&offset=${offset}`);
+      if (!data || !data.results) break;
+      if (total === null) total = Math.min(data.paging.total, 2000); // max 2000 órdenes
+      
+      data.results.forEach(order => {
+        const fecha = new Date(order.date_created);
+        order.order_items.forEach(item => {
+          const mla = item.item && item.item.id;
+          if (!mla) return;
+          // Buscar SKU en products por MLA
+          const prod = products.find(p => p.mla === mla);
+          const key = prod ? prod.sku : mla;
+          if (!ventasMap[key]) ventasMap[key] = { unidades: 0, mla, primerVenta: fecha, ultimaVenta: fecha };
+          ventasMap[key].unidades += item.quantity || 1;
+          if (fecha < ventasMap[key].primerVenta) ventasMap[key].primerVenta = fecha;
+          if (fecha > ventasMap[key].ultimaVenta) ventasMap[key].ultimaVenta = fecha;
+        });
+      });
+
+      offset += 50;
+      document.getElementById('saLoading').querySelector('span').textContent = `Cargando órdenes... ${Math.min(offset, total)} / ${total}`;
+      if (data.results.length < 50) break;
+    }
+
+    saVentas = ventasMap;
+    saLoaded = true;
+
+    // Guardar en caché
+    localStorage.setItem(SA_CACHE_KEY, JSON.stringify({ ts: Date.now(), ventas: ventasMap }));
+    const now = new Date();
+    document.getElementById('saLastUpdate').textContent = `Actualizado ${now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}`;
+
+    document.getElementById('saLoading').style.display = 'none';
+    renderStockAlerta();
+
+  } catch(e) {
+    document.getElementById('saLoading').style.display = 'none';
+    showToast('❌ Error cargando órdenes: ' + e.message, 'error');
+    console.error(e);
+  }
+}
+
+function renderStockAlerta() {
+  const list = document.getElementById('saList');
+  const empty = document.getElementById('saEmpty');
+
+  // Calcular días restantes para cada producto con ventas
+  const alertas = [];
+  products.forEach(p => {
+    if (p.stock <= 0) return; // ya está sin stock, lo maneja Sin Stock
+    const key = p.sku || p.mla;
+    const venta = saVentas[key] || saVentas[p.mla];
+    if (!venta || venta.unidades === 0) return; // sin ventas, no es crítico
+
+    // Calcular velocidad según período seleccionado
+    // Usar el mínimo entre el período elegido y los días reales desde primera venta
+    const diasReales = Math.max(1, Math.ceil((Date.now() - new Date(venta.primerVenta)) / 86400000));
+    const diasBase = Math.min(saPeriod, diasReales);
+    const velDiaria = venta.unidades / diasBase;
+    const diasRestantes = velDiaria > 0 ? Math.floor(p.stock / velDiaria) : Infinity;
+
+    if (diasRestantes > saTab) return; // fuera del umbral seleccionado
+
+    alertas.push({ ...p, velDiaria, diasRestantes, unidadesVendidas: venta.unidades, diasBase });
+  });
+
+  // Ordenar por días restantes (más urgente primero)
+  alertas.sort((a, b) => a.diasRestantes - b.diasRestantes);
+
+  // Actualizar badge del botón header
+  const totalCriticos = Object.keys(saVentas).length > 0
+    ? products.filter(p => {
+        if (p.stock <= 0) return false;
+        const venta = saVentas[p.sku] || saVentas[p.mla];
+        if (!venta || venta.unidades === 0) return false;
+        const diasReales = Math.max(1, Math.ceil((Date.now() - new Date(venta.primerVenta)) / 86400000));
+        const diasBase = Math.min(7, diasReales);
+        const vel = venta.unidades / diasBase;
+        return vel > 0 && Math.floor(p.stock / vel) < 7;
+      }).length
+    : 0;
+  const btnAlerta = document.getElementById('btnStockAlerta');
+  const badgeAlerta = document.getElementById('stockAlertaCount');
+  if (totalCriticos > 0) {
+    btnAlerta.style.display = 'flex';
+    badgeAlerta.textContent = totalCriticos;
+    badgeAlerta.classList.add('visible');
+  } else {
+    btnAlerta.style.display = 'none';
+  }
+
+  document.getElementById('saTotal').textContent = `${alertas.length} producto${alertas.length !== 1 ? 's' : ''}`;
+  document.getElementById('saFooter').textContent = `${alertas.length} productos con menos de ${saTab} días de stock · velocidad calculada en ${saPeriod} días`;
+
+  if (!alertas.length) {
+    list.innerHTML = '';
+    list.style.display = 'none';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  list.style.display = 'flex';
+
+  list.innerHTML = alertas.map(p => {
+    const urgClass = p.diasRestantes < 7 ? 'urgente' : p.diasRestantes < 15 ? 'pronto' : 'planificar';
+    const diasColor = p.diasRestantes < 7 ? 'var(--red)' : p.diasRestantes < 15 ? 'var(--orange)' : 'var(--blue)';
+    return `<div class="sa-card ${urgClass}">
+      ${p.thumbnail
+        ? `<img class="ss-thumb" src="${p.thumbnail}" alt="" loading="lazy" onclick="openLightbox('${p.thumbnail}')" style="width:44px;height:44px;">`
+        : `<div class="ss-thumb-ph" style="width:44px;height:44px;">□</div>`}
+      <div class="ss-info">
+        <div class="ss-name">${p.name}</div>
+        <div class="ss-meta">
+          <span class="ss-mla">${p.mla}</span>
+          <span class="ss-mla" style="color:var(--blue);">SKU ${p.sku}</span>
+          ${p.gondola ? `<span class="ss-mla" style="color:var(--accent);">${p.gondola}</span>` : ''}
+        </div>
+        <div class="ss-prices" style="margin-top:6px;">
+          <div class="ss-price-item">
+            <div class="ss-price-label">Stock actual</div>
+            <div class="ss-price-val" style="color:${diasColor};font-weight:600;">${p.stock} u.</div>
+          </div>
+          <div class="ss-divider"></div>
+          <div class="ss-price-item">
+            <div class="ss-price-label">Vendidos (${p.diasBase}d)</div>
+            <div class="ss-price-val">${p.unidadesVendidas} u.</div>
+          </div>
+          <div class="ss-divider"></div>
+          <div class="ss-price-item">
+            <div class="ss-price-label">Por día</div>
+            <div class="ss-price-val">${p.velDiaria.toFixed(1)} u/d</div>
+          </div>
+        </div>
+      </div>
+      <div class="sa-dias">
+        <div class="sa-dias-num" style="color:${diasColor};">${p.diasRestantes}</div>
+        <div class="sa-dias-label">días</div>
+        <div class="sa-dias-label" style="margin-top:2px;">restantes</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function calcTNHuerfanos() {
   if (!window._allTNProducts || !window._allTNProducts.length) { tnHuerfanos = []; updateTNHuerfanosCounter(); return; }
   // SKUs que sí tienen match en Sheet
@@ -1222,13 +1491,15 @@ function closeSinStock() {
   document.getElementById('sinStockPanel').classList.remove('open');
 }
 // Cerrar con Escape
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeSinStock(); closeLightbox(); closeTNHuerfanos(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeSinStock(); closeLightbox(); closeTNHuerfanos(); closeStockAlerta(); } });
 // Cerrar al clickear overlay — se registra en boot para garantizar que el DOM existe
 function initOverlayListeners() {
   const sp = document.getElementById('sinStockPanel');
   if (sp) sp.addEventListener('click', function(e) { if (e.target === this) closeSinStock(); });
   const tp = document.getElementById('tnHuerfanosPanel');
   if (tp) tp.addEventListener('click', function(e) { if (e.target === this) closeTNHuerfanos(); });
+  const sa = document.getElementById('stockAlertaPanel');
+  if (sa) sa.addEventListener('click', function(e) { if (e.target === this) closeStockAlerta(); });
 }
 
 function setSsSort(mode, btn) {
