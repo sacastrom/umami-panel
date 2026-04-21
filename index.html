@@ -1244,21 +1244,15 @@ async function loadStockAlerta(forceRefresh) {
   if (!forceRefresh) {
     try {
       const cached = JSON.parse(localStorage.getItem(SA_CACHE_KEY) || 'null');
-      if (cached && (Date.now() - cached.ts) < SA_CACHE_TTL) {
-        // Verificar que el caché es válido (tiene claves MLA, no SKU)
-        const keys = Object.keys(cached.ventas || {});
-        const cacheValido = keys.length === 0 || keys[0].startsWith('MLA');
-        if (cacheValido) {
-          saVentas = cached.ventas;
-          saLoaded = true;
-          renderStockAlerta();
-          const d = new Date(cached.ts);
-          document.getElementById('saLastUpdate').textContent = `Cache: ${d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}`;
-          return;
-        }
+      if (cached && cached.version === 2 && (Date.now() - cached.ts) < SA_CACHE_TTL) {
+        saVentas = cached.ventas;
+        saLoaded = true;
+        renderStockAlerta();
+        const d = new Date(cached.ts);
+        document.getElementById('saLastUpdate').textContent = `Cache: ${d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}`;
+        return;
       }
     } catch(e) {}
-    // Limpiar caché inválido
     localStorage.removeItem(SA_CACHE_KEY);
   }
 
@@ -1272,25 +1266,23 @@ async function loadStockAlerta(forceRefresh) {
     desde.setDate(desde.getDate() - 30);
     const fechaDesde = desde.toISOString().split('T')[0] + 'T00:00:00.000-03:00';
 
-    const ventasMap = {}; // SKU → { unidades, primerVenta, ultimaVenta }
+    // Guardar array de {fecha, cantidad} por MLA para poder filtrar por período
+    const rawVentas = {}; // MLA → [ {fecha, qty}, ... ]
     let offset = 0;
     let total = null;
 
     while (total === null || offset < total) {
       const data = await mlFetch(`/orders/search?seller=${mlUserId}&order.status=paid&order.date_created.from=${encodeURIComponent(fechaDesde)}&limit=50&offset=${offset}`);
       if (!data || !data.results) break;
-      if (total === null) total = Math.min(data.paging.total, 2000); // max 2000 órdenes
+      if (total === null) total = Math.min(data.paging.total, 2000);
       
       data.results.forEach(order => {
-        const fecha = new Date(order.date_created);
+        const fecha = new Date(order.date_created).getTime();
         order.order_items.forEach(item => {
           const mla = item.item && item.item.id;
           if (!mla) return;
-          // Guardar siempre por MLA para cruce directo con products
-          if (!ventasMap[mla]) ventasMap[mla] = { unidades: 0, mla, primerVenta: fecha, ultimaVenta: fecha };
-          ventasMap[mla].unidades += item.quantity || 1;
-          if (fecha < ventasMap[mla].primerVenta) ventasMap[mla].primerVenta = fecha;
-          if (fecha > ventasMap[mla].ultimaVenta) ventasMap[mla].ultimaVenta = fecha;
+          if (!rawVentas[mla]) rawVentas[mla] = [];
+          rawVentas[mla].push({ t: fecha, q: item.quantity || 1 });
         });
       });
 
@@ -1299,11 +1291,11 @@ async function loadStockAlerta(forceRefresh) {
       if (data.results.length < 50) break;
     }
 
-    saVentas = ventasMap;
+    saVentas = rawVentas;
     saLoaded = true;
 
     // Guardar en caché
-    localStorage.setItem(SA_CACHE_KEY, JSON.stringify({ ts: Date.now(), ventas: ventasMap }));
+    localStorage.setItem(SA_CACHE_KEY, JSON.stringify({ ts: Date.now(), ventas: rawVentas, version: 2 }));
     const now = new Date();
     document.getElementById('saLastUpdate').textContent = `Actualizado ${now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}`;
 
@@ -1321,34 +1313,38 @@ function renderStockAlerta() {
   const list = document.getElementById('saList');
   const empty = document.getElementById('saEmpty');
 
-  // Calcular días restantes para cada producto con ventas
   const alertas = [];
+  const ahora = Date.now();
+  const msPeriod = saPeriod * 24 * 60 * 60 * 1000;
+  const desde = ahora - msPeriod;
+
   products.forEach(p => {
     if (p.stock <= 0) return;
-    const venta = saVentas[p.mla]; // buscar siempre por MLA
-    if (!venta || venta.unidades === 0) return;
-
-    const diasReales = Math.max(1, Math.ceil((Date.now() - new Date(venta.primerVenta)) / 86400000));
-    const diasBase = Math.min(saPeriod, diasReales);
-    const velDiaria = venta.unidades / diasBase;
+    const ventas = saVentas[p.mla];
+    if (!ventas || !ventas.length) return;
+    // Filtrar ventas dentro del período elegido
+    const ventasPeriod = ventas.filter(v => v.t >= desde);
+    if (!ventasPeriod.length) return;
+    const unidades = ventasPeriod.reduce((sum, v) => sum + v.q, 0);
+    const velDiaria = unidades / saPeriod;
     const diasRestantes = velDiaria > 0 ? Math.floor(p.stock / velDiaria) : Infinity;
-
     if (diasRestantes > saTab) return;
-
-    alertas.push({ ...p, velDiaria, diasRestantes, unidadesVendidas: venta.unidades, diasBase });
+    alertas.push({ ...p, velDiaria, diasRestantes, unidadesVendidas: unidades, diasBase: saPeriod });
   });
 
   alertas.sort((a, b) => a.diasRestantes - b.diasRestantes);
 
-  // Badge header — críticos <7 días
+  // Badge header — siempre basado en 7 días
+  const ms7 = 7 * 24 * 60 * 60 * 1000;
+  const desde7 = ahora - ms7;
   const totalCriticos = Object.keys(saVentas).length > 0
     ? products.filter(p => {
         if (p.stock <= 0) return false;
-        const venta = saVentas[p.mla];
-        if (!venta || venta.unidades === 0) return false;
-        const diasReales = Math.max(1, Math.ceil((Date.now() - new Date(venta.primerVenta)) / 86400000));
-        const diasBase = Math.min(7, diasReales);
-        const vel = venta.unidades / diasBase;
+        const ventas = saVentas[p.mla];
+        if (!ventas || !ventas.length) return false;
+        const v7 = ventas.filter(v => v.t >= desde7);
+        if (!v7.length) return false;
+        const vel = v7.reduce((s, v) => s + v.q, 0) / 7;
         return vel > 0 && Math.floor(p.stock / vel) < 7;
       }).length
     : 0;
