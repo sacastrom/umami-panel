@@ -1568,38 +1568,41 @@ async function loadMetricas(forceRefresh) {
   document.getElementById('metEmpty').style.display = 'none';
 
   try {
-    // Traer visitas en lotes de 50 MLAs
-    const visitasMap = {};
-    const mlas = products.map(p => p.mla);
-    for (let i = 0; i < mlas.length; i += 50) {
-      const batch = mlas.slice(i, i + 50).join(',');
-      document.getElementById('metLoadingMsg').textContent = `Cargando visitas... ${Math.min(i + 50, mlas.length)} / ${mlas.length}`;
-      try {
-        const data = await mlFetch(`/items/visits?ids=${batch}&date_from=${getDateFrom(30)}&date_to=${getDateTo()}`);
-        if (data && Array.isArray(data)) {
-          data.forEach(d => {
-            const mla = d.item_id || d.id;
-            if (!mla) return;
-            // La API devuelve un objeto por día — acumular total_visits
-            if (!visitasMap[mla]) visitasMap[mla] = 0;
-            visitasMap[mla] += d.total_visits || 0;
-          });
-        }
-      } catch(e) { console.warn('visitas batch error', e); }
-      await new Promise(r => setTimeout(r, 100));
-    }
-
-    // Construir metData cruzando con ventas (saVentas) y visitas
+    // Solo traer visitas de productos que tienen ventas (el endpoint acepta solo 1 MLA a la vez)
     const ahora = Date.now();
     const desde30 = ahora - 30 * 24 * 60 * 60 * 1000;
-    metData = products.map(p => {
+
+    // Productos con ventas en últimos 30 días
+    const conVentas = products.filter(p => {
+      const v = saVentas[p.mla];
+      return v && v.some(x => x.t >= desde30);
+    });
+
+    const visitasMap = {};
+    const dateFrom = getDateFrom(30);
+    const dateTo = getDateTo();
+
+    for (let i = 0; i < conVentas.length; i++) {
+      const p = conVentas[i];
+      document.getElementById('metLoadingMsg').textContent = `Cargando visitas... ${i + 1} / ${conVentas.length}`;
+      try {
+        const data = await mlFetch(`/items/visits?ids=${p.mla}&date_from=${dateFrom}&date_to=${dateTo}`);
+        if (data && Array.isArray(data) && data.length > 0) {
+          visitasMap[p.mla] = data[0].total_visits || 0;
+        }
+      } catch(e) { console.warn('visitas error', p.mla, e); }
+      await new Promise(r => setTimeout(r, 80));
+    }
+
+    // Construir metData
+    metData = conVentas.map(p => {
       const visitas = visitasMap[p.mla] || 0;
       const ventasArr = saVentas[p.mla] || [];
       const ventas = ventasArr.filter(v => v.t >= desde30).reduce((s, v) => s + v.q, 0);
       const conv = visitas > 0 ? (ventas / visitas) * 100 : 0;
       const sugerencia = getSugerencia(visitas, ventas, conv);
       return { ...p, visitas, ventas, conv, sugerencia };
-    }).filter(p => p.visitas > 0 || p.ventas > 0);
+    });
 
     metLoaded = true;
     localStorage.setItem(MET_CACHE_KEY, JSON.stringify({ ts: Date.now(), version: 2, data: metData }));
