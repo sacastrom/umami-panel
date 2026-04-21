@@ -1245,14 +1245,21 @@ async function loadStockAlerta(forceRefresh) {
     try {
       const cached = JSON.parse(localStorage.getItem(SA_CACHE_KEY) || 'null');
       if (cached && (Date.now() - cached.ts) < SA_CACHE_TTL) {
-        saVentas = cached.ventas;
-        saLoaded = true;
-        renderStockAlerta();
-        const d = new Date(cached.ts);
-        document.getElementById('saLastUpdate').textContent = `Cache: ${d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}`;
-        return;
+        // Verificar que el caché es válido (tiene claves MLA, no SKU)
+        const keys = Object.keys(cached.ventas || {});
+        const cacheValido = keys.length === 0 || keys[0].startsWith('MLA');
+        if (cacheValido) {
+          saVentas = cached.ventas;
+          saLoaded = true;
+          renderStockAlerta();
+          const d = new Date(cached.ts);
+          document.getElementById('saLastUpdate').textContent = `Cache: ${d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}`;
+          return;
+        }
       }
     } catch(e) {}
+    // Limpiar caché inválido
+    localStorage.removeItem(SA_CACHE_KEY);
   }
 
   // Cargar desde API
@@ -1279,13 +1286,11 @@ async function loadStockAlerta(forceRefresh) {
         order.order_items.forEach(item => {
           const mla = item.item && item.item.id;
           if (!mla) return;
-          // Buscar SKU en products por MLA
-          const prod = products.find(p => p.mla === mla);
-          const key = prod ? prod.sku : mla;
-          if (!ventasMap[key]) ventasMap[key] = { unidades: 0, mla, primerVenta: fecha, ultimaVenta: fecha };
-          ventasMap[key].unidades += item.quantity || 1;
-          if (fecha < ventasMap[key].primerVenta) ventasMap[key].primerVenta = fecha;
-          if (fecha > ventasMap[key].ultimaVenta) ventasMap[key].ultimaVenta = fecha;
+          // Guardar siempre por MLA para cruce directo con products
+          if (!ventasMap[mla]) ventasMap[mla] = { unidades: 0, mla, primerVenta: fecha, ultimaVenta: fecha };
+          ventasMap[mla].unidades += item.quantity || 1;
+          if (fecha < ventasMap[mla].primerVenta) ventasMap[mla].primerVenta = fecha;
+          if (fecha > ventasMap[mla].ultimaVenta) ventasMap[mla].ultimaVenta = fecha;
         });
       });
 
@@ -1319,31 +1324,27 @@ function renderStockAlerta() {
   // Calcular días restantes para cada producto con ventas
   const alertas = [];
   products.forEach(p => {
-    if (p.stock <= 0) return; // ya está sin stock, lo maneja Sin Stock
-    const key = p.sku || p.mla;
-    const venta = saVentas[key] || saVentas[p.mla];
-    if (!venta || venta.unidades === 0) return; // sin ventas, no es crítico
+    if (p.stock <= 0) return;
+    const venta = saVentas[p.mla]; // buscar siempre por MLA
+    if (!venta || venta.unidades === 0) return;
 
-    // Calcular velocidad según período seleccionado
-    // Usar el mínimo entre el período elegido y los días reales desde primera venta
     const diasReales = Math.max(1, Math.ceil((Date.now() - new Date(venta.primerVenta)) / 86400000));
     const diasBase = Math.min(saPeriod, diasReales);
     const velDiaria = venta.unidades / diasBase;
     const diasRestantes = velDiaria > 0 ? Math.floor(p.stock / velDiaria) : Infinity;
 
-    if (diasRestantes > saTab) return; // fuera del umbral seleccionado
+    if (diasRestantes > saTab) return;
 
     alertas.push({ ...p, velDiaria, diasRestantes, unidadesVendidas: venta.unidades, diasBase });
   });
 
-  // Ordenar por días restantes (más urgente primero)
   alertas.sort((a, b) => a.diasRestantes - b.diasRestantes);
 
-  // Actualizar badge del botón header con críticos <7 días
+  // Badge header — críticos <7 días
   const totalCriticos = Object.keys(saVentas).length > 0
     ? products.filter(p => {
         if (p.stock <= 0) return false;
-        const venta = saVentas[p.sku] || saVentas[p.mla];
+        const venta = saVentas[p.mla];
         if (!venta || venta.unidades === 0) return false;
         const diasReales = Math.max(1, Math.ceil((Date.now() - new Date(venta.primerVenta)) / 86400000));
         const diasBase = Math.min(7, diasReales);
