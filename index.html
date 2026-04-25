@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UMAMI PANEL</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
   :root{
     --bg:#f4f5f7;--surface:#ffffff;--surface2:#f0f1f4;--border:#e2e4ea;
@@ -267,6 +269,37 @@
   .main-tab.active{background:var(--surface);border-color:var(--border);border-bottom-color:var(--surface);color:var(--accent);font-weight:600;margin-bottom:-1px;z-index:1;}
   /* ── MÉTRICAS ── */
   #metricasContent{display:none;padding:16px 20px;}
+  /* ── FLEX MAP ── */
+  #flexContent{display:none;}
+  .flex-layout{display:grid;grid-template-columns:340px 1fr;height:calc(100vh - 200px);min-height:500px;}
+  #flexMap{width:100%;height:100%;background:var(--surface2);border-left:1px solid var(--border);}
+  .flex-sidebar{display:flex;flex-direction:column;border-right:1px solid var(--border);background:var(--surface);overflow:hidden;}
+  .flex-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+  .flex-title{font-family:var(--font-head);font-size:15px;font-weight:700;color:var(--text);}
+  .flex-list{flex:1;overflow-y:auto;padding:8px;}
+  .flex-card{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer;transition:all .2s;background:var(--surface);}
+  .flex-card:hover{box-shadow:var(--shadow);}
+  .flex-card.flex-yo{border-color:var(--green);background:rgba(22,163,74,.06);}
+  .flex-card.flex-log{border-color:rgba(220,38,38,.3);background:rgba(220,38,38,.05);}
+  .flex-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+  .flex-pack{font-family:var(--font-mono);font-size:10px;color:var(--muted);background:var(--bg);padding:2px 6px;border-radius:4px;border:1px solid var(--border);}
+  .flex-buyer{font-size:12px;font-weight:600;color:var(--text);}
+  .flex-addr{font-size:10px;color:var(--muted);margin-top:3px;line-height:1.4;}
+  .flex-btns{display:flex;gap:6px;margin-top:8px;}
+  .flex-btn{flex:1;padding:5px;border-radius:7px;font-size:10px;font-family:var(--font-head);font-weight:700;cursor:pointer;border:1px solid var(--border);transition:all .2s;}
+  .flex-btn-yo{background:var(--green-light);color:var(--green);border-color:rgba(22,163,74,.3);}
+  .flex-btn-yo:hover,.flex-btn-yo.active{background:var(--green);color:#fff;}
+  .flex-btn-log{background:var(--red-light);color:var(--red);border-color:rgba(220,38,38,.2);}
+  .flex-btn-log:hover,.flex-btn-log.active{background:var(--red);color:#fff;}
+  .flex-loading{display:flex;align-items:center;gap:10px;padding:20px;font-size:12px;color:var(--muted);}
+  .flex-stats{display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);flex-shrink:0;}
+  .flex-stat{flex:1;text-align:center;}
+  .flex-stat-val{font-family:var(--font-head);font-size:18px;font-weight:700;}
+  .flex-stat-label{font-size:9px;color:var(--muted);text-transform:uppercase;}
+  @media(max-width:768px){
+    .flex-layout{grid-template-columns:1fr;grid-template-rows:300px 1fr;}
+    #flexMap{order:-1;}
+  }
   .met-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
   .met-sort-btn{background:var(--bg);border:1px solid var(--border);color:var(--muted);padding:6px 14px;border-radius:8px;font-family:var(--font-mono);font-size:11px;cursor:pointer;transition:all .2s;}
   .met-sort-btn:hover{border-color:var(--accent);color:var(--accent);}
@@ -458,6 +491,7 @@
   <div class="main-tabs" id="mainTabs" style="display:none;">
     <button class="main-tab active" id="tabPublicaciones" onclick="switchTab('publicaciones')">📋 Publicaciones</button>
     <button class="main-tab" id="tabMetricas" onclick="switchTab('metricas')">📊 Métricas</button>
+    <button class="main-tab" id="tabFlex" onclick="switchTab('flex')">🗺️ Flex</button>
   </div>
 
   <div id="panelContent" style="display:none;">
@@ -500,6 +534,30 @@
       <div style="font-size:32px;margin-bottom:12px;">📊</div>
       <div style="font-family:var(--font-head);font-size:16px;color:var(--text);margin-bottom:6px;">Sin datos de métricas</div>
       <div style="font-size:12px;">Hacé click en Actualizar para cargar las visitas de los últimos 30 días.</div>
+    </div>
+  </div>
+
+  <!-- FLEX -->
+  <div id="flexContent">
+    <div class="flex-layout">
+      <div class="flex-sidebar">
+        <div class="flex-header">
+          <span class="flex-title">🗺️ Envíos del día</span>
+          <button class="ss-refresh" onclick="loadFlex(true)">↻ Actualizar</button>
+        </div>
+        <div class="flex-stats">
+          <div class="flex-stat"><div class="flex-stat-val" id="flexTotal">—</div><div class="flex-stat-label">Total</div></div>
+          <div class="flex-stat"><div class="flex-stat-val" style="color:var(--green)" id="flexYoCount">0</div><div class="flex-stat-label">🟢 Yo</div></div>
+          <div class="flex-stat"><div class="flex-stat-val" style="color:var(--red)" id="flexLogCount">0</div><div class="flex-stat-label">🔴 Logística</div></div>
+          <div class="flex-stat"><div class="flex-stat-val" style="color:var(--muted)" id="flexPendCount">0</div><div class="flex-stat-label">⏳ Sin decidir</div></div>
+        </div>
+        <div id="flexLoading" class="flex-loading" style="display:none;">
+          <div class="loader" style="width:20px;height:20px;border-width:2px;"></div>
+          <span id="flexLoadingMsg">Cargando envíos...</span>
+        </div>
+        <div class="flex-list" id="flexList"></div>
+      </div>
+      <div id="flexMap"></div>
     </div>
   </div>
 </div>
@@ -1524,11 +1582,20 @@ function switchTab(tab) {
   currentTab = tab;
   document.getElementById('tabPublicaciones').classList.toggle('active', tab === 'publicaciones');
   document.getElementById('tabMetricas').classList.toggle('active', tab === 'metricas');
+  document.getElementById('tabFlex').classList.toggle('active', tab === 'flex');
   document.getElementById('panelContent').style.display = tab === 'publicaciones' ? 'block' : 'none';
   document.getElementById('metricasContent').style.display = tab === 'metricas' ? 'block' : 'none';
+  document.getElementById('flexContent').style.display = tab === 'flex' ? 'block' : 'none';
   document.getElementById('toolbar-wrap') && (document.getElementById('toolbar-wrap').style.display = tab === 'publicaciones' ? 'block' : 'none');
   if (tab === 'metricas' && !metLoaded) {
     document.getElementById('metEmpty').style.display = 'block';
+  }
+  if (tab === 'flex') {
+    setTimeout(() => {
+      initFlexMap();
+      if (!flexLoaded) loadFlex(false);
+      else if (flexMap) flexMap.invalidateSize();
+    }, 100);
   }
 }
 
@@ -1701,6 +1768,210 @@ function renderMetricas() {
       </div>
     </div>`;
   }).join('');
+}
+
+// ── FLEX MAP ──────────────────────────────────────────
+const FLEX_CACHE_KEY = 'flex_envios_cache';
+let flexMap = null;
+let flexMarkers = {};
+let flexEnvios = [];
+let flexDecisiones = JSON.parse(localStorage.getItem('flex_decisiones') || '{}');
+let flexLoaded = false;
+
+function initFlexMap() {
+  if (flexMap) return;
+  flexMap = L.map('flexMap').setView([-34.6037, -58.3816], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(flexMap);
+}
+
+function getFlexIcon(decision) {
+  const color = decision === 'yo' ? '#16a34a' : decision === 'log' ? '#dc2626' : '#6c63ff';
+  const emoji = decision === 'yo' ? '🟢' : decision === 'log' ? '🔴' : '📦';
+  return L.divIcon({
+    html: `<div style="background:${color};color:#fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,.3);border:2px solid #fff;">${emoji}</div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    className: ''
+  });
+}
+
+async function geocodificar(direccion) {
+  const q = encodeURIComponent(direccion + ', Buenos Aires, Argentina');
+  const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`, {
+    headers: { 'Accept-Language': 'es' }
+  });
+  const data = await r.json();
+  if (data && data.length > 0) {
+    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+  }
+  return null;
+}
+
+async function loadFlex(forceRefresh) {
+  if (!accessToken) return;
+  
+  // Caché del día
+  const hoy = new Date().toISOString().split('T')[0];
+  if (!forceRefresh) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(FLEX_CACHE_KEY) || 'null');
+      if (cached && cached.fecha === hoy) {
+        flexEnvios = cached.envios;
+        flexLoaded = true;
+        renderFlexList();
+        renderFlexMap();
+        return;
+      }
+    } catch(e) {}
+  }
+
+  document.getElementById('flexLoading').style.display = 'flex';
+  document.getElementById('flexList').innerHTML = '';
+  document.getElementById('flexLoadingMsg').textContent = 'Cargando órdenes Flex...';
+
+  try {
+    // Traer órdenes ready_to_ship de hoy
+    const desde = hoy + 'T00:00:00.000-03:00';
+    const data = await mlFetch(`/orders/search?seller=${mlUserId}&order.status=ready_to_ship&order.last_updated.from=${encodeURIComponent(desde)}&limit=50`);
+    
+    const ordenes = data && data.results ? data.results : [];
+    flexEnvios = [];
+
+    for (let i = 0; i < ordenes.length; i++) {
+      const order = ordenes[i];
+      document.getElementById('flexLoadingMsg').textContent = `Geocodificando ${i + 1} / ${ordenes.length}...`;
+      
+      const shipping_id = order.shipping && order.shipping.id;
+      let direccion = 'Sin dirección';
+      let coords = null;
+
+      // Traer datos del envío para obtener dirección
+      if (shipping_id) {
+        try {
+          const ship = await mlFetch(`/shipments/${shipping_id}`);
+          if (ship && ship.receiver_address) {
+            const addr = ship.receiver_address;
+            direccion = `${addr.street_name || ''} ${addr.street_number || ''}, ${addr.city && addr.city.name || ''}, ${addr.state && addr.state.name || ''}`.trim();
+            await new Promise(r => setTimeout(r, 1100)); // respetar límite Nominatim
+            coords = await geocodificar(direccion);
+          }
+        } catch(e) { console.warn('shipment error', e); }
+      }
+
+      const buyer = order.buyer || {};
+      const packId = order.pack_id || order.id;
+      const producto = order.order_items && order.order_items[0] && order.order_items[0].item && order.order_items[0].item.title || '—';
+
+      flexEnvios.push({
+        id: order.id,
+        packId,
+        buyer: buyer.nickname || buyer.id || '—',
+        direccion,
+        coords,
+        producto,
+        decision: flexDecisiones[packId] || null
+      });
+    }
+
+    // Guardar caché del día
+    localStorage.setItem(FLEX_CACHE_KEY, JSON.stringify({ fecha: hoy, envios: flexEnvios }));
+    flexLoaded = true;
+    document.getElementById('flexLoading').style.display = 'none';
+    renderFlexList();
+    renderFlexMap();
+
+  } catch(e) {
+    document.getElementById('flexLoading').style.display = 'none';
+    showToast('❌ Error cargando Flex: ' + e.message, 'error');
+    console.error(e);
+  }
+}
+
+function setDecision(packId, decision) {
+  const envio = flexEnvios.find(e => e.packId == packId);
+  if (!envio) return;
+  envio.decision = envio.decision === decision ? null : decision;
+  flexDecisiones[packId] = envio.decision;
+  localStorage.setItem('flex_decisiones', JSON.stringify(flexDecisiones));
+  renderFlexList();
+  // Actualizar marker en mapa
+  if (flexMarkers[packId]) {
+    flexMarkers[packId].setIcon(getFlexIcon(envio.decision));
+  }
+  updateFlexStats();
+}
+
+function updateFlexStats() {
+  const total = flexEnvios.length;
+  const yo = flexEnvios.filter(e => e.decision === 'yo').length;
+  const log = flexEnvios.filter(e => e.decision === 'log').length;
+  const pend = total - yo - log;
+  document.getElementById('flexTotal').textContent = total;
+  document.getElementById('flexYoCount').textContent = yo;
+  document.getElementById('flexLogCount').textContent = log;
+  document.getElementById('flexPendCount').textContent = pend;
+}
+
+function renderFlexList() {
+  const list = document.getElementById('flexList');
+  updateFlexStats();
+
+  if (!flexEnvios.length) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px;">No hay envíos Flex para hoy</div>';
+    return;
+  }
+
+  list.innerHTML = flexEnvios.map(e => {
+    const dec = e.decision;
+    const cardClass = dec === 'yo' ? 'flex-yo' : dec === 'log' ? 'flex-log' : '';
+    return `<div class="flex-card ${cardClass}" id="fcard-${e.packId}" onclick="focusFlexMarker('${e.packId}')">
+      <div class="flex-card-header">
+        <span class="flex-pack">Pack ${e.packId}</span>
+        <span style="font-size:9px;color:var(--muted2);">${e.coords ? '📍' : '❓ Sin coords'}</span>
+      </div>
+      <div class="flex-buyer">${e.buyer}</div>
+      <div class="flex-addr">${e.direccion}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e.producto}</div>
+      <div class="flex-btns">
+        <button class="flex-btn flex-btn-yo ${dec === 'yo' ? 'active' : ''}" onclick="event.stopPropagation();setDecision('${e.packId}','yo')">🟢 Lo hago yo</button>
+        <button class="flex-btn flex-btn-log ${dec === 'log' ? 'active' : ''}" onclick="event.stopPropagation();setDecision('${e.packId}','log')">🔴 Logística</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderFlexMap() {
+  if (!flexMap) initFlexMap();
+  // Limpiar markers anteriores
+  Object.values(flexMarkers).forEach(m => flexMap.removeLayer(m));
+  flexMarkers = {};
+
+  const bounds = [];
+  flexEnvios.forEach(e => {
+    if (!e.coords) return;
+    const marker = L.marker([e.coords.lat, e.coords.lng], { icon: getFlexIcon(e.decision) })
+      .addTo(flexMap)
+      .bindPopup(`<b>${e.buyer}</b><br>${e.direccion}<br><small>Pack ${e.packId}</small>`);
+    flexMarkers[e.packId] = marker;
+    bounds.push([e.coords.lat, e.coords.lng]);
+  });
+
+  if (bounds.length > 0) {
+    flexMap.fitBounds(bounds, { padding: [30, 30] });
+  }
+}
+
+function focusFlexMarker(packId) {
+  const marker = flexMarkers[packId];
+  if (marker) {
+    flexMap.setView(marker.getLatLng(), 15);
+    marker.openPopup();
+  }
+  // Scroll a la card
+  const card = document.getElementById(`fcard-${packId}`);
+  if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function calcTNHuerfanos() {
