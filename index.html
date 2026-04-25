@@ -1812,7 +1812,6 @@ async function geocodificar(direccion) {
 async function loadFlex(forceRefresh) {
   if (!accessToken) return;
   
-  // Caché del día
   const hoy = new Date().toISOString().split('T')[0];
   if (!forceRefresh) {
     try {
@@ -1829,53 +1828,39 @@ async function loadFlex(forceRefresh) {
 
   document.getElementById('flexLoading').style.display = 'flex';
   document.getElementById('flexList').innerHTML = '';
-  document.getElementById('flexLoadingMsg').textContent = 'Cargando órdenes Flex...';
+  document.getElementById('flexLoadingMsg').textContent = 'Cargando órdenes del día...';
 
   try {
-    // Traer órdenes ready_to_ship de hoy
     const desde = hoy + 'T00:00:00.000-03:00';
-    const data = await mlFetch(`/orders/search?seller=${mlUserId}&order.status=ready_to_ship&order.last_updated.from=${encodeURIComponent(desde)}&limit=50`);
-    
-    const ordenes = data && data.results ? data.results : [];
+    const data = await mlFetch(`/orders/search?seller=${mlUserId}&order.status=paid&order.date_created.from=${encodeURIComponent(desde)}&limit=50`);
+    const ordenes = (data && data.results) ? data.results : [];
+    const conShipping = ordenes.filter(o => o.shipping && o.shipping.id);
     flexEnvios = [];
 
-    for (let i = 0; i < ordenes.length; i++) {
-      const order = ordenes[i];
-      document.getElementById('flexLoadingMsg').textContent = `Geocodificando ${i + 1} / ${ordenes.length}...`;
-      
-      const shipping_id = order.shipping && order.shipping.id;
-      let direccion = 'Sin dirección';
-      let coords = null;
-
-      // Traer datos del envío para obtener dirección
-      if (shipping_id) {
-        try {
-          const ship = await mlFetch(`/shipments/${shipping_id}`);
-          if (ship && ship.receiver_address) {
-            const addr = ship.receiver_address;
-            direccion = `${addr.street_name || ''} ${addr.street_number || ''}, ${addr.city && addr.city.name || ''}, ${addr.state && addr.state.name || ''}`.trim();
-            await new Promise(r => setTimeout(r, 1100)); // respetar límite Nominatim
-            coords = await geocodificar(direccion);
-          }
-        } catch(e) { console.warn('shipment error', e); }
-      }
-
-      const buyer = order.buyer || {};
-      const packId = order.pack_id || order.id;
-      const producto = order.order_items && order.order_items[0] && order.order_items[0].item && order.order_items[0].item.title || '—';
-
-      flexEnvios.push({
-        id: order.id,
-        packId,
-        buyer: buyer.nickname || buyer.id || '—',
-        direccion,
-        coords,
-        producto,
-        decision: flexDecisiones[packId] || null
-      });
+    for (let i = 0; i < conShipping.length; i++) {
+      const order = conShipping[i];
+      document.getElementById('flexLoadingMsg').textContent = `Verificando envío ${i + 1} / ${conShipping.length}...`;
+      try {
+        const ship = await mlFetch(`/shipments/${order.shipping.id}`);
+        if (!ship || ship.mode !== 'me2') continue; // solo Flex
+        const addr = ship.receiver_address || {};
+        const direccion = [addr.street_name, addr.street_number, addr.city && addr.city.name, addr.state && addr.state.name].filter(Boolean).join(', ');
+        const lat = addr.latitude, lng = addr.longitude;
+        const coords = (lat && lng) ? { lat: parseFloat(lat), lng: parseFloat(lng) } : null;
+        const buyer = order.buyer || {};
+        const packId = order.pack_id || order.id;
+        const producto = order.order_items && order.order_items[0] && order.order_items[0].item && order.order_items[0].item.title || '—';
+        flexEnvios.push({
+          id: order.id, packId, shipId: order.shipping.id,
+          buyer: buyer.nickname || '—',
+          receiverName: addr.receiver_name || buyer.nickname || '—',
+          direccion, coords, producto,
+          decision: flexDecisiones[packId] || null
+        });
+      } catch(e) { console.warn('shipment error', order.shipping.id, e); }
+      await new Promise(r => setTimeout(r, 150));
     }
 
-    // Guardar caché del día
     localStorage.setItem(FLEX_CACHE_KEY, JSON.stringify({ fecha: hoy, envios: flexEnvios }));
     flexLoaded = true;
     document.getElementById('flexLoading').style.display = 'none';
@@ -1931,7 +1916,7 @@ function renderFlexList() {
         <span class="flex-pack">Pack ${e.packId}</span>
         <span style="font-size:9px;color:var(--muted2);">${e.coords ? '📍' : '❓ Sin coords'}</span>
       </div>
-      <div class="flex-buyer">${e.buyer}</div>
+      <div class="flex-buyer">${e.receiverName || e.buyer}</div>
       <div class="flex-addr">${e.direccion}</div>
       <div style="font-size:10px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e.producto}</div>
       <div class="flex-btns">
