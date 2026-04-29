@@ -1828,36 +1828,64 @@ async function loadFlex(forceRefresh) {
 
   document.getElementById('flexLoading').style.display = 'flex';
   document.getElementById('flexList').innerHTML = '';
-  document.getElementById('flexLoadingMsg').textContent = 'Cargando órdenes del día...';
+  document.getElementById('flexLoadingMsg').textContent = 'Cargando órdenes recientes...';
+  flexEnvios = [];
 
   try {
-    const desde = hoy + 'T00:00:00.000-03:00';
-    const data = await mlFetch(`/orders/search?seller=${mlUserId}&order.status=paid&order.date_created.from=${encodeURIComponent(desde)}&limit=50`);
+    // Traer órdenes pagadas recientes y buscar las que tienen pack con shipment ready_to_ship
+    const data = await mlFetch(`/orders/search?seller=${mlUserId}&order.status=paid&limit=50&sort=date_desc`);
     const ordenes = (data && data.results) ? data.results : [];
-    const conShipping = ordenes.filter(o => o.shipping && o.shipping.id);
-    flexEnvios = [];
 
-    for (let i = 0; i < conShipping.length; i++) {
-      const order = conShipping[i];
-      document.getElementById('flexLoadingMsg').textContent = `Verificando envío ${i + 1} / ${conShipping.length}...`;
+    // Obtener pack_ids únicos de las últimas 2 días
+    const dosAyerTs = Date.now() - 2 * 24 * 60 * 60 * 1000;
+    const recientes = ordenes.filter(o => new Date(o.date_created).getTime() > dosAyerTs);
+    const packIds = [...new Set(recientes.filter(o => o.pack_id).map(o => o.pack_id))];
+    const sinPack = recientes.filter(o => !o.pack_id && o.shipping && o.shipping.id);
+
+    document.getElementById('flexLoadingMsg').textContent = `Verificando ${packIds.length} packs + ${sinPack.length} envíos...`;
+
+    // Procesar packs
+    const shipmentIds = new Set();
+    for (const packId of packIds) {
       try {
-        const ship = await mlFetch(`/shipments/${order.shipping.id}`);
-        if (!ship || ship.mode !== 'me2') continue; // solo Flex
+        const pack = await mlFetch(`/packs/${packId}`);
+        if (pack && pack.shipment && pack.shipment.id) shipmentIds.add({ shipId: pack.shipment.id, packId, ordenes: pack.orders || [] });
+      } catch(e) {}
+      await new Promise(r => setTimeout(r, 100));
+    }
+    // Órdenes sin pack
+    for (const o of sinPack) {
+      shipmentIds.add({ shipId: o.shipping.id, packId: o.id, ordenes: [o] });
+    }
+
+    let i = 0;
+    for (const item of shipmentIds) {
+      i++;
+      document.getElementById('flexLoadingMsg').textContent = `Verificando shipment ${i} / ${shipmentIds.size}...`;
+      try {
+        const ship = await mlFetch(`/shipments/${item.shipId}`);
+        if (!ship || ship.status !== 'ready_to_ship' || ship.mode !== 'me2') continue;
+
         const addr = ship.receiver_address || {};
         const direccion = [addr.street_name, addr.street_number, addr.city && addr.city.name, addr.state && addr.state.name].filter(Boolean).join(', ');
         const lat = addr.latitude, lng = addr.longitude;
         const coords = (lat && lng) ? { lat: parseFloat(lat), lng: parseFloat(lng) } : null;
-        const buyer = order.buyer || {};
-        const packId = order.pack_id || order.id;
-        const producto = order.order_items && order.order_items[0] && order.order_items[0].item && order.order_items[0].item.title || '—';
+
+        // Buscar orden correspondiente para datos del comprador y producto
+        const orden = recientes.find(o => o.pack_id == item.packId || (o.shipping && o.shipping.id == item.shipId));
+        const buyer = orden && orden.buyer || {};
+        const producto = orden && orden.order_items && orden.order_items[0] && orden.order_items[0].item && orden.order_items[0].item.title || '—';
+
         flexEnvios.push({
-          id: order.id, packId, shipId: order.shipping.id,
+          id: item.packId,
+          packId: item.packId,
+          shipId: item.shipId,
           buyer: buyer.nickname || '—',
           receiverName: addr.receiver_name || buyer.nickname || '—',
           direccion, coords, producto,
-          decision: flexDecisiones[packId] || null
+          decision: flexDecisiones[item.packId] || null
         });
-      } catch(e) { console.warn('shipment error', order.shipping.id, e); }
+      } catch(e) { console.warn('shipment error', item.shipId, e); }
       await new Promise(r => setTimeout(r, 150));
     }
 
