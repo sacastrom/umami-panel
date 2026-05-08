@@ -296,6 +296,60 @@
   .flex-stat{flex:1;text-align:center;}
   .flex-stat-val{font-family:var(--font-head);font-size:18px;font-weight:700;}
   .flex-stat-label{font-size:9px;color:var(--muted);text-transform:uppercase;}
+
+  /* ── INVENTARIO ── */
+  #inventarioContent{display:none;padding:16px 20px;}
+  .inv-layout{display:grid;grid-template-columns:360px 1fr;gap:16px;align-items:start;}
+  .inv-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;position:sticky;top:70px;}
+  .inv-panel-header{padding:12px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-family:var(--font-head);font-weight:700;font-size:13px;}
+  .inv-scan-box{padding:16px;}
+  .inv-gondola-sel{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-family:var(--font-mono);font-size:12px;background:var(--bg);color:var(--text);outline:none;margin-bottom:12px;}
+  .inv-gondola-sel:focus{border-color:var(--accent);}
+  .inv-input-wrap{position:relative;margin-bottom:12px;}
+  .inv-scan-input{width:100%;padding:12px 16px 12px 42px;border:2px solid var(--accent);border-radius:10px;font-family:var(--font-mono);font-size:15px;background:var(--bg);color:var(--text);outline:none;}
+  .inv-scan-input:focus{box-shadow:0 0 0 3px var(--accent-light);}
+  .inv-scan-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:18px;}
+  .inv-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;}
+  .inv-stat{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:center;}
+  .inv-stat-val{font-family:var(--font-head);font-size:22px;font-weight:700;}
+  .inv-stat-label{font-size:9px;color:var(--muted);text-transform:uppercase;}
+  .inv-btn{width:100%;padding:10px;border-radius:8px;border:none;font-family:var(--font-head);font-weight:700;font-size:12px;cursor:pointer;transition:all .2s;margin-top:8px;}
+  .inv-btn-reset{background:var(--surface2);color:var(--muted);border:1px solid var(--border);}
+  .inv-btn-reset:hover{border-color:var(--red);color:var(--red);}
+  .inv-btn-finalizar{background:var(--accent);color:#fff;box-shadow:0 2px 8px rgba(108,99,255,.25);}
+  .inv-btn-finalizar:hover{background:#5a52e8;}
+  .inv-btn-finalizar:disabled{opacity:.4;cursor:not-allowed;}
+  /* Feedback de escaneo */
+  .inv-feedback{padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:12px;display:none;font-family:var(--font-mono);}
+  .inv-feedback.ok{background:var(--green-light);color:var(--green);border:1px solid rgba(22,163,74,.2);display:block;}
+  .inv-feedback.error{background:var(--red-light);color:var(--red);border:1px solid rgba(220,38,38,.2);display:block;}
+  .inv-feedback.warn{background:rgba(234,88,12,.1);color:var(--orange);border:1px solid rgba(234,88,12,.2);display:block;}
+  /* Lista escaneados */
+  .inv-scanned-list{max-height:500px;overflow-y:auto;}
+  .inv-item{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;transition:background .2s;}
+  .inv-item-thumb{width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;}
+  .inv-item-thumb-ph{width:36px;height:36px;border-radius:6px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted2);font-size:14px;flex-shrink:0;}
+  .inv-item-info{flex:1;min-width:0;}
+  .inv-item-name{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
+  .inv-item-meta{display:flex;gap:6px;margin-top:3px;flex-wrap:wrap;align-items:center;}
+  .inv-sku{font-size:9px;color:var(--muted);background:var(--bg);padding:1px 5px;border-radius:4px;border:1px solid var(--border);}
+  .inv-precio{font-size:10px;font-weight:600;}
+  .inv-precio.ok{color:var(--green);}
+  .inv-precio.changed{color:var(--orange);}
+  .inv-scan-count{font-size:10px;color:var(--muted2);white-space:nowrap;margin-left:auto;}
+  .inv-flash{animation:invFlash .5s ease;}
+  @keyframes invFlash{0%,100%{background:transparent}50%{background:rgba(108,99,255,.15)}}
+  /* Resultado final */
+  .inv-result{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+  .inv-result-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--surface2);}
+  .inv-result-title{font-family:var(--font-head);font-weight:700;font-size:13px;}
+  .inv-result-badge{padding:3px 10px;border-radius:12px;font-size:10px;font-family:var(--font-mono);}
+  .inv-not-item{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+  .inv-btn-s0{padding:5px 12px;background:var(--red-light);color:var(--red);border:1px solid rgba(220,38,38,.2);border-radius:6px;font-family:var(--font-head);font-weight:700;font-size:10px;cursor:pointer;transition:all .2s;white-space:nowrap;flex-shrink:0;}
+  .inv-btn-s0:hover{background:var(--red);color:#fff;}
+  .inv-btn-s0.done{background:var(--surface2);color:var(--muted);border-color:var(--border);pointer-events:none;}
+  @media(max-width:768px){.inv-layout{grid-template-columns:1fr;}.inv-panel{position:static;}}
+
   @media(max-width:768px){
     .flex-layout{grid-template-columns:1fr;grid-template-rows:300px 1fr;}
     #flexMap{order:-1;}
@@ -492,6 +546,7 @@
     <button class="main-tab active" id="tabPublicaciones" onclick="switchTab('publicaciones')">📋 Publicaciones</button>
     <button class="main-tab" id="tabMetricas" onclick="switchTab('metricas')">📊 Métricas</button>
     <button class="main-tab" id="tabFlex" onclick="switchTab('flex')">🗺️ Flex</button>
+    <button class="main-tab" id="tabInventario" onclick="switchTab('inventario')">📦 Inventario</button>
   </div>
 
   <div id="panelContent" style="display:none;">
@@ -563,6 +618,84 @@
 </div>
 
 <!-- Modal actualización masiva -->
+<!-- ── INVENTARIO ── -->
+<div id="inventarioContent">
+  <div class="inv-layout">
+    <!-- Panel izquierdo: control de escaneo -->
+    <div class="inv-panel">
+      <div class="inv-panel-header">📦 Escaneo de inventario</div>
+      <div class="inv-scan-box">
+        <!-- Selector de góndola -->
+        <select class="inv-gondola-sel" id="invGondola" onchange="invCambiarGondola()">
+          <option value="">— Seleccioná una góndola —</option>
+        </select>
+        <!-- Input de escaneo -->
+        <div class="inv-input-wrap">
+          <span class="inv-scan-icon">🔍</span>
+          <input class="inv-scan-input" id="invScanInput" type="text" 
+            placeholder="Escaneá el código..." 
+            autocomplete="off" autocorrect="off" spellcheck="false"
+            onkeydown="invOnKey(event)" disabled>
+        </div>
+        <!-- Feedback del último escaneo -->
+        <div class="inv-feedback" id="invFeedback"></div>
+        <!-- Stats -->
+        <div class="inv-stats">
+          <div class="inv-stat">
+            <div class="inv-stat-val" id="invTotal">—</div>
+            <div class="inv-stat-label">Total</div>
+          </div>
+          <div class="inv-stat">
+            <div class="inv-stat-val" style="color:var(--green)" id="invEscaneados">0</div>
+            <div class="inv-stat-label">✅ Escaneados</div>
+          </div>
+          <div class="inv-stat">
+            <div class="inv-stat-val" style="color:var(--red)" id="invFaltantes">0</div>
+            <div class="inv-stat-label">❌ Faltantes</div>
+          </div>
+        </div>
+        <button class="inv-btn inv-btn-finalizar" id="invBtnFinalizar" onclick="invFinalizar()" disabled>
+          ✅ Finalizar — Ver no escaneados
+        </button>
+        <button class="inv-btn inv-btn-reset" onclick="invReset()">
+          🔄 Reiniciar escaneo
+        </button>
+      </div>
+      <!-- Lista de escaneados -->
+      <div style="border-top:1px solid var(--border);padding:10px 14px 6px;background:var(--surface2);">
+        <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Escaneados</span>
+      </div>
+      <div class="inv-scanned-list" id="invScannedList">
+        <div style="padding:20px;text-align:center;color:var(--muted2);font-size:12px;">Seleccioná una góndola para empezar</div>
+      </div>
+    </div>
+    <!-- Panel derecho: resultado final (no escaneados) -->
+    <div id="invResultPanel" style="display:none;">
+      <div class="inv-result">
+        <div class="inv-result-header">
+          <span class="inv-result-title">❌ No escaneados — Sin stock en el local</span>
+          <span class="inv-result-badge" id="invNotBadge" style="background:var(--red-light);color:var(--red);border:1px solid rgba(220,38,38,.2);">0 productos</span>
+        </div>
+        <div style="padding:10px 14px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--border);">
+          Estos productos no fueron encontrados en la góndola. Podés ponerlos en stock 0 individualmente o todos juntos.
+        </div>
+        <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:8px;">
+          <button class="inv-btn-s0" onclick="invStock0Todos()" style="background:var(--red);color:#fff;padding:7px 16px;">
+            🔴 Poner todos en stock 0
+          </button>
+        </div>
+        <div id="invNotList"></div>
+      </div>
+    </div>
+    <!-- Placeholder cuando no hay resultado aún -->
+    <div id="invPlaceholder" style="display:flex;align-items:center;justify-content:center;min-height:300px;color:var(--muted2);font-size:13px;text-align:center;">
+      <div>
+        <div style="font-size:40px;margin-bottom:12px;">📦</div>
+        <div>Seleccioná una góndola, escaneá los productos<br>y finalizá para ver los faltantes.</div>
+      </div>
+    </div>
+  </div>
+</div>
 <div id="updateModal">
   <div class="modal-box">
     <div class="modal-title">⚡ Actualizando precios en ML</div>
@@ -1583,20 +1716,16 @@ function switchTab(tab) {
   document.getElementById('tabPublicaciones').classList.toggle('active', tab === 'publicaciones');
   document.getElementById('tabMetricas').classList.toggle('active', tab === 'metricas');
   document.getElementById('tabFlex').classList.toggle('active', tab === 'flex');
+  document.getElementById('tabInventario').classList.toggle('active', tab === 'inventario');
   document.getElementById('panelContent').style.display = tab === 'publicaciones' ? 'block' : 'none';
   document.getElementById('metricasContent').style.display = tab === 'metricas' ? 'block' : 'none';
   document.getElementById('flexContent').style.display = tab === 'flex' ? 'block' : 'none';
-  document.getElementById('toolbar-wrap') && (document.getElementById('toolbar-wrap').style.display = tab === 'publicaciones' ? 'block' : 'none');
-  if (tab === 'metricas' && !metLoaded) {
-    document.getElementById('metEmpty').style.display = 'block';
-  }
+  document.getElementById('inventarioContent').style.display = tab === 'inventario' ? 'block' : 'none';
+  if (tab === 'metricas' && !metLoaded) document.getElementById('metEmpty').style.display = 'block';
   if (tab === 'flex') {
-    setTimeout(() => {
-      initFlexMap();
-      if (!flexLoaded) loadFlex(false);
-      else if (flexMap) flexMap.invalidateSize();
-    }, 100);
+    setTimeout(() => { initFlexMap(); if (!flexLoaded) loadFlex(false); else if (flexMap) flexMap.invalidateSize(); }, 100);
   }
+  if (tab === 'inventario') invInit();
 }
 
 // ── MÉTRICAS ──────────────────────────────────────────
@@ -1985,6 +2114,193 @@ function focusFlexMarker(packId) {
   // Scroll a la card
   const card = document.getElementById(`fcard-${packId}`);
   if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ── INVENTARIO / ESCANEO ──────────────────────────────
+let invGondolaActual = '';
+let invProductos = []; // productos de la góndola seleccionada
+let invEscaneados = {}; // SKU → { product, veces }
+let invFeedbackTimer = null;
+let invFinalizado = false;
+
+function invInit() {
+  // Poblar selector de góndolas
+  const sel = document.getElementById('invGondola');
+  const gondolas = [...new Set(products.filter(p => p.gondola).map(p => p.gondola))].sort();
+  sel.innerHTML = '<option value="">— Seleccioná una góndola —</option>' +
+    gondolas.map(g => `<option value="${g}">${g}</option>`).join('');
+}
+
+function invCambiarGondola() {
+  const gondola = document.getElementById('invGondola').value;
+  if (!gondola) return;
+  invGondolaActual = gondola;
+  invProductos = products.filter(p => p.gondola === gondola && p.status === 'active');
+  invEscaneados = {};
+  invFinalizado = false;
+  document.getElementById('invScanInput').disabled = false;
+  document.getElementById('invScanInput').focus();
+  document.getElementById('invBtnFinalizar').disabled = false;
+  document.getElementById('invResultPanel').style.display = 'none';
+  document.getElementById('invPlaceholder').style.display = 'flex';
+  document.getElementById('invFeedback').className = 'inv-feedback';
+  invUpdateStats();
+  invRenderScanned();
+  showToast(`📦 ${invProductos.length} productos activos en ${gondola}`, 'info');
+}
+
+function invOnKey(e) {
+  if (e.key === 'Enter') {
+    const sku = e.target.value.trim();
+    e.target.value = '';
+    if (sku) invProcesarScan(sku);
+  }
+}
+
+function invProcesarScan(sku) {
+  const product = invProductos.find(p => p.sku === sku);
+  const fb = document.getElementById('invFeedback');
+  clearTimeout(invFeedbackTimer);
+
+  if (!product) {
+    // Buscar en toda la Sheet por si es de otra góndola
+    const otroGondola = products.find(p => p.sku === sku);
+    if (otroGondola) {
+      fb.className = 'inv-feedback warn';
+      fb.textContent = `⚠️ ${otroGondola.name.slice(0,40)} — es de góndola ${otroGondola.gondola}`;
+    } else {
+      fb.className = 'inv-feedback error';
+      fb.textContent = `❌ SKU ${sku} no encontrado en la Sheet`;
+    }
+    invFeedbackTimer = setTimeout(() => fb.className = 'inv-feedback', 3000);
+    return;
+  }
+
+  // Registrar escaneo
+  if (!invEscaneados[sku]) {
+    invEscaneados[sku] = { product, veces: 1 };
+  } else {
+    invEscaneados[sku].veces++;
+  }
+
+  fb.className = 'inv-feedback ok';
+  fb.textContent = `✅ ${product.name.slice(0,45)} — Asia: ${fmt(product.precio_asia)}`;
+  invFeedbackTimer = setTimeout(() => fb.className = 'inv-feedback', 3000);
+
+  invUpdateStats();
+  invRenderScanned();
+}
+
+function invUpdateStats() {
+  const total = invProductos.length;
+  const esc = Object.keys(invEscaneados).length;
+  const falt = total - esc;
+  document.getElementById('invTotal').textContent = total;
+  document.getElementById('invEscaneados').textContent = esc;
+  document.getElementById('invFaltantes').textContent = falt;
+}
+
+function invRenderScanned() {
+  const list = document.getElementById('invScannedList');
+  const items = Object.values(invEscaneados).reverse();
+  if (!items.length) {
+    list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted2);font-size:11px;">Aún no escaneaste ningún producto</div>';
+    return;
+  }
+  list.innerHTML = items.map(({ product: p, veces }) => `
+    <div class="inv-item">
+      ${p.thumbnail ? `<img class="inv-item-thumb" src="${p.thumbnail}" alt="">` : `<div class="inv-item-thumb-ph">□</div>`}
+      <div class="inv-item-info">
+        <div class="inv-item-name" title="${p.name}">${p.name}</div>
+        <div class="inv-item-meta">
+          <span class="inv-sku">${p.sku}</span>
+          <span class="inv-precio ok">Asia: ${fmt(p.precio_asia)}</span>
+          <span class="inv-precio ok">ML: ${fmt(p.precio_ml_real || p.precio_ml_calc)}</span>
+        </div>
+      </div>
+      <span class="inv-scan-count">${veces}x</span>
+    </div>`).join('');
+}
+
+function invFinalizar() {
+  if (!invGondolaActual) return;
+  invFinalizado = true;
+  const noEscaneados = invProductos.filter(p => !invEscaneados[p.sku]);
+  const panel = document.getElementById('invResultPanel');
+  const placeholder = document.getElementById('invPlaceholder');
+  const notList = document.getElementById('invNotList');
+  const badge = document.getElementById('invNotBadge');
+
+  badge.textContent = `${noEscaneados.length} producto${noEscaneados.length !== 1 ? 's' : ''}`;
+  placeholder.style.display = 'none';
+  panel.style.display = 'block';
+
+  if (!noEscaneados.length) {
+    notList.innerHTML = '<div style="padding:30px;text-align:center;color:var(--green);font-size:13px;font-weight:600;">🎉 ¡Todos los productos fueron escaneados!</div>';
+    return;
+  }
+
+  notList.innerHTML = noEscaneados.map(p => `
+    <div class="inv-not-item" id="invnot-${p.id}">
+      ${p.thumbnail ? `<img class="inv-item-thumb" src="${p.thumbnail}" alt="">` : `<div class="inv-item-thumb-ph">□</div>`}
+      <div class="inv-item-info">
+        <div class="inv-item-name">${p.name}</div>
+        <div class="inv-item-meta">
+          <span class="inv-sku">${p.sku}</span>
+          <span class="inv-sku">${p.mla}</span>
+          <span style="font-size:10px;color:var(--muted);">Stock: ${p.stock} u.</span>
+        </div>
+      </div>
+      <button class="inv-btn-s0" id="invs0-${p.id}" onclick="invPutStock0(${p.id})">
+        Stock 0
+      </button>
+    </div>`).join('');
+}
+
+async function invPutStock0(id) {
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  const btn = document.getElementById(`invs0-${p.id}`);
+  btn.disabled = true;
+  btn.textContent = '⏳';
+  try {
+    await mlPut(`/items/${p.mla}`, { available_quantity: 0 });
+    if (tnToken && p.tn_variant_id) {
+      try { await tnPut(`/products/${p.tn_product_id}/variants/${p.tn_variant_id}`, { stock: 0 }); } catch(e) {}
+    }
+    p.stock = 0;
+    btn.textContent = '✅ Listo';
+    btn.className = 'inv-btn-s0 done';
+    document.getElementById(`invnot-${p.id}`).style.opacity = '.5';
+    showToast(`📦 ${p.name.slice(0,30)} → stock 0`, 'success');
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = 'Stock 0';
+    showToast('❌ ' + e.message, 'error');
+  }
+}
+
+async function invStock0Todos() {
+  if (!confirm('¿Ponés en stock 0 todos los productos no escaneados?')) return;
+  const noEscaneados = invProductos.filter(p => !invEscaneados[p.sku]);
+  for (const p of noEscaneados) {
+    await invPutStock0(p.id);
+    await new Promise(r => setTimeout(r, 200));
+  }
+  showToast(`✅ ${noEscaneados.length} productos en stock 0`, 'success');
+  renderStats();
+}
+
+function invReset() {
+  invEscaneados = {};
+  invFinalizado = false;
+  document.getElementById('invResultPanel').style.display = 'none';
+  document.getElementById('invPlaceholder').style.display = 'flex';
+  document.getElementById('invFeedback').className = 'inv-feedback';
+  document.getElementById('invScanInput').value = '';
+  document.getElementById('invScanInput').focus();
+  invUpdateStats();
+  invRenderScanned();
 }
 
 function calcTNHuerfanos() {
