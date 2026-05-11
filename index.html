@@ -2152,7 +2152,7 @@ function invCambiarGondola() {
   const gondola = document.getElementById('invGondola').value;
   if (!gondola) return;
   invGondolaActual = gondola;
-  invProductos = products.filter(p => p.gondola === gondola && p.status === 'active');
+  invProductos = products.filter(p => p.gondola === gondola);
   invEscaneados = {};
   invFinalizado = false;
   document.getElementById('invScanInput').disabled = false;
