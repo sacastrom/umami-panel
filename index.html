@@ -671,20 +671,37 @@
     </div>
     <!-- Panel derecho: resultado final (no escaneados) -->
     <div id="invResultPanel" style="display:none;">
-      <div class="inv-result">
-        <div class="inv-result-header">
-          <span class="inv-result-title">❌ No escaneados — Sin stock en el local</span>
-          <span class="inv-result-badge" id="invNotBadge" style="background:var(--red-light);color:var(--red);border:1px solid rgba(220,38,38,.2);">0 productos</span>
+      <div style="display:flex;flex-direction:column;gap:14px;">
+
+        <!-- Sección reactivar -->
+        <div class="inv-result" id="invReactivarSection" style="display:none;">
+          <div class="inv-result-header">
+            <span class="inv-result-title">✅ Para reactivar — Encontrados con stock 0</span>
+            <span class="inv-result-badge" id="invReactivarBadge" style="background:var(--green-light);color:var(--green);border:1px solid rgba(22,163,74,.2);">0 productos</span>
+          </div>
+          <div style="padding:8px 14px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--border);">
+            Estos productos están en el local pero tienen stock 0 en ML. Ingresá el stock y reactivá.
+          </div>
+          <div id="invReactivarList"></div>
         </div>
-        <div style="padding:10px 14px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--border);">
-          Estos productos no fueron encontrados en la góndola. Podés ponerlos en stock 0 individualmente o todos juntos.
+
+        <!-- Sección pausar -->
+        <div class="inv-result" id="invPausarSection" style="display:none;">
+          <div class="inv-result-header">
+            <span class="inv-result-title">❌ Para pausar — No encontrados en góndola</span>
+            <span class="inv-result-badge" id="invNotBadge" style="background:var(--red-light);color:var(--red);border:1px solid rgba(220,38,38,.2);">0 productos</span>
+          </div>
+          <div style="padding:8px 14px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--border);">
+            Estos productos no fueron escaneados. Podés ponerlos en stock 0 individualmente o todos juntos.
+          </div>
+          <div style="padding:10px 14px;border-bottom:1px solid var(--border);">
+            <button class="inv-btn-s0" onclick="invStock0Todos()" style="background:var(--red);color:#fff;padding:7px 16px;">
+              🔴 Poner todos en stock 0
+            </button>
+          </div>
+          <div id="invNotList"></div>
         </div>
-        <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:8px;">
-          <button class="inv-btn-s0" onclick="invStock0Todos()" style="background:var(--red);color:#fff;padding:7px 16px;">
-            🔴 Poner todos en stock 0
-          </button>
-        </div>
-        <div id="invNotList"></div>
+
       </div>
     </div>
     <!-- Placeholder cuando no hay resultado aún -->
@@ -2225,36 +2242,104 @@ function invRenderScanned() {
 function invFinalizar() {
   if (!invGondolaActual) return;
   invFinalizado = true;
+
   const noEscaneados = invProductos.filter(p => !invEscaneados[p.sku]);
+  const paraReactivar = invProductos.filter(p => invEscaneados[p.sku] && (p.stock === 0 || p.status === 'paused'));
+
   const panel = document.getElementById('invResultPanel');
   const placeholder = document.getElementById('invPlaceholder');
+  panel.style.display = 'block';
+  placeholder.style.display = 'none';
+
+  // ── Sección reactivar ──
+  const reactivarSection = document.getElementById('invReactivarSection');
+  const reactivarList = document.getElementById('invReactivarList');
+  const reactivarBadge = document.getElementById('invReactivarBadge');
+
+  if (paraReactivar.length > 0) {
+    reactivarSection.style.display = 'block';
+    reactivarBadge.textContent = `${paraReactivar.length} producto${paraReactivar.length !== 1 ? 's' : ''}`;
+    reactivarList.innerHTML = paraReactivar.map(p => `
+      <div class="inv-not-item" id="invreact-${p.id}">
+        ${p.thumbnail ? `<img class="inv-item-thumb" src="${p.thumbnail}" alt="">` : `<div class="inv-item-thumb-ph">□</div>`}
+        <div class="inv-item-info">
+          <div class="inv-item-name">${p.name}</div>
+          <div class="inv-item-meta">
+            <span class="inv-sku">${p.sku}</span>
+            <span class="inv-sku">${p.mla}</span>
+            <span style="font-size:10px;color:var(--red);">Stock: ${p.stock} u. — ${p.status === 'paused' ? 'Pausada' : 'Activa'}</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+          <input type="number" id="invreact-qty-${p.id}" value="1" min="1" 
+            style="width:60px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono);font-size:12px;background:var(--bg);color:var(--text);text-align:center;">
+          <button class="inv-btn-s0" id="invreact-btn-${p.id}" onclick="invReactivar(${p.id})"
+            style="background:var(--green-light);color:var(--green);border-color:rgba(22,163,74,.3);">
+            ✅ Reactivar
+          </button>
+        </div>
+      </div>`).join('');
+  } else {
+    reactivarSection.style.display = 'none';
+  }
+
+  // ── Sección pausar ──
+  const pausarSection = document.getElementById('invPausarSection');
   const notList = document.getElementById('invNotList');
   const badge = document.getElementById('invNotBadge');
 
-  badge.textContent = `${noEscaneados.length} producto${noEscaneados.length !== 1 ? 's' : ''}`;
-  placeholder.style.display = 'none';
-  panel.style.display = 'block';
-
-  if (!noEscaneados.length) {
-    notList.innerHTML = '<div style="padding:30px;text-align:center;color:var(--green);font-size:13px;font-weight:600;">🎉 ¡Todos los productos fueron escaneados!</div>';
-    return;
+  if (noEscaneados.length > 0) {
+    pausarSection.style.display = 'block';
+    badge.textContent = `${noEscaneados.length} producto${noEscaneados.length !== 1 ? 's' : ''}`;
+    notList.innerHTML = noEscaneados.map(p => `
+      <div class="inv-not-item" id="invnot-${p.id}">
+        ${p.thumbnail ? `<img class="inv-item-thumb" src="${p.thumbnail}" alt="">` : `<div class="inv-item-thumb-ph">□</div>`}
+        <div class="inv-item-info">
+          <div class="inv-item-name">${p.name}</div>
+          <div class="inv-item-meta">
+            <span class="inv-sku">${p.sku}</span>
+            <span class="inv-sku">${p.mla}</span>
+            <span style="font-size:10px;color:var(--muted);">Stock: ${p.stock} u.</span>
+          </div>
+        </div>
+        <button class="inv-btn-s0" id="invs0-${p.id}" onclick="invPutStock0(${p.id})">
+          Stock 0
+        </button>
+      </div>`).join('');
+  } else {
+    pausarSection.style.display = 'none';
   }
 
-  notList.innerHTML = noEscaneados.map(p => `
-    <div class="inv-not-item" id="invnot-${p.id}">
-      ${p.thumbnail ? `<img class="inv-item-thumb" src="${p.thumbnail}" alt="">` : `<div class="inv-item-thumb-ph">□</div>`}
-      <div class="inv-item-info">
-        <div class="inv-item-name">${p.name}</div>
-        <div class="inv-item-meta">
-          <span class="inv-sku">${p.sku}</span>
-          <span class="inv-sku">${p.mla}</span>
-          <span style="font-size:10px;color:var(--muted);">Stock: ${p.stock} u.</span>
-        </div>
-      </div>
-      <button class="inv-btn-s0" id="invs0-${p.id}" onclick="invPutStock0(${p.id})">
-        Stock 0
-      </button>
-    </div>`).join('');
+  if (noEscaneados.length === 0 && paraReactivar.length === 0) {
+    panel.innerHTML = '<div style="padding:30px;text-align:center;color:var(--green);font-size:13px;font-weight:600;">🎉 ¡Todo en orden! Ningún producto para pausar ni reactivar.</div>';
+  }
+}
+
+async function invReactivar(id) {
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  const btn = document.getElementById(`invreact-btn-${p.id}`);
+  const qtyInput = document.getElementById(`invreact-qty-${p.id}`);
+  const qty = parseInt(qtyInput.value) || 1;
+  btn.disabled = true; btn.textContent = '⏳';
+  try {
+    await mlPut(`/items/${p.mla}`, { available_quantity: qty });
+    await mlPut(`/items/${p.mla}`, { status: 'active' });
+    if (tnToken && p.tn_variant_id) {
+      try { await tnPut(`/products/${p.tn_product_id}/variants/${p.tn_variant_id}`, { stock: qty }); } catch(e) {}
+    }
+    p.stock = qty; p.status = 'active';
+    btn.textContent = '✅ Reactivado';
+    btn.className = 'inv-btn-s0 done';
+    qtyInput.disabled = true;
+    document.getElementById(`invreact-${p.id}`).style.opacity = '.5';
+    const tnMsg = tnToken && p.tn_variant_id ? ' + TN' : '';
+    showToast(`✅ ${p.name.slice(0,30)} → reactivado con ${qty} u.${tnMsg}`, 'success');
+    renderStats();
+  } catch(e) {
+    btn.disabled = false; btn.textContent = '✅ Reactivar';
+    showToast('❌ ' + e.message, 'error');
+  }
 }
 
 async function invPutStock0(id) {
