@@ -420,6 +420,41 @@
     .ss-prices{gap:6px;}
     .ss-name{font-size:11px;}
   }
+  /* ── CONFIG PANEL ── */
+  #cfgPanel{display:none;position:fixed;inset:0;background:rgba(26,27,46,.5);z-index:400;backdrop-filter:blur(6px);}
+  #cfgPanel.open{display:flex;align-items:flex-start;justify-content:center;padding:20px;}
+  .cfg-drawer{background:var(--surface);border:1px solid var(--border);border-radius:18px;width:100%;max-width:660px;max-height:calc(100vh - 40px);display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-md);}
+  .cfg-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0;gap:10px;}
+  .cfg-title{font-family:var(--font-head);font-size:15px;font-weight:700;color:var(--text);}
+  .cfg-header-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .cfg-body{overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:20px;}
+  .cfg-section{display:flex;flex-direction:column;gap:10px;}
+  .cfg-section-title{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);padding-bottom:6px;border-bottom:1px solid var(--border);}
+  .cfg-row{display:flex;align-items:center;gap:10px;}
+  .cfg-label{font-size:12px;color:var(--muted2);flex:1;min-width:160px;}
+  .cfg-input{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-family:var(--font-mono);font-size:13px;color:var(--text);width:110px;text-align:right;}
+  .cfg-input:focus{outline:none;border-color:var(--accent);}
+  .cfg-unit{font-size:11px;color:var(--muted);width:22px;}
+  .cfg-tramo-table{width:100%;border-collapse:collapse;font-size:12px;}
+  .cfg-tramo-table th{text-align:left;color:var(--muted);font-weight:400;padding:4px 6px;font-size:10px;text-transform:uppercase;}
+  .cfg-tramo-table td{padding:3px 4px;}
+  .cfg-tramo-table td input{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-family:var(--font-mono);font-size:12px;color:var(--text);width:100%;text-align:right;}
+  .cfg-tramo-table td input:focus{outline:none;border-color:var(--accent);}
+  .cfg-tramo-table td input:disabled{color:var(--muted2);cursor:default;background:transparent;border-color:transparent;}
+  .cfg-del-btn{background:none;border:none;cursor:pointer;color:var(--muted2);font-size:14px;padding:2px 6px;border-radius:4px;line-height:1;}
+  .cfg-del-btn:hover{color:var(--red);}
+  .cfg-add-btn{background:none;border:1px dashed var(--border);border-radius:8px;padding:6px 12px;font-size:11px;color:var(--muted);cursor:pointer;width:100%;margin-top:2px;font-family:var(--font-mono);}
+  .cfg-add-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .cfg-textarea{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-family:var(--font-mono);font-size:11px;color:var(--text);width:100%;height:130px;resize:vertical;}
+  .cfg-textarea:focus{outline:none;border-color:var(--accent);}
+  .cfg-btn-save{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:9px 20px;font-family:var(--font-head);font-weight:700;font-size:13px;cursor:pointer;}
+  .cfg-btn-save:hover{opacity:.88;}
+  .cfg-btn-reset{background:none;border:1px solid var(--border);border-radius:10px;padding:9px 14px;font-family:var(--font-mono);font-size:11px;color:var(--muted);cursor:pointer;}
+  .cfg-btn-reset:hover{border-color:var(--red);color:var(--red);}
+  .cfg-close{background:none;border:none;cursor:pointer;font-size:18px;color:var(--muted);padding:4px 8px;line-height:1;}
+  .cfg-close:hover{color:var(--text);}
+  .main-tab-cfg{margin-left:auto;background:none;border:none;cursor:pointer;font-size:17px;color:var(--muted);padding:6px 10px;border-radius:8px;transition:color .15s,background .15s;line-height:1;}
+  .main-tab-cfg:hover{color:var(--text);background:var(--surface2);}
 </style>
 </head>
 <body>
@@ -548,6 +583,7 @@
     <button class="main-tab" id="tabMetricas" onclick="switchTab('metricas')">📊 Métricas</button>
     <button class="main-tab" id="tabFlex" onclick="switchTab('flex')">🗺️ Flex</button>
     <button class="main-tab" id="tabInventario" onclick="switchTab('inventario')">📦 Inventario</button>
+    <button class="main-tab-cfg" onclick="openConfig()" title="Configuración">⚙️</button>
   </div>
 
   <div id="panelContent" style="display:none;">
@@ -847,6 +883,89 @@
   </div>
 </div>
 
+<!-- ── CONFIG PANEL ── -->
+<div id="cfgPanel">
+  <div class="cfg-drawer">
+    <div class="cfg-header">
+      <span class="cfg-title">⚙️ Configuración</span>
+      <div class="cfg-header-actions">
+        <button class="cfg-btn-reset" onclick="cfgResetDefaults()">↩️ Restaurar defaults</button>
+        <button class="cfg-btn-save" onclick="cfgSave()">Guardar cambios</button>
+        <button class="cfg-close" onclick="closeConfig()">✕</button>
+      </div>
+    </div>
+    <div class="cfg-body">
+
+      <div class="cfg-section">
+        <div class="cfg-section-title">Comercial — Mercado Libre</div>
+        <div class="cfg-row">
+          <span class="cfg-label">Comisión ML</span>
+          <input class="cfg-input" id="cfgComision" type="number" step="0.01" min="0" max="100">
+          <span class="cfg-unit">%</span>
+        </div>
+        <div class="cfg-row">
+          <span class="cfg-label">Umbral envío gratis</span>
+          <input class="cfg-input" id="cfgEnvioGratisUmbral" type="number" step="100" min="0">
+          <span class="cfg-unit">$</span>
+        </div>
+        <div class="cfg-row">
+          <span class="cfg-label">Costo envío gratis</span>
+          <input class="cfg-input" id="cfgEnvioGratisCosto" type="number" step="100" min="0">
+          <span class="cfg-unit">$</span>
+        </div>
+        <div class="cfg-row">
+          <span class="cfg-label">Umbral diferencia de precio</span>
+          <input class="cfg-input" id="cfgDiffThreshold" type="number" step="1" min="0">
+          <span class="cfg-unit">$</span>
+        </div>
+      </div>
+
+      <div class="cfg-section">
+        <div class="cfg-section-title">Descuentos por tipo de producto</div>
+        <div class="cfg-row">
+          <span class="cfg-label">Tipo I — Importado</span>
+          <input class="cfg-input" id="cfgDescI" type="number" step="1" min="0" max="100">
+          <span class="cfg-unit">%</span>
+        </div>
+        <div class="cfg-row">
+          <span class="cfg-label">Tipo N — Nacional</span>
+          <input class="cfg-input" id="cfgDescN" type="number" step="1" min="0" max="100">
+          <span class="cfg-unit">%</span>
+        </div>
+        <div class="cfg-row">
+          <span class="cfg-label">Tipo F — Sin descuento</span>
+          <input class="cfg-input" id="cfgDescF" type="number" step="1" min="0" max="100">
+          <span class="cfg-unit">%</span>
+        </div>
+      </div>
+
+      <div class="cfg-section">
+        <div class="cfg-section-title">Tramos de costo fijo — NO FULL</div>
+        <table class="cfg-tramo-table">
+          <thead><tr><th>Hasta $</th><th>Costo fijo $</th><th></th></tr></thead>
+          <tbody id="cfgBodyNF"></tbody>
+        </table>
+        <button class="cfg-add-btn" onclick="cfgAddTramo('nf')">+ Agregar tramo</button>
+      </div>
+
+      <div class="cfg-section">
+        <div class="cfg-section-title">Tramos de costo fijo — FULL</div>
+        <table class="cfg-tramo-table">
+          <thead><tr><th>Hasta $</th><th>Costo fijo $</th><th></th></tr></thead>
+          <tbody id="cfgBodyFull"></tbody>
+        </table>
+        <button class="cfg-add-btn" onclick="cfgAddTramo('full')">+ Agregar tramo</button>
+      </div>
+
+      <div class="cfg-section">
+        <div class="cfg-section-title">Góndolas — una por línea</div>
+        <textarea class="cfg-textarea" id="cfgGondolas" spellcheck="false"></textarea>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 <!-- ── LIGHTBOX ── -->
 <div id="lightbox" onclick="closeLightbox()">
   <button id="lightboxClose" onclick="closeLightbox()">✕</button>
@@ -859,7 +978,7 @@ const TN_APP_ID  = '30033';
 const SHEET_ID   = '1ytO7tU_tWg25Tu--h6d5epX3XLirKYVJz-06runTQ98';
 const SHEET_NAME = 'PRODUCTOS';
 const REDIRECT_URI = window.location.origin + window.location.pathname;
-const DIFF_THRESHOLD = 5;
+let DIFF_THRESHOLD = 5;
 
 const V = {
   comision: 0.135,
@@ -2842,7 +2961,7 @@ function showToast(msg, type = 'success') {
 
 
 // ── GONDOLA FILTER ────────────────────────────────────────────
-const GONDOLAS = ['BAZAR','BEBIDAS','CONDIMENTOS ORIENTALES','COREANO','EXLIN','FIDEOS','FRESCO','GOLOSINAS','ICHIBAN','NACIONAL','ONCE','PICKLES','SALSAS','SNACKS','SOJU','TE','VALLE IMPERIAL','VALLE IMPERIAL CONDIMENTOS','CASA CHINA'];
+let GONDOLAS = ['BAZAR','BEBIDAS','CONDIMENTOS ORIENTALES','COREANO','EXLIN','FIDEOS','FRESCO','GOLOSINAS','ICHIBAN','NACIONAL','ONCE','PICKLES','SALSAS','SNACKS','SOJU','TE','VALLE IMPERIAL','VALLE IMPERIAL CONDIMENTOS','CASA CHINA'];
 
 function buildGondolaOptions() {
   const container = document.getElementById('gondolaOptions');
@@ -2942,6 +3061,7 @@ document.addEventListener('click', function(e) {
 });
 
 (function boot() {
+  loadConfig();
   initOverlayListeners();
   updateTnStatus();
   const params = new URLSearchParams(window.location.search);
@@ -2970,6 +3090,148 @@ document.addEventListener('click', function(e) {
     if (note) note.innerHTML += ' &nbsp;·&nbsp; <a href="#" onclick="loginTN()" style="color:var(--accent);">Conectar Tienda Nube</a>';
   }
 })();
+
+// ── CONFIG PANEL ──────────────────────────────────────
+const CFG_KEY = 'umami_cfg_v1';
+const CFG_DEF = {
+  comision: 0.135, precioEnvioGratis: 33000, costoEnvioGratis: 9800,
+  descuentos: { I: 0.25, N: 0.20, F: 0.0 },
+  nf:   [{ hasta:15999,cf:1275},{hasta:23999,cf:2500},{hasta:32999,cf:3030},{hasta:Infinity,cf:0}],
+  full: [{ hasta:3499,cf:290},{hasta:4999,cf:550},{hasta:7999,cf:750},{hasta:15999,cf:1000},{hasta:32999,cf:1750},{hasta:Infinity,cf:0}],
+  gondolas: ['BAZAR','BEBIDAS','CONDIMENTOS ORIENTALES','COREANO','EXLIN','FIDEOS','FRESCO','GOLOSINAS','ICHIBAN','NACIONAL','ONCE','PICKLES','SALSAS','SNACKS','SOJU','TE','VALLE IMPERIAL','VALLE IMPERIAL CONDIMENTOS','CASA CHINA'],
+  diffThreshold: 5
+};
+
+function loadConfig() {
+  try {
+    const raw = localStorage.getItem(CFG_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw, (k, v) => v === '__Inf__' ? Infinity : v);
+    if (saved.comision != null)          V.comision = saved.comision;
+    if (saved.precioEnvioGratis != null) V.precioEnvioGratis = saved.precioEnvioGratis;
+    if (saved.costoEnvioGratis != null)  V.costoEnvioGratis = saved.costoEnvioGratis;
+    if (saved.descuentos)                Object.assign(V.descuentos, saved.descuentos);
+    if (saved.nf)                        V.nf = saved.nf;
+    if (saved.full)                      V.full = saved.full;
+    if (saved.gondolas)                  GONDOLAS = saved.gondolas;
+    if (saved.diffThreshold != null)     DIFF_THRESHOLD = saved.diffThreshold;
+  } catch(e) {}
+}
+
+function openConfig() {
+  cfgRenderUI();
+  document.getElementById('cfgPanel').classList.add('open');
+}
+
+function closeConfig() {
+  document.getElementById('cfgPanel').classList.remove('open');
+}
+
+function cfgRenderUI() {
+  document.getElementById('cfgComision').value         = +(V.comision * 100).toFixed(2);
+  document.getElementById('cfgEnvioGratisUmbral').value = V.precioEnvioGratis;
+  document.getElementById('cfgEnvioGratisCosto').value  = V.costoEnvioGratis;
+  document.getElementById('cfgDiffThreshold').value     = DIFF_THRESHOLD;
+  document.getElementById('cfgDescI').value = +(V.descuentos.I * 100).toFixed(0);
+  document.getElementById('cfgDescN').value = +(V.descuentos.N * 100).toFixed(0);
+  document.getElementById('cfgDescF').value = +(V.descuentos.F * 100).toFixed(0);
+  cfgRenderTramos('nf',   V.nf);
+  cfgRenderTramos('full', V.full);
+  document.getElementById('cfgGondolas').value = GONDOLAS.join('\n');
+}
+
+function cfgRenderTramos(tipo, tramos) {
+  const tbody = document.getElementById(tipo === 'nf' ? 'cfgBodyNF' : 'cfgBodyFull');
+  tbody.innerHTML = tramos.map((t, i) => {
+    const isLast = i === tramos.length - 1;
+    return `<tr>
+      <td><input type="number" min="0" value="${isLast ? '' : t.hasta}" ${isLast ? 'disabled placeholder="∞"' : ''}></td>
+      <td><input type="number" min="0" value="${t.cf}"></td>
+      <td>${isLast ? '' : `<button class="cfg-del-btn" onclick="cfgDelTramo('${tipo}',${i})">×</button>`}</td>
+    </tr>`;
+  }).join('');
+}
+
+function cfgGetTramos(tipo) {
+  const tbody = document.getElementById(tipo === 'nf' ? 'cfgBodyNF' : 'cfgBodyFull');
+  return Array.from(tbody.querySelectorAll('tr')).map(row => {
+    const [hastaInput, cfInput] = row.querySelectorAll('input');
+    const hasta = hastaInput.disabled || hastaInput.value === '' ? Infinity : Number(hastaInput.value);
+    return { hasta, cf: Number(cfInput.value) || 0 };
+  });
+}
+
+function cfgAddTramo(tipo) {
+  const tramos = cfgGetTramos(tipo);
+  tramos.splice(tramos.length - 1, 0, { hasta: 0, cf: 0 });
+  cfgRenderTramos(tipo, tramos);
+}
+
+function cfgDelTramo(tipo, idx) {
+  const tramos = cfgGetTramos(tipo);
+  if (tramos.length <= 2) return;
+  tramos.splice(idx, 1);
+  cfgRenderTramos(tipo, tramos);
+}
+
+function cfgSave() {
+  const comision          = parseFloat(document.getElementById('cfgComision').value) / 100;
+  const precioEnvioGratis = Number(document.getElementById('cfgEnvioGratisUmbral').value);
+  const costoEnvioGratis  = Number(document.getElementById('cfgEnvioGratisCosto').value);
+  const diffThreshold     = Number(document.getElementById('cfgDiffThreshold').value);
+  const descI = parseFloat(document.getElementById('cfgDescI').value) / 100;
+  const descN = parseFloat(document.getElementById('cfgDescN').value) / 100;
+  const descF = parseFloat(document.getElementById('cfgDescF').value) / 100;
+  const nf    = cfgGetTramos('nf');
+  const full  = cfgGetTramos('full');
+  const gondolas = document.getElementById('cfgGondolas').value
+    .split('\n').map(s => s.trim().toUpperCase()).filter(Boolean);
+
+  if ([comision, precioEnvioGratis, costoEnvioGratis, diffThreshold, descI, descN, descF].some(isNaN)) {
+    showToast('❌ Hay valores inválidos en el formulario', 'error'); return;
+  }
+  if (!gondolas.length) { showToast('❌ Ingresá al menos una góndola', 'error'); return; }
+
+  const cfg = { comision, precioEnvioGratis, costoEnvioGratis, diffThreshold,
+    descuentos: { I: descI, N: descN, F: descF }, nf, full, gondolas };
+  localStorage.setItem(CFG_KEY, JSON.stringify(cfg, (k, v) => v === Infinity ? '__Inf__' : v));
+
+  V.comision = comision; V.precioEnvioGratis = precioEnvioGratis;
+  V.costoEnvioGratis = costoEnvioGratis; Object.assign(V.descuentos, cfg.descuentos);
+  V.nf = nf; V.full = full; GONDOLAS = gondolas; DIFF_THRESHOLD = diffThreshold;
+
+  cfgRecalcProducts();
+  buildGondolaOptions(); buildSsGondolaOptions();
+  closeConfig();
+  showToast('✅ Configuración guardada', 'success');
+}
+
+function cfgResetDefaults() {
+  if (!confirm('¿Restaurar todos los valores por defecto?')) return;
+  localStorage.removeItem(CFG_KEY);
+  V.comision = CFG_DEF.comision; V.precioEnvioGratis = CFG_DEF.precioEnvioGratis;
+  V.costoEnvioGratis = CFG_DEF.costoEnvioGratis;
+  Object.assign(V.descuentos, CFG_DEF.descuentos);
+  V.nf   = CFG_DEF.nf.map(t => ({...t}));
+  V.full = CFG_DEF.full.map(t => ({...t}));
+  GONDOLAS = [...CFG_DEF.gondolas]; DIFF_THRESHOLD = CFG_DEF.diffThreshold;
+  cfgRenderUI(); cfgRecalcProducts(); buildGondolaOptions(); buildSsGondolaOptions();
+  showToast('↩️ Valores por defecto restaurados', 'info');
+}
+
+function cfgRecalcProducts() {
+  if (!products || !products.length) return;
+  products.forEach(p => {
+    const desc = V.descuentos[p.descuento] ?? 0;
+    p.costo = p.precio_asia * (1 - desc);
+    p.precio_ml_calc = calcPrecioML(p.costo, p.margen, p.tipo);
+    const pr = p.precio_ml_real || p.precio_ml_calc;
+    p.gan_pesos = calcGanReal(pr, p.costo, p.tipo);
+    p.gan_pct   = calcGanPct(pr, p.costo, p.tipo);
+    p.semaforo  = p.gan_pct >= 30 ? '🟢' : p.gan_pct >= 15 ? '🟡' : '🔴';
+  });
+  doFilter();
+}
 </script>
 </body>
 </html>
