@@ -1016,12 +1016,22 @@ function calcPrecioML(costo, margen, tipo) {
   const base = costo * (1 + margen);
   const tabla = tipo === 'FULL' ? V.full : V.nf;
   const com = V.comision;
-  let cf = tabla[tabla.length - 1].cf;
-  for (const tramo of tabla) {
-    const pFinal = (base + tramo.cf) / (1 - com);
-    if (pFinal <= tramo.hasta) { cf = tramo.cf; break; }
-    cf = tramo.cf;
+
+  // Replica el IFS de la Sheet: el último tramo (cf=0) sólo aplica si el precio
+  // SIN cf ya supera el umbral de envío gratis. Para los demás, se busca desde
+  // el tramo más alto hacia abajo: aplica el primero cuyo precio >= límite inferior.
+  const last = tabla[tabla.length - 1];
+  let cf;
+  if ((base + last.cf) / (1 - com) >= V.precioEnvioGratis) {
+    cf = last.cf;
+  } else {
+    cf = tabla[0].cf;
+    for (let i = tabla.length - 2; i >= 1; i--) {
+      const lowerBound = tabla[i - 1].hasta + 1;
+      if ((base + tabla[i].cf) / (1 - com) >= lowerBound) { cf = tabla[i].cf; break; }
+    }
   }
+
   let p = (base + cf) / (1 - com);
   if (p >= V.precioEnvioGratis) p += V.costoEnvioGratis / (1 - com);
   return Math.round(p / 5) * 5;
