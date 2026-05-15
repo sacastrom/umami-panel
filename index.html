@@ -3158,24 +3158,25 @@ async function loadVariablesFromSheet() {
     const text = await r.text();
     const json = JSON.parse(text.replace(/^[^(]+\(/, '').replace(/\);?$/, ''));
     const rows = json.table.rows;
-    const v = (i) => rows[i]?.c?.[1]?.v ?? null;
-    if (v(1)  != null) V.comision          = v(1);   // B2
-    if (v(2)  != null) V.precioEnvioGratis = v(2);   // B3
-    if (v(3)  != null) V.costoEnvioGratis  = v(3);   // B4
-    if (v(6)  != null) V.nf[0].cf          = v(6);   // B7
-    if (v(7)  != null) V.nf[1].cf          = v(7);   // B8
-    if (v(8)  != null) V.nf[2].cf          = v(8);   // B9
-    if (v(12) != null) V.full[0].cf        = v(12);  // B13
-    if (v(13) != null) V.full[1].cf        = v(13);  // B14
-    if (v(14) != null) V.full[2].cf        = v(14);  // B15
-    if (v(15) != null) V.full[3].cf        = v(15);  // B16
-    if (v(16) != null) V.full[4].cf        = v(16);  // B17
-    if (v(20) != null) V.descuentos.F      = v(20);  // B21
-    if (v(21) != null) V.descuentos.I      = v(21);  // B22
-    if (v(22) != null) V.descuentos.N      = v(22);  // B23
-    const gasUrl = v(26);                             // B27
+    // gviz excluye la fila 1 (la usa como encabezado de cols), rows[0] = Sheet fila 2
+    const v = (sheetRow) => rows[sheetRow - 2]?.c?.[1]?.v ?? null;
+    if (v(2)  != null) V.comision          = v(2);   // B2
+    if (v(3)  != null) V.precioEnvioGratis = v(3);   // B3
+    if (v(4)  != null) V.costoEnvioGratis  = v(4);   // B4
+    if (v(7)  != null) V.nf[0].cf          = v(7);   // B7
+    if (v(8)  != null) V.nf[1].cf          = v(8);   // B8
+    if (v(9)  != null) V.nf[2].cf          = v(9);   // B9
+    if (v(13) != null) V.full[0].cf        = v(13);  // B13
+    if (v(14) != null) V.full[1].cf        = v(14);  // B14
+    if (v(15) != null) V.full[2].cf        = v(15);  // B15
+    if (v(16) != null) V.full[3].cf        = v(16);  // B16
+    if (v(17) != null) V.full[4].cf        = v(17);  // B17
+    if (v(21) != null) V.descuentos.F      = v(21);  // B21
+    if (v(22) != null) V.descuentos.I      = v(22);  // B22
+    if (v(23) != null) V.descuentos.N      = v(23);  // B23
+    const gasUrl = v(27);                             // B27
     if (gasUrl) GAS_URL = String(gasUrl).trim();
-    const gondolasRaw = v(27);                        // B28
+    const gondolasRaw = v(28);                        // B28
     if (gondolasRaw) GONDOLAS = String(gondolasRaw).split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
   } catch(e) {
     console.warn('No se pudo leer VARIABLES de la Sheet:', e.message);
