@@ -3158,25 +3158,31 @@ async function loadVariablesFromSheet() {
     const text = await r.text();
     const json = JSON.parse(text.replace(/^[^(]+\(/, '').replace(/\);?$/, ''));
     const rows = json.table.rows;
-    // gviz excluye la fila 1 (la usa como encabezado de cols), rows[0] = Sheet fila 2
-    const v = (sheetRow) => rows[sheetRow - 2]?.c?.[1]?.v ?? null;
-    if (v(2)  != null) V.comision          = v(2);   // B2
-    if (v(3)  != null) V.precioEnvioGratis = v(3);   // B3
-    if (v(4)  != null) V.costoEnvioGratis  = v(4);   // B4
-    if (v(7)  != null) V.nf[0].cf          = v(7);   // B7
-    if (v(8)  != null) V.nf[1].cf          = v(8);   // B8
-    if (v(9)  != null) V.nf[2].cf          = v(9);   // B9
-    if (v(13) != null) V.full[0].cf        = v(13);  // B13
-    if (v(14) != null) V.full[1].cf        = v(14);  // B14
-    if (v(15) != null) V.full[2].cf        = v(15);  // B15
-    if (v(16) != null) V.full[3].cf        = v(16);  // B16
-    if (v(17) != null) V.full[4].cf        = v(17);  // B17
-    if (v(21) != null) V.descuentos.F      = v(21);  // B21
-    if (v(22) != null) V.descuentos.I      = v(22);  // B22
-    if (v(23) != null) V.descuentos.N      = v(23);  // B23
-    const gasUrl = v(27);                             // B27
+    // Leer por etiqueta de col A — inmune a filas vacías omitidas por gviz
+    const m = {};
+    rows.forEach(row => {
+      const a = row.c?.[0]?.v;
+      if (a != null) m[String(a).trim()] = row.c?.[1]?.v ?? null;
+    });
+    const g = k => m[k] ?? null;
+
+    if (g('COMISIÓN %')          != null) V.comision          = g('COMISIÓN %');
+    if (g('PRECIO ENVÍO GRATIS') != null) V.precioEnvioGratis = g('PRECIO ENVÍO GRATIS');
+    if (g('COSTO ENVÍO GRATIS')  != null) V.costoEnvioGratis  = g('COSTO ENVÍO GRATIS');
+    if (g('Hasta $15.999')       != null) V.nf[0].cf          = g('Hasta $15.999');
+    if (g('$16.000 a $23.999')   != null) V.nf[1].cf          = g('$16.000 a $23.999');
+    if (g('$24.000 a $32.999')   != null) V.nf[2].cf          = g('$24.000 a $32.999');
+    if (g('Hasta $3.499')        != null) V.full[0].cf        = g('Hasta $3.499');
+    if (g('$3.500 a $4.999')     != null) V.full[1].cf        = g('$3.500 a $4.999');
+    if (g('$5.000 a $7.999')     != null) V.full[2].cf        = g('$5.000 a $7.999');
+    if (g('$8.000 a $15.999')    != null) V.full[3].cf        = g('$8.000 a $15.999');
+    if (g('$16.000 a $32.999')   != null) V.full[4].cf        = g('$16.000 a $32.999');
+    if (g('F')                   != null) V.descuentos.F      = g('F');
+    if (g('I')                   != null) V.descuentos.I      = g('I');
+    if (g('N')                   != null) V.descuentos.N      = g('N');
+    const gasUrl = g('URL APPS SCRIPT');
     if (gasUrl) GAS_URL = String(gasUrl).trim();
-    const gondolasRaw = v(28);                        // B28
+    const gondolasRaw = g('GONDOLAS');
     if (gondolasRaw) GONDOLAS = String(gondolasRaw).split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
   } catch(e) {
     console.warn('No se pudo leer VARIABLES de la Sheet:', e.message);
