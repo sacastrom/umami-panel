@@ -3159,10 +3159,12 @@ async function loadVariablesFromSheet() {
     const json = JSON.parse(text.replace(/^[^(]+\(/, '').replace(/\);?$/, ''));
     const rows = json.table.rows;
     // Leer por etiqueta de col A — inmune a filas vacías omitidas por gviz
+    // Para celdas de texto en columna numérica, gviz pone v=null y el valor en f
+    const cellVal = c => c == null ? null : (c.v ?? c.f ?? null);
     const m = {};
     rows.forEach(row => {
       const a = row.c?.[0]?.v;
-      if (a != null) m[String(a).trim()] = row.c?.[1]?.v ?? null;
+      if (a != null) m[String(a).trim()] = cellVal(row.c?.[1]);
     });
     const g = k => m[k] ?? null;
 
