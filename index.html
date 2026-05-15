@@ -3153,16 +3153,14 @@ let GAS_URL = '';
 
 async function loadVariablesFromSheet() {
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=VARIABLES`;
-    const r = await fetch(url);
-    const text = await r.text();
-    const json = JSON.parse(text.replace(/^[^(]+\(/, '').replace(/\);?$/, ''));
-    const rows = json.table.rows;
-    // Leer por etiqueta de col A — inmune a filas vacías omitidas por gviz
-    // Para celdas de texto en columna numérica, gviz pone v=null y el valor en f
+    const base = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=VARIABLES`;
+    const parse = t => JSON.parse(t.replace(/^[^(]+\(/, '').replace(/\);?$/, ''));
     const cellVal = c => c == null ? null : (c.v ?? c.f ?? null);
+
+    // ── Fetch 1: variables numéricas (filas 2-25)
+    const json = parse(await (await fetch(base)).text());
     const m = {};
-    rows.forEach(row => {
+    json.table.rows.forEach(row => {
       const a = row.c?.[0]?.v;
       if (a != null) m[String(a).trim()] = cellVal(row.c?.[1]);
     });
@@ -3182,9 +3180,14 @@ async function loadVariablesFromSheet() {
     if (g('F')                   != null) V.descuentos.F      = g('F');
     if (g('I')                   != null) V.descuentos.I      = g('I');
     if (g('N')                   != null) V.descuentos.N      = g('N');
-    const gasUrl = g('URL APPS SCRIPT');
-    if (gasUrl) GAS_URL = String(gasUrl).trim();
-    const gondolasRaw = g('GONDOLAS');
+
+    // ── Fetch 2: strings en B27:B28 (URL + GONDOLAS)
+    // Con range=A27:B28, gviz trata fila 27 como encabezado de columna.
+    // Los encabezados siempre son string → la URL queda en cols[1].label.
+    const json2 = parse(await (await fetch(`${base}&range=A27:B28`)).text());
+    const gasUrl = (json2.table.cols?.[1]?.label || '').trim();
+    if (gasUrl.startsWith('http')) GAS_URL = gasUrl;
+    const gondolasRaw = cellVal(json2.table.rows?.[0]?.c?.[1]);
     if (gondolasRaw) GONDOLAS = String(gondolasRaw).split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
   } catch(e) {
     console.warn('No se pudo leer VARIABLES de la Sheet:', e.message);
