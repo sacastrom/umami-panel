@@ -110,6 +110,9 @@
   .stock-low{color:var(--red);font-weight:600;}.stock-mid{color:var(--orange);}.stock-ok{color:var(--text);}
   .cell-input{font-family:var(--font-mono);font-size:12px;background:var(--bg);border:1px solid var(--accent);color:var(--text);padding:3px 5px;border-radius:5px;width:80px;outline:none;display:none;}
   .ci-stock{border-color:var(--blue);width:65px;}
+  .ci-asia{border-color:var(--orange);width:80px;}
+  .asia-val{cursor:pointer;border-bottom:1px dashed var(--muted2);}
+  .asia-val:hover{color:var(--orange)!important;border-bottom-color:var(--orange);}
   .spin-cell{display:none;width:10px;height:10px;border:1.5px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;margin-left:4px;vertical-align:middle;}
   .price-calc{font-family:var(--font-mono);font-size:12px;color:var(--accent);font-weight:600;}
   .price-real{font-family:var(--font-mono);font-size:11px;color:var(--muted);}
@@ -592,7 +595,7 @@
       <table>
         <thead><tr>
           <th>Foto</th><th>Código ML</th><th>SKU</th><th>Producto</th><th>Estado</th><th>Stock ✏️</th>
-          <th>Desc.</th><th>Tipo</th><th>Góndola</th><th>Precio ASIA</th><th>Costo</th>
+          <th>Desc.</th><th>Tipo</th><th>Góndola</th><th>Precio ASIA ✏️</th><th>Costo</th>
           <th>% Gan.</th><th>Precio calc. / publicado ML</th><th>Gan. $</th><th>Gan. %</th><th>🚦</th>
           <th>Precio TN sheet</th><th>Precio TN pub.</th><th>Stock TN</th>
         </tr></thead>
@@ -960,6 +963,14 @@
       <div class="cfg-section">
         <div class="cfg-section-title">Góndolas — una por línea</div>
         <textarea class="cfg-textarea" id="cfgGondolas" spellcheck="false"></textarea>
+      </div>
+
+      <div class="cfg-section">
+        <div class="cfg-section-title">Integraciones</div>
+        <div class="cfg-row" style="flex-direction:column;align-items:flex-start;gap:6px;">
+          <span class="cfg-label" style="min-width:unset;">URL del Apps Script (Google Sheet → actualizar Precio Asia)</span>
+          <input class="cfg-input" id="cfgGasUrl" type="url" placeholder="https://script.google.com/macros/s/..." style="width:100%;text-align:left;">
+        </div>
       </div>
 
     </div>
@@ -1455,7 +1466,7 @@ function renderTable() {
       <td><span style="font-size:10px;color:var(--${p.descuento==='I'?'blue':p.descuento==='N'?'green':'muted'})">${p.descuento} ${p.descuento==='I'?'25%':p.descuento==='N'?'20%':'0%'}</span></td>
       <td><span style="font-size:10px;color:var(--${p.tipo==='FULL'?'accent':'muted'})">${p.tipo}</span></td>
       <td><span style="font-size:10px;color:var(--accent);background:rgba(99,102,241,.1);padding:2px 6px;border-radius:10px;white-space:nowrap;">${p.gondola || '—'}</span></td>
-      <td><span style="font-size:11px;color:var(--text)">${fmt(p.precio_asia || 0)}</span></td>
+      <td><span class="asia-val" style="font-size:11px;color:var(--text)" onclick="startAsiaEdit(${p.id})" id="v-asia-${p.id}" title="✏️ Editar precio Asia">${fmt(p.precio_asia || 0)}</span><input class="cell-input ci-asia" type="number" id="i-asia-${p.id}" onblur="saveAsia(${p.id})" onkeydown="hkAsia(event,${p.id})"><span class="spin-cell" id="sp-asia-${p.id}"></span></td>
       <td><span style="font-size:11px;color:var(--muted)">${fmt(p.costo || 0)}</span></td>
       <td><span style="font-size:11px;color:var(--blue)">${fmtP(p.margen * 100)}</span></td>
       <td>${priceCell}</td>
@@ -1512,6 +1523,48 @@ async function saveStock(id) {
     showToast(`📦 Stock actualizado en ML${tnSync}`, 'success');
   } catch(e) { showToast('❌ ' + e.message, 'error'); }
   sp.style.display = 'none';
+}
+
+function startAsiaEdit(id) {
+  const p = products.find(x => x.id === id);
+  document.getElementById(`v-asia-${id}`).style.display = 'none';
+  const inp = document.getElementById(`i-asia-${id}`);
+  inp.style.display = 'inline-block'; inp.value = p.precio_asia; inp.focus(); inp.select();
+}
+function hkAsia(e, id) {
+  if (e.key === 'Enter') saveAsia(id);
+  if (e.key === 'Escape') { document.getElementById(`v-asia-${id}`).style.display = 'inline'; document.getElementById(`i-asia-${id}`).style.display = 'none'; }
+}
+async function saveAsia(id) {
+  const p = products.find(x => x.id === id);
+  const inp = document.getElementById(`i-asia-${id}`);
+  const sp  = document.getElementById(`sp-asia-${id}`);
+  const v   = document.getElementById(`v-asia-${id}`);
+  const newVal = parseFloat(inp.value);
+  if (isNaN(newVal) || newVal <= 0) { v.style.display = 'inline'; inp.style.display = 'none'; return; }
+  if (newVal === p.precio_asia) { v.style.display = 'inline'; inp.style.display = 'none'; return; }
+  inp.style.display = 'none'; sp.style.display = 'inline-block'; v.style.display = 'inline';
+  try {
+    await sheetUpdatePrecioAsia(p.mla, newVal);
+    p.precio_asia = newVal;
+    const desc = V.descuentos[p.descuento] ?? 0;
+    p.costo = newVal * (1 - desc);
+    p.precio_ml_calc = calcPrecioML(p.costo, p.margen, p.tipo);
+    const pr = p.precio_ml_real || p.precio_ml_calc;
+    p.gan_pesos = calcGanReal(pr, p.costo, p.tipo);
+    p.gan_pct   = calcGanPct(pr, p.costo, p.tipo);
+    p.semaforo  = p.gan_pct >= 30 ? '🟢' : p.gan_pct >= 15 ? '🟡' : '🔴';
+    v.textContent = fmt(newVal);
+    showToast(`✅ Precio Asia actualizado en la Sheet — ${p.sku}`, 'success');
+    doFilter();
+  } catch(err) { showToast('❌ ' + err.message, 'error'); }
+  sp.style.display = 'none';
+}
+async function sheetUpdatePrecioAsia(mla, precio_asia) {
+  if (!GAS_URL) throw new Error('Configurá la URL del Apps Script en ⚙️ → Integraciones');
+  const r = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ mla, precio_asia }) });
+  const data = await r.json();
+  if (!data.ok) throw new Error(data.error || 'Error en Apps Script');
 }
 
 function hasDiffTN(p) {
@@ -3102,6 +3155,8 @@ const CFG_DEF = {
   diffThreshold: 5
 };
 
+let GAS_URL = '';
+
 function loadConfig() {
   try {
     const raw = localStorage.getItem(CFG_KEY);
@@ -3115,6 +3170,7 @@ function loadConfig() {
     if (saved.full)                      V.full = saved.full;
     if (saved.gondolas)                  GONDOLAS = saved.gondolas;
     if (saved.diffThreshold != null)     DIFF_THRESHOLD = saved.diffThreshold;
+    if (saved.gasUrl)                    GAS_URL = saved.gasUrl;
   } catch(e) {}
 }
 
@@ -3138,6 +3194,7 @@ function cfgRenderUI() {
   cfgRenderTramos('nf',   V.nf);
   cfgRenderTramos('full', V.full);
   document.getElementById('cfgGondolas').value = GONDOLAS.join('\n');
+  document.getElementById('cfgGasUrl').value = GAS_URL;
 }
 
 function cfgRenderTramos(tipo, tramos) {
@@ -3192,13 +3249,14 @@ function cfgSave() {
   }
   if (!gondolas.length) { showToast('❌ Ingresá al menos una góndola', 'error'); return; }
 
+  const gasUrl = document.getElementById('cfgGasUrl').value.trim();
   const cfg = { comision, precioEnvioGratis, costoEnvioGratis, diffThreshold,
-    descuentos: { I: descI, N: descN, F: descF }, nf, full, gondolas };
+    descuentos: { I: descI, N: descN, F: descF }, nf, full, gondolas, gasUrl };
   localStorage.setItem(CFG_KEY, JSON.stringify(cfg, (k, v) => v === Infinity ? '__Inf__' : v));
 
   V.comision = comision; V.precioEnvioGratis = precioEnvioGratis;
   V.costoEnvioGratis = costoEnvioGratis; Object.assign(V.descuentos, cfg.descuentos);
-  V.nf = nf; V.full = full; GONDOLAS = gondolas; DIFF_THRESHOLD = diffThreshold;
+  V.nf = nf; V.full = full; GONDOLAS = gondolas; DIFF_THRESHOLD = diffThreshold; GAS_URL = gasUrl;
 
   cfgRecalcProducts();
   buildGondolaOptions(); buildSsGondolaOptions();
@@ -3214,7 +3272,7 @@ function cfgResetDefaults() {
   Object.assign(V.descuentos, CFG_DEF.descuentos);
   V.nf   = CFG_DEF.nf.map(t => ({...t}));
   V.full = CFG_DEF.full.map(t => ({...t}));
-  GONDOLAS = [...CFG_DEF.gondolas]; DIFF_THRESHOLD = CFG_DEF.diffThreshold;
+  GONDOLAS = [...CFG_DEF.gondolas]; DIFF_THRESHOLD = CFG_DEF.diffThreshold; GAS_URL = '';
   cfgRenderUI(); cfgRecalcProducts(); buildGondolaOptions(); buildSsGondolaOptions();
   showToast('↩️ Valores por defecto restaurados', 'info');
 }
