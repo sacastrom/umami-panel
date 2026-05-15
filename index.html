@@ -916,11 +916,6 @@
           <input class="cfg-input" id="cfgEnvioGratisCosto" type="number" step="100" min="0">
           <span class="cfg-unit">$</span>
         </div>
-        <div class="cfg-row">
-          <span class="cfg-label">Umbral diferencia de precio</span>
-          <input class="cfg-input" id="cfgDiffThreshold" type="number" step="1" min="0">
-          <span class="cfg-unit">$</span>
-        </div>
       </div>
 
       <div class="cfg-section">
@@ -945,19 +940,17 @@
       <div class="cfg-section">
         <div class="cfg-section-title">Tramos de costo fijo — NO FULL</div>
         <table class="cfg-tramo-table">
-          <thead><tr><th>Hasta $</th><th>Costo fijo $</th><th></th></tr></thead>
+          <thead><tr><th>Rango</th><th>Costo fijo $</th></tr></thead>
           <tbody id="cfgBodyNF"></tbody>
         </table>
-        <button class="cfg-add-btn" onclick="cfgAddTramo('nf')">+ Agregar tramo</button>
       </div>
 
       <div class="cfg-section">
         <div class="cfg-section-title">Tramos de costo fijo — FULL</div>
         <table class="cfg-tramo-table">
-          <thead><tr><th>Hasta $</th><th>Costo fijo $</th><th></th></tr></thead>
+          <thead><tr><th>Rango</th><th>Costo fijo $</th></tr></thead>
           <tbody id="cfgBodyFull"></tbody>
         </table>
-        <button class="cfg-add-btn" onclick="cfgAddTramo('full')">+ Agregar tramo</button>
       </div>
 
       <div class="cfg-section">
@@ -969,7 +962,7 @@
         <div class="cfg-section-title">Integraciones</div>
         <div class="cfg-row" style="flex-direction:column;align-items:flex-start;gap:6px;">
           <span class="cfg-label" style="min-width:unset;">URL del Apps Script (Google Sheet → actualizar Precio Asia)</span>
-          <input class="cfg-input" id="cfgGasUrl" type="url" placeholder="https://script.google.com/macros/s/..." style="width:100%;text-align:left;">
+          <input class="cfg-input" id="cfgGasUrl" type="url" style="width:100%;text-align:left;color:var(--muted);" disabled>
         </div>
       </div>
 
@@ -1308,6 +1301,7 @@ async function initApp() {
     document.getElementById('userName').textContent = user.nickname || 'ML';
     showLoading('Leyendo Google Sheets...', 5);
     const rows = await loadFromSheets();
+    await loadVariablesFromSheet();
     sheetsByMla = {};
     rows.forEach(r => { sheetsByMla[r.mla] = r; });
     showLoading(`${rows.length} productos en Sheets — consultando ML...`, 40);
@@ -1332,6 +1326,7 @@ async function reloadApp() {
   showLoading('Recargando...', 0);
   try {
     const rows = await loadFromSheets();
+    await loadVariablesFromSheet();
     sheetsByMla = {};
     rows.forEach(r => { sheetsByMla[r.mla] = r; });
     showLoading(`${rows.length} productos — actualizando ML...`, 40);
@@ -3124,7 +3119,6 @@ document.addEventListener('click', function(e) {
 });
 
 (function boot() {
-  loadConfig();
   initOverlayListeners();
   updateTnStatus();
   const params = new URLSearchParams(window.location.search);
@@ -3154,35 +3148,51 @@ document.addEventListener('click', function(e) {
   }
 })();
 
+// ── VARIABLES DESDE SHEET ─────────────────────────────
+let GAS_URL = '';
+
+async function loadVariablesFromSheet() {
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=VARIABLES`;
+    const r = await fetch(url);
+    const text = await r.text();
+    const json = JSON.parse(text.replace(/^[^(]+\(/, '').replace(/\);?$/, ''));
+    const rows = json.table.rows;
+    const v = (i) => rows[i]?.c?.[1]?.v ?? null;
+    if (v(1)  != null) V.comision          = v(1);   // B2
+    if (v(2)  != null) V.precioEnvioGratis = v(2);   // B3
+    if (v(3)  != null) V.costoEnvioGratis  = v(3);   // B4
+    if (v(6)  != null) V.nf[0].cf          = v(6);   // B7
+    if (v(7)  != null) V.nf[1].cf          = v(7);   // B8
+    if (v(8)  != null) V.nf[2].cf          = v(8);   // B9
+    if (v(12) != null) V.full[0].cf        = v(12);  // B13
+    if (v(13) != null) V.full[1].cf        = v(13);  // B14
+    if (v(14) != null) V.full[2].cf        = v(14);  // B15
+    if (v(15) != null) V.full[3].cf        = v(15);  // B16
+    if (v(16) != null) V.full[4].cf        = v(16);  // B17
+    if (v(20) != null) V.descuentos.F      = v(20);  // B21
+    if (v(21) != null) V.descuentos.I      = v(21);  // B22
+    if (v(22) != null) V.descuentos.N      = v(22);  // B23
+    const gasUrl = v(26);                             // B27
+    if (gasUrl) GAS_URL = String(gasUrl).trim();
+    const gondolasRaw = v(27);                        // B28
+    if (gondolasRaw) GONDOLAS = String(gondolasRaw).split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+  } catch(e) {
+    console.warn('No se pudo leer VARIABLES de la Sheet:', e.message);
+  }
+}
+
 // ── CONFIG PANEL ──────────────────────────────────────
-const CFG_KEY = 'umami_cfg_v1';
 const CFG_DEF = {
-  comision: 0.135, precioEnvioGratis: 33000, costoEnvioGratis: 9800,
+  comision: 0.135, precioEnvioGratis: 33000, costoEnvioGratis: 11500,
   descuentos: { I: 0.25, N: 0.20, F: 0.0 },
   nf:   [{ hasta:15999,cf:1275},{hasta:23999,cf:2500},{hasta:32999,cf:3030},{hasta:Infinity,cf:0}],
   full: [{ hasta:3499,cf:290},{hasta:4999,cf:550},{hasta:7999,cf:750},{hasta:15999,cf:1000},{hasta:32999,cf:1750},{hasta:Infinity,cf:0}],
   gondolas: ['BAZAR','BEBIDAS','CONDIMENTOS ORIENTALES','COREANO','EXLIN','FIDEOS','FRESCO','GOLOSINAS','ICHIBAN','NACIONAL','ONCE','PICKLES','SALSAS','SNACKS','SOJU','TE','VALLE IMPERIAL','VALLE IMPERIAL CONDIMENTOS','CASA CHINA'],
-  diffThreshold: 5
 };
 
-let GAS_URL = '';
-
-function loadConfig() {
-  try {
-    const raw = localStorage.getItem(CFG_KEY);
-    if (!raw) return;
-    const saved = JSON.parse(raw, (k, v) => v === '__Inf__' ? Infinity : v);
-    if (saved.comision != null)          V.comision = saved.comision;
-    if (saved.precioEnvioGratis != null) V.precioEnvioGratis = saved.precioEnvioGratis;
-    if (saved.costoEnvioGratis != null)  V.costoEnvioGratis = saved.costoEnvioGratis;
-    if (saved.descuentos)                Object.assign(V.descuentos, saved.descuentos);
-    if (saved.nf)                        V.nf = saved.nf;
-    if (saved.full)                      V.full = saved.full;
-    if (saved.gondolas)                  GONDOLAS = saved.gondolas;
-    if (saved.diffThreshold != null)     DIFF_THRESHOLD = saved.diffThreshold;
-    if (saved.gasUrl)                    GAS_URL = saved.gasUrl;
-  } catch(e) {}
-}
+const NF_LABELS   = ['Hasta $15.999', '$16.000 a $23.999', '$24.000 a $32.999', 'Desde $33.000'];
+const FULL_LABELS = ['Hasta $3.499', '$3.500 a $4.999', '$5.000 a $7.999', '$8.000 a $15.999', '$16.000 a $32.999', 'Desde $33.000'];
 
 function openConfig() {
   cfgRenderUI();
@@ -3194,97 +3204,97 @@ function closeConfig() {
 }
 
 function cfgRenderUI() {
-  document.getElementById('cfgComision').value         = +(V.comision * 100).toFixed(2);
-  document.getElementById('cfgEnvioGratisUmbral').value = V.precioEnvioGratis;
-  document.getElementById('cfgEnvioGratisCosto').value  = V.costoEnvioGratis;
-  document.getElementById('cfgDiffThreshold').value     = DIFF_THRESHOLD;
+  document.getElementById('cfgComision').value          = +(V.comision * 100).toFixed(2);
+  document.getElementById('cfgEnvioGratisUmbral').value  = V.precioEnvioGratis;
+  document.getElementById('cfgEnvioGratisCosto').value   = V.costoEnvioGratis;
   document.getElementById('cfgDescI').value = +(V.descuentos.I * 100).toFixed(0);
   document.getElementById('cfgDescN').value = +(V.descuentos.N * 100).toFixed(0);
   document.getElementById('cfgDescF').value = +(V.descuentos.F * 100).toFixed(0);
   cfgRenderTramos('nf',   V.nf);
   cfgRenderTramos('full', V.full);
   document.getElementById('cfgGondolas').value = GONDOLAS.join('\n');
-  document.getElementById('cfgGasUrl').value = GAS_URL;
+  const gasEl = document.getElementById('cfgGasUrl');
+  if (gasEl) gasEl.value = GAS_URL || '(no encontrado — verificá VARIABLES!B27)';
 }
 
 function cfgRenderTramos(tipo, tramos) {
-  const tbody = document.getElementById(tipo === 'nf' ? 'cfgBodyNF' : 'cfgBodyFull');
+  const tbody  = document.getElementById(tipo === 'nf' ? 'cfgBodyNF' : 'cfgBodyFull');
+  const labels = tipo === 'nf' ? NF_LABELS : FULL_LABELS;
   tbody.innerHTML = tramos.map((t, i) => {
     const isLast = i === tramos.length - 1;
     return `<tr>
-      <td><input type="number" min="0" value="${isLast ? '' : t.hasta}" ${isLast ? 'disabled placeholder="∞"' : ''}></td>
-      <td><input type="number" min="0" value="${t.cf}"></td>
-      <td>${isLast ? '' : `<button class="cfg-del-btn" onclick="cfgDelTramo('${tipo}',${i})">×</button>`}</td>
+      <td style="font-size:11px;color:var(--muted);padding:4px 8px;white-space:nowrap;">${labels[i] || ''}</td>
+      <td><input type="number" min="0" value="${t.cf}" ${isLast ? 'disabled' : ''}></td>
     </tr>`;
   }).join('');
 }
 
-function cfgGetTramos(tipo) {
+function cfgGetTramoCfs(tipo) {
   const tbody = document.getElementById(tipo === 'nf' ? 'cfgBodyNF' : 'cfgBodyFull');
-  return Array.from(tbody.querySelectorAll('tr')).map(row => {
-    const [hastaInput, cfInput] = row.querySelectorAll('input');
-    const hasta = hastaInput.disabled || hastaInput.value === '' ? Infinity : Number(hastaInput.value);
-    return { hasta, cf: Number(cfInput.value) || 0 };
-  });
+  return Array.from(tbody.querySelectorAll('input')).map(inp => Number(inp.value) || 0);
 }
 
-function cfgAddTramo(tipo) {
-  const tramos = cfgGetTramos(tipo);
-  tramos.splice(tramos.length - 1, 0, { hasta: 0, cf: 0 });
-  cfgRenderTramos(tipo, tramos);
-}
-
-function cfgDelTramo(tipo, idx) {
-  const tramos = cfgGetTramos(tipo);
-  if (tramos.length <= 2) return;
-  tramos.splice(idx, 1);
-  cfgRenderTramos(tipo, tramos);
-}
-
-function cfgSave() {
+async function cfgSave() {
+  if (!GAS_URL) {
+    showToast('❌ Falta la URL del Apps Script — verificá VARIABLES!B27', 'error'); return;
+  }
   const comision          = parseFloat(document.getElementById('cfgComision').value) / 100;
   const precioEnvioGratis = Number(document.getElementById('cfgEnvioGratisUmbral').value);
   const costoEnvioGratis  = Number(document.getElementById('cfgEnvioGratisCosto').value);
-  const diffThreshold     = Number(document.getElementById('cfgDiffThreshold').value);
   const descI = parseFloat(document.getElementById('cfgDescI').value) / 100;
   const descN = parseFloat(document.getElementById('cfgDescN').value) / 100;
   const descF = parseFloat(document.getElementById('cfgDescF').value) / 100;
-  const nf    = cfgGetTramos('nf');
-  const full  = cfgGetTramos('full');
+  const nfCfs   = cfgGetTramoCfs('nf');
+  const fullCfs = cfgGetTramoCfs('full');
   const gondolas = document.getElementById('cfgGondolas').value
     .split('\n').map(s => s.trim().toUpperCase()).filter(Boolean);
 
-  if ([comision, precioEnvioGratis, costoEnvioGratis, diffThreshold, descI, descN, descF].some(isNaN)) {
-    showToast('❌ Hay valores inválidos en el formulario', 'error'); return;
+  if ([comision, precioEnvioGratis, costoEnvioGratis, descI, descN, descF].some(isNaN)) {
+    showToast('❌ Hay valores inválidos', 'error'); return;
   }
   if (!gondolas.length) { showToast('❌ Ingresá al menos una góndola', 'error'); return; }
 
-  const gasUrl = document.getElementById('cfgGasUrl').value.trim();
-  const cfg = { comision, precioEnvioGratis, costoEnvioGratis, diffThreshold,
-    descuentos: { I: descI, N: descN, F: descF }, nf, full, gondolas, gasUrl };
-  localStorage.setItem(CFG_KEY, JSON.stringify(cfg, (k, v) => v === Infinity ? '__Inf__' : v));
+  // Aplicar en runtime
+  V.comision = comision; V.precioEnvioGratis = precioEnvioGratis; V.costoEnvioGratis = costoEnvioGratis;
+  Object.assign(V.descuentos, { I: descI, N: descN, F: descF });
+  [0,1,2].forEach(i => { if (nfCfs[i]   != null) V.nf[i].cf   = nfCfs[i];   });
+  [0,1,2,3,4].forEach(i => { if (fullCfs[i] != null) V.full[i].cf = fullCfs[i]; });
+  GONDOLAS = gondolas;
 
-  V.comision = comision; V.precioEnvioGratis = precioEnvioGratis;
-  V.costoEnvioGratis = costoEnvioGratis; Object.assign(V.descuentos, cfg.descuentos);
-  V.nf = nf; V.full = full; GONDOLAS = gondolas; DIFF_THRESHOLD = diffThreshold; GAS_URL = gasUrl;
+  // Persistir en VARIABLES sheet vía GAS
+  try {
+    const updates = [
+      { row: 2,  value: comision },          { row: 3,  value: precioEnvioGratis },
+      { row: 4,  value: costoEnvioGratis },  { row: 7,  value: V.nf[0].cf },
+      { row: 8,  value: V.nf[1].cf },        { row: 9,  value: V.nf[2].cf },
+      { row: 13, value: V.full[0].cf },      { row: 14, value: V.full[1].cf },
+      { row: 15, value: V.full[2].cf },      { row: 16, value: V.full[3].cf },
+      { row: 17, value: V.full[4].cf },      { row: 21, value: descF },
+      { row: 22, value: descI },             { row: 23, value: descN },
+      { row: 28, value: gondolas.join(', ') },
+    ];
+    const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ tipo: 'variables', updates }) });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+  } catch(err) {
+    showToast('❌ Error al guardar en Sheet: ' + err.message, 'error'); return;
+  }
 
-  cfgRecalcProducts();
-  buildGondolaOptions(); buildSsGondolaOptions();
+  cfgRecalcProducts(); buildGondolaOptions(); buildSsGondolaOptions();
   closeConfig();
-  showToast('✅ Configuración guardada', 'success');
+  showToast('✅ Config guardada en la Sheet', 'success');
 }
 
 function cfgResetDefaults() {
   if (!confirm('¿Restaurar todos los valores por defecto?')) return;
-  localStorage.removeItem(CFG_KEY);
   V.comision = CFG_DEF.comision; V.precioEnvioGratis = CFG_DEF.precioEnvioGratis;
   V.costoEnvioGratis = CFG_DEF.costoEnvioGratis;
   Object.assign(V.descuentos, CFG_DEF.descuentos);
   V.nf   = CFG_DEF.nf.map(t => ({...t}));
   V.full = CFG_DEF.full.map(t => ({...t}));
-  GONDOLAS = [...CFG_DEF.gondolas]; DIFF_THRESHOLD = CFG_DEF.diffThreshold; GAS_URL = '';
+  GONDOLAS = [...CFG_DEF.gondolas];
   cfgRenderUI(); cfgRecalcProducts(); buildGondolaOptions(); buildSsGondolaOptions();
-  showToast('↩️ Valores por defecto restaurados', 'info');
+  showToast('↩️ Defaults aplicados — guardá con el botón para persistir en la Sheet', 'info');
 }
 
 function cfgRecalcProducts() {
