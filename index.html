@@ -7,6 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root{
     --bg:#f4f5f7;--surface:#ffffff;--surface2:#f0f1f4;--border:#e2e4ea;
@@ -659,6 +660,9 @@
         </button>
         <button class="inv-btn inv-btn-reset" onclick="invReset()">
           🔄 Reiniciar escaneo
+        </button>
+        <button class="inv-btn" id="invBtnPDF" onclick="invGenerarPDF()" style="display:none;background:var(--red-light);color:var(--red);border:1px solid rgba(220,38,38,.25);">
+          📄 Descargar PDF nuevos <span id="invNuevosCount" style="background:var(--red);color:#fff;border-radius:99px;padding:1px 7px;font-size:11px;margin-left:4px;">0</span>
         </button>
       </div>
       <!-- Lista de escaneados -->
@@ -2137,6 +2141,7 @@ function focusFlexMarker(packId) {
 let invGondolaActual = '';
 let invProductos = []; // productos de la góndola seleccionada
 let invEscaneados = {}; // SKU → { product, veces }
+let invNuevos = []; // SKUs no encontrados en la Sheet → { sku, gondola, hora }
 let invFeedbackTimer = null;
 let invFinalizado = false;
 
@@ -2186,8 +2191,11 @@ function invProcesarScan(sku) {
       fb.className = 'inv-feedback warn';
       fb.textContent = `⚠️ ${otroGondola.name.slice(0,40)} — es de góndola ${otroGondola.gondola}`;
     } else {
+      const hora = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+      invNuevos.push({ sku, gondola: invGondolaActual || '—', hora });
+      invUpdateNuevosBadge();
       fb.className = 'inv-feedback error';
-      fb.textContent = `❌ SKU ${sku} no encontrado en la Sheet`;
+      fb.textContent = `➕ SKU ${sku} no existe en la Sheet — agregado a lista de nuevos`;
     }
     invFeedbackTimer = setTimeout(() => fb.className = 'inv-feedback', 3000);
     return;
@@ -2378,6 +2386,7 @@ async function invStock0Todos() {
 
 function invReset() {
   invEscaneados = {};
+  invNuevos = [];
   invFinalizado = false;
   document.getElementById('invResultPanel').style.display = 'none';
   document.getElementById('invPlaceholder').style.display = 'flex';
@@ -2386,6 +2395,69 @@ function invReset() {
   document.getElementById('invScanInput').focus();
   invUpdateStats();
   invRenderScanned();
+  invUpdateNuevosBadge();
+}
+
+function invUpdateNuevosBadge() {
+  const btn = document.getElementById('invBtnPDF');
+  const badge = document.getElementById('invNuevosCount');
+  if (!btn) return;
+  if (invNuevos.length > 0) {
+    btn.style.display = 'flex';
+    badge.textContent = invNuevos.length;
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+function invGenerarPDF() {
+  if (!invNuevos.length) return;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const marginX = 20;
+  let y = 20;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text('Códigos nuevos — no encontrados en Sheet', marginX, y);
+  y += 6;
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(120);
+  doc.text(`Generado: ${new Date().toLocaleString('es-AR')}`, marginX, y);
+  doc.setTextColor(0);
+  y += 10;
+
+  invNuevos.forEach((item, idx) => {
+    if (y > 250) { doc.addPage(); y = 20; }
+
+    doc.setDrawColor(200);
+    doc.setLineWidth(0.3);
+    doc.line(marginX, y, 190, y);
+    y += 6;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`#${idx + 1}   Góndola: ${item.gondola}   Hora: ${item.hora}`, marginX, y);
+    y += 7;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(22);
+    doc.setTextColor(0);
+    doc.text(item.sku, marginX, y);
+    y += 10;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(80);
+    doc.text('Nombre: _______________________________________________', marginX, y);
+    y += 8;
+    doc.text('Precio Asia: ________________________', marginX, y);
+    y += 12;
+  });
+
+  doc.save(`nuevos_${new Date().toISOString().slice(0,10)}.pdf`);
 }
 
 function calcTNHuerfanos() {
