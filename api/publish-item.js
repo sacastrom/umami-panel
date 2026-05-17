@@ -41,6 +41,9 @@ export default async function handler(req, res) {
   if (!title?.trim()) return res.status(400).json({ ok: false, error: 'Falta título' });
   if (!price)         return res.status(400).json({ ok: false, error: 'Falta precio' });
 
+  // Wrapper global — cualquier error no capturado devuelve JSON válido
+  try {
+
   const gToken = await googleToken();
   let pictureId = null, pictureWarn = null;
 
@@ -238,4 +241,8 @@ export default async function handler(req, res) {
     ok: true, mla, categoryId, pictureId,
     ...(pictureWarn ? { pictureWarn } : {})
   });
+
+  } catch (fatalErr) {
+    res.status(200).json({ ok: false, error: 'Fatal: ' + fatalErr.message });
+  }
 }

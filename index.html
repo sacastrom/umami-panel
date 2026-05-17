@@ -3404,7 +3404,10 @@ async function pubPublishSelected() {
           sheetId:         SHEET_ID
         })
       });
-      const data = await res.json();
+      const rawText = await res.text();
+      let data;
+      try { data = JSON.parse(rawText); }
+      catch (_) { data = { ok: false, error: 'Server error: ' + rawText.slice(0, 120) }; }
 
       if (data.ok) {
         done++;
