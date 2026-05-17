@@ -134,38 +134,44 @@ export default async function handler(req, res) {
     return d;
   };
 
-  // Intento A: con user_product_id si encontramos el producto en catálogo
+  // Cuerpo mínimo absoluto (diagnóstico: sin sale_terms ni seller_custom_field)
+  const minBody = (extra = {}) => ({
+    title:              title.trim().slice(0, 60),
+    family_name:        familyName,
+    price:              Number(price),
+    category_id:        categoryId,
+    currency_id:        'ARS',
+    available_quantity: 3,
+    buying_mode:        'buy_it_now',
+    listing_type_id:    listingType || 'gold_special',
+    condition:          'new',
+    ...extra
+  });
+
   let itemData = { id: null };
-  if (userProductId) {
-    itemData = await tryPost('A-catalog', { ...baseFields(), user_product_id: userProductId });
+
+  // Intento A: body mínimo + family_name
+  itemData = await tryPost('A-min', minBody());
+
+  // Intento B: body mínimo + family_name + imagen
+  if (!itemData.id && pictureId) {
+    itemData = await tryPost('B-min+pic', minBody({ pictures: [{ id: pictureId }] }));
   }
 
-  // Intento B: con family_name (nuevo esquema ML AR)
+  // Intento C: body completo (con sale_terms y seller_custom_field)
   if (!itemData.id) {
-    itemData = await tryPost('B-family', { ...baseFields(), family_name: familyName });
+    itemData = await tryPost('C-full', {
+      ...minBody(),
+      sale_terms: [{ id: 'WARRANTY_TYPE', value_name: 'Sin garantía' }],
+      ...(sku       ? { seller_custom_field: sku } : {}),
+      ...(pictureId ? { pictures: [{ id: pictureId }] } : {})
+    });
   }
 
-  // Intento C: con family_name + atributos requeridos de la categoría
-  if (!itemData.id) {
-    try {
-      const attrRes = await fetch(
-        `https://api.mercadolibre.com/categories/${categoryId}/attributes`,
-        { headers: { Authorization: `Bearer ${mlToken}` } }
-      );
-      const attrs = await attrRes.json();
-      const reqAttrs = (Array.isArray(attrs) ? attrs : [])
-        .filter(a => a.tags?.required)
-        .map(a => ({ id: a.id, value_name: a.values?.[0]?.name || 'No aplica' }));
-      if (reqAttrs.length) {
-        itemData = await tryPost('C-family+attrs', { ...baseFields(), family_name: familyName, attributes: reqAttrs });
-      }
-    } catch (_) {}
-  }
-
-  // Intento D: categoría fallback MLA5726 + family_name
+  // Intento D: categoría fallback MLA5726
   if (!itemData.id && categoryId !== (categoryDefault || 'MLA5726')) {
     categoryId = categoryDefault || 'MLA5726';
-    itemData = await tryPost('D-fallback', { ...baseFields(), family_name: familyName });
+    itemData = await tryPost('D-fallback', minBody());
   }
 
   if (!itemData.id) {
