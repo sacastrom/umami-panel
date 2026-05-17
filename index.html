@@ -3409,7 +3409,7 @@ function pubPrepare() {
     const p = pubProductos.find(x => x.sku === sku);
     if (!p) return '';
     const autoFam = pubAutoFamily(p.title);
-    const autoDesc = `${p.title}.\n\nProducto importado de Asia Oriental. Excelente calidad y relación precio-producto.`;
+    const autoDesc = `${p.title}.\n\nProducto importado. Excelente calidad y relación precio-producto.`;
     return `<div class="pub-review-card" data-sku="${sku}" data-idx="${idx}">
       <div class="pub-review-card-title">
         <span class="sku-code">${sku}</span>
