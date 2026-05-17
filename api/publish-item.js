@@ -106,8 +106,8 @@ export default async function handler(req, res) {
       ...(sku       ? { seller_custom_field: sku }      : {}),
       ...(pictureId ? { pictures: [{ id: pictureId }] } : {})
     };
-    if (!opts.skipCatalog)  base.catalog_listing = false;
-    if (extraAttrs.length)  base.attributes = extraAttrs;
+    if (!opts.skipCatalog) base.family_name = (sku || title).trim().slice(0, 60);
+    if (extraAttrs.length) base.attributes = extraAttrs;
     return base;
   };
 
