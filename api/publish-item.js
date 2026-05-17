@@ -58,24 +58,47 @@ export default async function handler(req, res) {
       if (Array.isArray(d) && d[0]?.category_id) categoryId = d[0].category_id;
     } catch (_) {}
 
-    // ── 2. Buscar user_product_id por EAN/SKU ─────────────
+    // ── 2. Buscar user_product_id + family_name del catálogo ML ──
     let userProductId = null;
+    let catalogFamilyName = null;
+
     if (sku) {
       try {
         const d = await ml(`/products/search?site_id=MLA&q=${encodeURIComponent(sku)}&limit=1`);
-        if (d.results?.[0]?.id) userProductId = d.results[0].id;
+        if (d.results?.[0]?.id) {
+          userProductId = d.results[0].id;
+          catalogFamilyName = d.results[0].family_name || d.results[0].name || null;
+        }
       } catch (_) {}
     }
 
-    // ── 3. family_name: usa el proporcionado por el usuario, sino genera automático
+    // Si encontramos el ID, buscar el family_name exacto del catálogo (2s timeout)
+    if (userProductId && !catalogFamilyName) {
+      try {
+        const ctrl = new AbortController();
+        setTimeout(() => ctrl.abort(), 2000);
+        const r = await fetch(`https://api.mercadolibre.com/products/${userProductId}`, {
+          headers: { Authorization: `Bearer ${mlToken}` },
+          signal: ctrl.signal
+        });
+        const pd = await r.json();
+        catalogFamilyName = pd.family_name || pd.name || null;
+      } catch (_) {}
+    }
+
+    // ── 3. Definir family_name final ──────────────────────
+    // Prioridad: usuario > catálogo ML > auto-generado
     const autoFamily = title.trim()
       .replace(/\s+\d+\s*(ml|gr|kg|g|l|cc|un|und)\.?\s*$/i, '').trim()
       .toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).slice(0, 60)
       || title.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).slice(0, 30);
-    const familyName = (userFamilyName || '').trim() || autoFamily;
+    const familyName = (userFamilyName || '').trim() || catalogFamilyName || autoFamily;
 
     // ── 4. Crear publicación ──────────────────────────────
     const warrantyValue = warranty || 'Sin garantía';
+    const attrs = [];
+    if (brand) attrs.push({ id: 'BRAND', value_name: brand });
+
     const base = () => ({
       title:              title.trim().slice(0, 60),
       price:              Number(price),
@@ -86,8 +109,8 @@ export default async function handler(req, res) {
       listing_type_id:    listingType || 'gold_special',
       condition:          userCondition || 'not_specified',
       sale_terms: [{ id: 'WARRANTY_TYPE', value_name: warrantyValue }],
-      ...(sku   ? { seller_custom_field: sku } : {}),
-      ...(brand ? { attributes: [{ id: 'BRAND', value_name: brand }] } : {})
+      ...(sku         ? { seller_custom_field: sku } : {}),
+      ...(attrs.length ? { attributes: attrs }        : {})
     });
 
     const attempts = [];
@@ -99,18 +122,22 @@ export default async function handler(req, res) {
 
     let item = { id: null };
 
-    // A: user_product_id SOLO — mutuamente excluyente con family_name
+    // A: user_product_id + family_name del catálogo (ML exige ambos para UP)
     if (userProductId) {
-      item = await tryItem('A-upid', { user_product_id: userProductId });
+      item = await tryItem(`A-upid+fam`, { user_product_id: userProductId, family_name: familyName });
     }
-    // B: family_name solo (usuario lo completó o auto-generado)
+    // B: user_product_id solo (por si acaso)
+    if (!item.id && userProductId) {
+      item = await tryItem('B-upid-solo', { user_product_id: userProductId });
+    }
+    // C: family_name solo
     if (!item.id) {
-      item = await tryItem('B-family', { family_name: familyName });
+      item = await tryItem('C-family', { family_name: familyName });
     }
-    // C: fallback MLA5726 + family_name
+    // D: fallback MLA5726 + family_name
     if (!item.id && categoryId !== (categoryDefault || 'MLA5726')) {
       categoryId = categoryDefault || 'MLA5726';
-      item = await tryItem('C-fallback', { family_name: familyName });
+      item = await tryItem('D-fallback', { family_name: familyName });
     }
 
     if (!item.id) {
