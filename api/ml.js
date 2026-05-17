@@ -1,6 +1,6 @@
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
@@ -13,14 +13,16 @@ export default async function handler(req, res) {
   const url = 'https://api.mercadolibre.com' + mlPath;
 
   try {
+    const method = ['PUT','POST'].includes(req.method) ? req.method : 'GET';
     const opts = {
-      method: req.method === 'PUT' ? 'PUT' : 'GET',
+      method,
       headers: {
         'Authorization': 'Bearer ' + token,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
       }
     };
-    if (req.method === 'PUT' && req.body) {
+    if ((method === 'PUT' || method === 'POST') && req.body) {
       opts.body = JSON.stringify(req.body);
     }
     const r = await fetch(url, opts);

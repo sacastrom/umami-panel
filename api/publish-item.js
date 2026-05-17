@@ -45,11 +45,18 @@ export default async function handler(req, res) {
     if (!title?.trim()) return res.status(400).json({ ok: false, error: 'Falta título' });
     if (!price)         return res.status(400).json({ ok: false, error: 'Falta precio' });
 
-    const ml = (path, body) => fetch(`https://api.mercadolibre.com${path}`, {
-      method: body ? 'POST' : 'GET',
-      headers: { Authorization: `Bearer ${mlToken}`, 'Content-Type': 'application/json' },
-      ...(body ? { body: JSON.stringify(body) } : {})
-    }).then(r => r.json());
+    // Todas las llamadas van a través del proxy /api/ml para consistencia
+    const baseUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : 'https://umami-panel.vercel.app';
+    const ml = (path, body) => fetch(
+      `${baseUrl}/api/ml?path=${encodeURIComponent(path)}`,
+      {
+        method: body ? 'POST' : 'GET',
+        headers: { Authorization: `Bearer ${mlToken}`, 'Content-Type': 'application/json' },
+        ...(body ? { body: JSON.stringify(body) } : {})
+      }
+    ).then(r => r.json());
 
     // ── 1. Detectar categoría ─────────────────────────────
     let categoryId = categoryDefault || 'MLA5726';
