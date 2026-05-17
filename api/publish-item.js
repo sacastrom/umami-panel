@@ -40,7 +40,8 @@ export default async function handler(req, res) {
     const {
       sku, title, price, listingType, categoryDefault, sheetRow, sheetId,
       familyName: userFamilyName, brand, stock, condition: userCondition,
-      warranty, warrantyTime, description: userDescription
+      warranty, warrantyTime, description: userDescription,
+      pkgHeight, pkgWidth, pkgLength, pkgWeight, vat, importDuty
     } = req.body || {};
     if (!title?.trim()) return res.status(400).json({ ok: false, error: 'Falta título' });
     if (!price)         return res.status(400).json({ ok: false, error: 'Falta precio' });
@@ -100,7 +101,13 @@ export default async function handler(req, res) {
           { id: 'WARRANTY_TIME', value_name: warrantyTime || '1 año' }
         ];
     const attrs = [];
-    if (brand) attrs.push({ id: 'BRAND', value_name: brand });
+    if (brand)       attrs.push({ id: 'BRAND', value_name: brand });
+    if (vat)         attrs.push({ id: 'VALUE_ADDED_TAX', value_name: vat });
+    if (importDuty)  attrs.push({ id: 'IMPORT_DUTY', value_name: importDuty });
+    if (pkgHeight)   attrs.push({ id: 'seller_package_height', value_name: `${pkgHeight} cm`, value_struct: { number: Number(pkgHeight), unit: 'cm' } });
+    if (pkgWidth)    attrs.push({ id: 'seller_package_width',  value_name: `${pkgWidth} cm`,  value_struct: { number: Number(pkgWidth),  unit: 'cm' } });
+    if (pkgLength)   attrs.push({ id: 'seller_package_length', value_name: `${pkgLength} cm`, value_struct: { number: Number(pkgLength), unit: 'cm' } });
+    if (pkgWeight)   attrs.push({ id: 'seller_package_weight', value_name: `${pkgWeight} g`,  value_struct: { number: Number(pkgWeight), unit: 'g'  } });
 
     // ML rechaza títulos en ALL CAPS — convertir a Title Case y limpiar puntuación final
     const mlTitle = title.trim()

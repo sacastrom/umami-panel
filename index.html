@@ -3461,6 +3461,27 @@ function pubPrepare() {
           </select>
         </div>
         <div class="pub-review-field" style="grid-column:1/-1;">
+          <label>Dimensiones del paquete</label>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
+            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Alto (cm)</span><input type="number" data-field="pkgHeight" value="12" min="1"></div>
+            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Ancho (cm)</span><input type="number" data-field="pkgWidth" value="6" min="1"></div>
+            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Largo (cm)</span><input type="number" data-field="pkgLength" value="6" min="1"></div>
+            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Peso (g)</span><input type="number" data-field="pkgWeight" value="400" min="1"></div>
+          </div>
+        </div>
+        <div class="pub-review-field">
+          <label>IVA (VALUE_ADDED_TAX)</label>
+          <select data-field="vat" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:12px;color:var(--text);">
+            <option value="21%">21%</option>
+            <option value="10.5%">10.5%</option>
+            <option value="Exento">Exento</option>
+          </select>
+        </div>
+        <div class="pub-review-field">
+          <label>Arancel importación (IMPORT_DUTY)</label>
+          <input type="text" data-field="importDuty" value="0%" placeholder="0%">
+        </div>
+        <div class="pub-review-field" style="grid-column:1/-1;">
           <label>Descripción</label>
           <textarea data-field="description" rows="3" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:11px;color:var(--text);width:100%;resize:vertical;">${autoDesc}</textarea>
         </div>
@@ -3507,6 +3528,12 @@ async function pubPublishFromReview() {
       condition:   get('condition') || 'not_specified',
       warranty:     get('warranty') || 'Sin garantía',
       warrantyTime: get('warrantyTime') || '',
+      pkgHeight:    get('pkgHeight')   || '12',
+      pkgWidth:     get('pkgWidth')    || '6',
+      pkgLength:    get('pkgLength')   || '6',
+      pkgWeight:    get('pkgWeight')   || '400',
+      vat:          get('vat')         || '21%',
+      importDuty:   get('importDuty')  || '0%',
       description: get('description')
     });
   });
@@ -3547,6 +3574,12 @@ async function pubPublishFromReview() {
           condition:   item.condition,
           warranty:     item.warranty,
           warrantyTime: item.warrantyTime,
+          pkgHeight:    item.pkgHeight,
+          pkgWidth:     item.pkgWidth,
+          pkgLength:    item.pkgLength,
+          pkgWeight:    item.pkgWeight,
+          vat:          item.vat,
+          importDuty:   item.importDuty,
           description: item.description,
           listingType,
           categoryDefault,
