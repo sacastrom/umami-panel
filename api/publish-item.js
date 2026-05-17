@@ -62,9 +62,13 @@ export default async function handler(req, res) {
     };
 
     // ── 1. Detectar categoría ─────────────────────────────
-    let categoryId = categoryDefault || 'MLA5726';
+    // MLA109936 = Alimentos y Bebidas > Bebidas (categoría hoja válida en MLA)
+    let categoryId = categoryDefault && categoryDefault !== 'MLA5726'
+      ? categoryDefault : 'MLA109936';
     try {
-      const d = await ml(`/sites/MLA/domain_discovery/search?q=${encodeURIComponent(title)}&limit=1`);
+      // Limpiar título para búsqueda: sin punto final, sin unidades de medida
+      const searchQ = title.trim().replace(/[.!?,]+$/, '').replace(/\s+\d+\s*(ml|gr|kg|g|l|cc)\.?\s*$/i, '').trim();
+      const d = await ml(`/sites/MLA/domain_discovery/search?q=${encodeURIComponent(searchQ)}&limit=1`);
       if (Array.isArray(d) && d[0]?.category_id) categoryId = d[0].category_id;
     } catch (_) {}
 
