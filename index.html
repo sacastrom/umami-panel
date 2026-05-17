@@ -479,6 +479,21 @@
   .pub-radio{display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;}
   .pub-progress-bar-wrap{height:7px;background:var(--surface2);border-radius:4px;overflow:hidden;border:1px solid var(--border);}
   .pub-progress-bar{height:100%;background:var(--accent);width:0%;transition:width .3s;}
+  /* Panel de revisión pre-publicación */
+  #pubReviewPanel{display:none;position:fixed;inset:0;background:rgba(26,27,46,.5);z-index:350;backdrop-filter:blur(5px);}
+  #pubReviewPanel.open{display:flex;align-items:flex-start;justify-content:center;padding:20px;}
+  .pub-review-drawer{background:var(--surface);border:1px solid var(--border);border-radius:18px;width:100%;max-width:720px;max-height:calc(100vh - 40px);display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-md);}
+  .pub-review-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0;}
+  .pub-review-body{overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:14px;}
+  .pub-review-card{border:1px solid var(--border);border-radius:12px;padding:14px;background:var(--surface2);}
+  .pub-review-card-title{font-size:11px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+  .pub-review-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .pub-review-field{display:flex;flex-direction:column;gap:3px;}
+  .pub-review-field label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+  .pub-review-field input{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:12px;color:var(--text);}
+  .pub-review-field input:focus{outline:none;border-color:var(--accent);}
+  .pub-review-field input.required{border-color:var(--orange);}
+  .pub-review-footer{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-shrink:0;}
 </style>
 </head>
 <body>
@@ -935,8 +950,8 @@
     <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
       <button class="pub-btn" onclick="pubSelectAll(true)">☑ Todo</button>
       <button class="pub-btn" onclick="pubSelectAll(false)">☐ Ninguno</button>
-      <button id="pubBtnPublish" class="pub-btn-primary" onclick="pubPublishSelected()" disabled>
-        🚀 Publicar seleccionados (<span id="pubCount">0</span>)
+      <button id="pubBtnPublish" class="pub-btn-primary" onclick="pubPrepare()" disabled>
+        ✏️ Preparar seleccionados (<span id="pubCount">0</span>)
       </button>
     </div>
   </div>
@@ -968,6 +983,24 @@
       <div id="pubProgressBar" class="pub-progress-bar"></div>
     </div>
     <div id="pubLog" class="pub-log"></div>
+  </div>
+</div>
+
+<!-- ── PANEL REVISIÓN PRE-PUBLICACIÓN ── -->
+<div id="pubReviewPanel">
+  <div class="pub-review-drawer">
+    <div class="pub-review-header">
+      <div>
+        <div style="font-family:var(--font-head);font-weight:700;font-size:15px;">✏️ Revisión antes de publicar</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Completá el <strong>Family Name</strong> de cada producto — descripción genérica que agrupa variantes (ej: "Soda Lima")</div>
+      </div>
+      <button class="cfg-close" onclick="document.getElementById('pubReviewPanel').classList.remove('open')">✕</button>
+    </div>
+    <div class="pub-review-body" id="pubReviewBody"></div>
+    <div class="pub-review-footer">
+      <button class="pub-btn" onclick="document.getElementById('pubReviewPanel').classList.remove('open')">Cancelar</button>
+      <button class="pub-btn-primary" onclick="pubPublishFromReview()">🚀 Publicar todos</button>
+    </div>
   </div>
 </div>
 
@@ -3358,13 +3391,67 @@ function pubSelectAll(checked) {
   pubUpdateCount();
 }
 
-async function pubPublishSelected() {
+function pubAutoFamily(title) {
+  return title.trim()
+    .replace(/\s+\d+\s*(ml|gr|kg|g|l|cc|un|und)\.?\s*$/i, '').trim()
+    .toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).slice(0, 60)
+    || title.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).slice(0, 30);
+}
+
+function pubPrepare() {
   const checks = Array.from(document.querySelectorAll('.pub-chk:checked'));
   if (!checks.length) return;
+  const skus = checks.map(cb => cb.dataset.sku);
+  const body = document.getElementById('pubReviewBody');
+  body.innerHTML = skus.map(sku => {
+    const p = pubProductos.find(x => x.sku === sku);
+    if (!p) return '';
+    const autoFam = pubAutoFamily(p.title);
+    return `<div class="pub-review-card" id="rev-${CSS.escape(sku)}">
+      <div class="pub-review-card-title">
+        <span class="sku-code">${sku}</span>
+        <span style="color:var(--muted);font-weight:400;">${p.title.slice(0, 55)}</span>
+      </div>
+      <div class="pub-review-grid">
+        <div class="pub-review-field" style="grid-column:1/-1;">
+          <label>Título ML (máx 60 caracteres)</label>
+          <input type="text" data-sku="${sku}" data-field="title" maxlength="60" value="${p.title.slice(0, 60)}">
+        </div>
+        <div class="pub-review-field">
+          <label>Precio ($)</label>
+          <input type="number" data-sku="${sku}" data-field="price" value="${p.price}">
+        </div>
+        <div class="pub-review-field">
+          <label>⚠️ Family Name (obligatorio en ML)</label>
+          <input type="text" class="required" data-sku="${sku}" data-field="familyName" maxlength="60"
+            value="${autoFam}" placeholder="Ej: Soda Lima, Marshmallows Glico…">
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('pubReviewPanel').classList.add('open');
+}
 
+async function pubPublishFromReview() {
   const listingType     = document.querySelector('input[name="pubListingType"]:checked')?.value || 'gold_special';
   const categoryDefault = document.getElementById('pubCategoryDefault').value.trim() || 'MLA5726';
-  const skus            = checks.map(cb => cb.dataset.sku);
+
+  // Recolectar datos del formulario de revisión
+  const cards = document.querySelectorAll('#pubReviewBody .pub-review-card');
+  const queue = [];
+  cards.forEach(card => {
+    const sku = card.id.replace('rev-', '');
+    const get = (field) => card.querySelector(`[data-field="${field}"]`)?.value?.trim() || '';
+    queue.push({ sku, title: get('title'), price: get('price'), familyName: get('familyName') });
+  });
+
+  if (queue.some(q => !q.familyName)) {
+    showToast('❌ Completá el Family Name de todos los productos', 'error');
+    return;
+  }
+
+  document.getElementById('pubReviewPanel').classList.remove('open');
+  const skus = queue.map(q => q.sku);
 
   document.getElementById('pubProgressSection').style.display = 'block';
   document.getElementById('pubLog').innerHTML = '';
@@ -3374,18 +3461,12 @@ async function pubPublishSelected() {
   let done = 0, errors = 0;
   pubProgressUpdate(0, skus.length);
 
-  for (const sku of skus) {
+  for (const item of queue) {
+    const { sku, title: itemTitle, price: itemPrice, familyName: itemFamily } = item;
     const p = pubProductos.find(x => x.sku === sku);
     if (!p) continue;
 
-    if (!p.title) {
-      pubLogAdd(`⚠️ <strong>${sku}</strong> — sin título, se omite`);
-      errors++;
-      pubProgressUpdate(done + errors, skus.length);
-      continue;
-    }
-
-    pubLogAdd(`⏳ <strong>${sku}</strong> — ${p.title.slice(0, 50)}…`);
+    pubLogAdd(`⏳ <strong>${sku}</strong> — ${itemTitle.slice(0, 50)}…`);
     const rowEl = document.getElementById(`pub-row-${CSS.escape(sku)}`);
     if (rowEl) rowEl.style.opacity = '0.4';
 
@@ -3394,14 +3475,14 @@ async function pubPublishSelected() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
         body: JSON.stringify({
-          sku:             p.sku,
-          title:           p.title,
-          price:           p.price,
+          sku,
+          title:          itemTitle,
+          price:          itemPrice,
+          familyName:     itemFamily,
           listingType,
           categoryDefault,
-          fileId:          pubDriveMap[p.sku.toUpperCase()] || null,
-          sheetRow:        p.rowNum,
-          sheetId:         SHEET_ID
+          sheetRow:       p.rowNum,
+          sheetId:        SHEET_ID
         })
       });
       const rawText = await res.text();

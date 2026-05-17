@@ -37,7 +37,7 @@ export default async function handler(req, res) {
     const mlToken = (req.headers.authorization || '').replace('Bearer ', '');
     if (!mlToken) return res.status(401).json({ ok: false, error: 'No ML token' });
 
-    const { sku, title, price, listingType, categoryDefault, sheetRow, sheetId } = req.body || {};
+    const { sku, title, price, listingType, categoryDefault, sheetRow, sheetId, familyName: userFamilyName } = req.body || {};
     if (!title?.trim()) return res.status(400).json({ ok: false, error: 'Falta título' });
     if (!price)         return res.status(400).json({ ok: false, error: 'Falta precio' });
 
@@ -63,11 +63,12 @@ export default async function handler(req, res) {
       } catch (_) {}
     }
 
-    // ── 3. family_name en Title Case ──────────────────────
-    const familyName = title.trim()
+    // ── 3. family_name: usa el proporcionado por el usuario, sino genera automático
+    const autoFamily = title.trim()
       .replace(/\s+\d+\s*(ml|gr|kg|g|l|cc|un|und)\.?\s*$/i, '').trim()
       .toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).slice(0, 60)
       || title.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).slice(0, 30);
+    const familyName = (userFamilyName || '').trim() || autoFamily;
 
     // ── 4. Crear publicación ──────────────────────────────
     const base = () => ({
