@@ -1,0 +1,6 @@
+{
+  "functions": {
+    "api/publish-item.js": { "maxDuration": 60 },
+    "api/drive.js":        { "maxDuration": 30 }
+  }
+}

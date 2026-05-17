@@ -458,6 +458,27 @@
   .cfg-close:hover{color:var(--text);}
   .main-tab-cfg{margin-left:auto;background:none;border:none;cursor:pointer;font-size:17px;color:var(--muted);padding:6px 10px;border-radius:8px;transition:color .15s,background .15s;line-height:1;}
   .main-tab-cfg:hover{color:var(--text);background:var(--surface2);}
+  /* ── PUBLICAR ── */
+  #publicarContent{display:none;}
+  .pub-controls{padding:10px 18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--surface2);}
+  .pub-tbl{width:100%;border-collapse:collapse;font-size:12px;}
+  .pub-tbl th{background:var(--surface2);padding:8px 12px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;}
+  .pub-tbl td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  .pub-tbl tr:hover td{background:rgba(108,99,255,.03);}
+  .pub-tbl tr.pub-done td{opacity:.4;}
+  .pub-log{max-height:220px;overflow-y:auto;font-size:11px;font-family:var(--font-mono);border:1px solid var(--border);border-radius:8px;padding:6px 10px;background:var(--surface2);margin-top:10px;}
+  .pub-log-entry{padding:3px 0;border-bottom:1px solid var(--border);line-height:1.5;}
+  .pub-log-entry:last-child{border:none;}
+  .pub-select,.pub-search{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-family:var(--font-mono);font-size:12px;color:var(--text);}
+  .pub-select:focus,.pub-search:focus{outline:none;border-color:var(--accent);}
+  .pub-btn{background:none;border:1px solid var(--border);border-radius:8px;padding:5px 12px;font-family:var(--font-mono);font-size:12px;color:var(--muted);cursor:pointer;}
+  .pub-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .pub-btn-primary{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:7px 16px;font-family:var(--font-head);font-weight:700;font-size:13px;cursor:pointer;}
+  .pub-btn-primary:hover{opacity:.88;}
+  .pub-btn-primary:disabled{opacity:.4;cursor:default;}
+  .pub-radio{display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;}
+  .pub-progress-bar-wrap{height:7px;background:var(--surface2);border-radius:4px;overflow:hidden;border:1px solid var(--border);}
+  .pub-progress-bar{height:100%;background:var(--accent);width:0%;transition:width .3s;}
 </style>
 </head>
 <body>
@@ -586,6 +607,7 @@
     <button class="main-tab" id="tabMetricas" onclick="switchTab('metricas')">📊 Métricas</button>
     <button class="main-tab" id="tabFlex" onclick="switchTab('flex')">🗺️ Flex</button>
     <button class="main-tab" id="tabInventario" onclick="switchTab('inventario')">📦 Inventario</button>
+    <button class="main-tab" id="tabPublicar" onclick="switchTab('publicar')">🚀 Publicar</button>
     <button class="main-tab-cfg" onclick="openConfig()" title="Configuración">⚙️</button>
   </div>
 
@@ -883,6 +905,69 @@
     <div class="ss-footer">
       <span id="tnHuerfanosFooter">—</span>
     </div>
+  </div>
+</div>
+
+<!-- ── PUBLICAR ── -->
+<div id="publicarContent">
+  <!-- Header -->
+  <div style="padding:14px 20px 10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--border);">
+    <div>
+      <div style="font-family:var(--font-head);font-size:15px;font-weight:700;color:var(--text);">🚀 Sin publicar en Mercado Libre</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px;">Productos de la Sheet sin código MLA asignado</div>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <select id="pubGondolaFilter" class="pub-select" onchange="pubSelectedGondola=this.value;pubRenderTable()">
+        <option value="">Todas las góndolas</option>
+      </select>
+      <input id="pubSearchInput" class="pub-search" type="text" placeholder="Buscar SKU o título…" oninput="pubSearchText=this.value;pubRenderTable()" style="width:180px;">
+      <button class="pub-btn" onclick="pubReload()" title="Recargar desde la Sheet">↺ Recargar</button>
+    </div>
+  </div>
+  <!-- Controls -->
+  <div class="pub-controls">
+    <label class="pub-radio"><input type="radio" name="pubListingType" value="gold_special" checked> Clásica (gold_special)</label>
+    <label class="pub-radio"><input type="radio" name="pubListingType" value="gold_premium"> Premium (gold_premium)</label>
+    <div style="display:flex;align-items:center;gap:6px;margin-left:8px;">
+      <span style="font-size:11px;color:var(--muted);">Categoría fallback:</span>
+      <input id="pubCategoryDefault" class="pub-search" type="text" value="MLA5726" style="width:100px;">
+    </div>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+      <button class="pub-btn" onclick="pubSelectAll(true)">☑ Todo</button>
+      <button class="pub-btn" onclick="pubSelectAll(false)">☐ Ninguno</button>
+      <button id="pubBtnPublish" class="pub-btn-primary" onclick="pubPublishSelected()" disabled>
+        🚀 Publicar seleccionados (<span id="pubCount">0</span>)
+      </button>
+    </div>
+  </div>
+  <!-- Table -->
+  <div style="overflow-x:auto;">
+    <table class="pub-tbl">
+      <thead>
+        <tr>
+          <th style="width:32px;"><input type="checkbox" id="pubChkAll" onchange="pubSelectAll(this.checked)"></th>
+          <th style="width:28px;" title="Imagen en Drive">📷</th>
+          <th>SKU</th>
+          <th>Título ML</th>
+          <th>Precio ML</th>
+          <th>Góndola</th>
+        </tr>
+      </thead>
+      <tbody id="pubTbody">
+        <tr><td colspan="6" style="text-align:center;padding:28px;color:var(--muted2);">Hacé click en el tab para cargar los productos</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <!-- Progress -->
+  <div id="pubProgressSection" style="display:none;padding:14px 20px 20px;">
+    <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+      <span style="font-size:12px;font-weight:600;color:var(--text);">Publicando…</span>
+      <span id="pubProgressText" style="font-size:12px;color:var(--muted);">0 / 0</span>
+    </div>
+    <div class="pub-progress-bar-wrap">
+      <div id="pubProgressBar" class="pub-progress-bar"></div>
+    </div>
+    <div id="pubLog" class="pub-log"></div>
   </div>
 </div>
 
@@ -1915,15 +2000,18 @@ function switchTab(tab) {
   document.getElementById('tabMetricas').classList.toggle('active', tab === 'metricas');
   document.getElementById('tabFlex').classList.toggle('active', tab === 'flex');
   document.getElementById('tabInventario').classList.toggle('active', tab === 'inventario');
+  document.getElementById('tabPublicar').classList.toggle('active', tab === 'publicar');
   document.getElementById('panelContent').style.display = tab === 'publicaciones' ? 'block' : 'none';
   document.getElementById('metricasContent').style.display = tab === 'metricas' ? 'block' : 'none';
   document.getElementById('flexContent').style.display = tab === 'flex' ? 'block' : 'none';
   document.getElementById('inventarioContent').style.display = tab === 'inventario' ? 'block' : 'none';
+  document.getElementById('publicarContent').style.display = tab === 'publicar' ? 'block' : 'none';
   if (tab === 'metricas' && !metLoaded) document.getElementById('metEmpty').style.display = 'block';
   if (tab === 'flex') {
     setTimeout(() => { initFlexMap(); if (!flexLoaded) loadFlex(false); else if (flexMap) flexMap.invalidateSize(); }, 100);
   }
   if (tab === 'inventario') invInit();
+  if (tab === 'publicar') pubInit();
 }
 
 // ── MÉTRICAS ──────────────────────────────────────────
@@ -3147,6 +3235,218 @@ document.addEventListener('click', function(e) {
     if (note) note.innerHTML += ' &nbsp;·&nbsp; <a href="#" onclick="loginTN()" style="color:var(--accent);">Conectar Tienda Nube</a>';
   }
 })();
+
+// ── PUBLICAR ──────────────────────────────────────────
+let pubProductos    = [];   // { rowNum, sku, title, price, gondola }
+let pubDriveMap     = {};   // { SKU_UPPERCASE: fileId }
+let pubDriveLoaded  = false;
+let pubLoaded       = false;
+let pubSelectedGondola = '';
+let pubSearchText      = '';
+
+async function pubInit() {
+  if (pubLoaded) return;
+  pubLoaded = true;
+  pubSetLoading(true);
+  await Promise.all([pubLoadProducts(), pubLoadDrive()]);
+  pubRenderTable();
+}
+
+async function pubReload() {
+  pubLoaded = false; pubProductos = [];
+  pubDriveLoaded = false; pubDriveMap = {};
+  document.getElementById('pubSearchInput').value = '';
+  pubSearchText = ''; pubSelectedGondola = '';
+  document.getElementById('pubGondolaFilter').value = '';
+  pubSetLoading(true);
+  await Promise.all([pubLoadProducts(), pubLoadDrive()]);
+  pubRenderTable();
+}
+
+async function pubLoadProducts() {
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+    const text = await (await fetch(url)).text();
+    const json = JSON.parse(text.replace(/^[^(]+\(/, '').replace(/\);?$/, ''));
+    pubProductos = json.table.rows.map((row, idx) => {
+      const c   = row.c;
+      const get = (i) => c[i]?.v ?? '';
+      const mla = String(get(0)).trim();
+      if (mla.startsWith('MLA')) return null;
+      const sku   = String(get(1)).trim();
+      const title = String(get(2)).trim();
+      if (!sku && !title) return null;
+      return {
+        rowNum:  idx + 2,
+        sku,
+        title,
+        price:   typeof get(9) === 'number' ? get(9) : 0,
+        gondola: String(get(13) || '').trim().toUpperCase()
+      };
+    }).filter(Boolean);
+  } catch (e) { console.warn('pubLoadProducts:', e.message); }
+}
+
+async function pubLoadDrive() {
+  if (pubDriveLoaded) return;
+  try {
+    const r = await fetch('/api/drive');
+    if (r.ok) { pubDriveMap = await r.json(); pubDriveLoaded = true; }
+  } catch (_) {}
+}
+
+function pubSetLoading(on) {
+  if (on) {
+    document.getElementById('pubTbody').innerHTML =
+      `<tr><td colspan="6" style="text-align:center;padding:28px;color:var(--muted);">
+        <div class="loader" style="display:inline-block;margin-right:8px;"></div>Cargando…
+      </td></tr>`;
+  }
+}
+
+function pubFiltered() {
+  return pubProductos.filter(p => {
+    if (pubSelectedGondola && p.gondola !== pubSelectedGondola) return false;
+    const q = pubSearchText.toLowerCase();
+    if (q && !p.sku.toLowerCase().includes(q) && !p.title.toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function pubRenderTable() {
+  const list  = pubFiltered();
+  const tbody = document.getElementById('pubTbody');
+  document.getElementById('pubChkAll').checked = false;
+  pubUpdateCount();
+
+  // Rebuild gondola filter
+  const gondolas = [...new Set(pubProductos.map(p => p.gondola).filter(Boolean))].sort();
+  const sel = document.getElementById('pubGondolaFilter');
+  const cur = sel.value;
+  sel.innerHTML = `<option value="">Todas las góndolas</option>` +
+    gondolas.map(g => `<option value="${g}" ${g === cur ? 'selected' : ''}>${g}</option>`).join('');
+
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:28px;color:var(--muted2);">
+      ${pubProductos.length ? 'Sin resultados para el filtro actual' : '✅ Todos los productos tienen MLA asignado'}
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map(p => {
+    const hasImg = !!pubDriveMap[p.sku.toUpperCase()];
+    return `<tr id="pub-row-${CSS.escape(p.sku)}">
+      <td><input type="checkbox" class="pub-chk" data-sku="${p.sku}" onchange="pubUpdateCount()"></td>
+      <td style="text-align:center;" title="${hasImg ? 'Imagen disponible en Drive' : 'Sin imagen en Drive'}">${hasImg ? '🖼️' : '<span style="color:var(--muted2)">—</span>'}</td>
+      <td class="sku-code">${p.sku || '—'}</td>
+      <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.title}">${p.title || '<span style="color:var(--muted2)">sin título</span>'}</td>
+      <td style="color:var(--blue);font-weight:600;">${p.price ? fmt(p.price) : '<span style="color:var(--muted2)">—</span>'}</td>
+      <td><span style="font-size:10px;background:var(--accent-light);color:var(--accent);padding:2px 6px;border-radius:8px;">${p.gondola || '—'}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function pubUpdateCount() {
+  const n = document.querySelectorAll('.pub-chk:checked').length;
+  document.getElementById('pubCount').textContent = n;
+  document.getElementById('pubBtnPublish').disabled = n === 0;
+}
+
+function pubSelectAll(checked) {
+  document.querySelectorAll('.pub-chk').forEach(cb => { cb.checked = checked; });
+  if (document.getElementById('pubChkAll')) document.getElementById('pubChkAll').checked = checked;
+  pubUpdateCount();
+}
+
+async function pubPublishSelected() {
+  const checks = Array.from(document.querySelectorAll('.pub-chk:checked'));
+  if (!checks.length) return;
+
+  const listingType     = document.querySelector('input[name="pubListingType"]:checked')?.value || 'gold_special';
+  const categoryDefault = document.getElementById('pubCategoryDefault').value.trim() || 'MLA5726';
+  const skus            = checks.map(cb => cb.dataset.sku);
+
+  document.getElementById('pubProgressSection').style.display = 'block';
+  document.getElementById('pubLog').innerHTML = '';
+  document.getElementById('pubBtnPublish').disabled = true;
+  document.getElementById('pubProgressBar').style.width = '0%';
+
+  let done = 0, errors = 0;
+  pubProgressUpdate(0, skus.length);
+
+  for (const sku of skus) {
+    const p = pubProductos.find(x => x.sku === sku);
+    if (!p) continue;
+
+    if (!p.title) {
+      pubLogAdd(`⚠️ <strong>${sku}</strong> — sin título, se omite`);
+      errors++;
+      pubProgressUpdate(done + errors, skus.length);
+      continue;
+    }
+
+    pubLogAdd(`⏳ <strong>${sku}</strong> — ${p.title.slice(0, 50)}…`);
+    const rowEl = document.getElementById(`pub-row-${CSS.escape(sku)}`);
+    if (rowEl) rowEl.style.opacity = '0.4';
+
+    try {
+      const res = await fetch('/api/publish-item', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          sku:             p.sku,
+          title:           p.title,
+          price:           p.price,
+          listingType,
+          categoryDefault,
+          fileId:          pubDriveMap[p.sku.toUpperCase()] || null,
+          sheetRow:        p.rowNum,
+          sheetId:         SHEET_ID
+        })
+      });
+      const data = await res.json();
+
+      if (data.ok) {
+        done++;
+        pubLogAdd(`✅ <strong>${sku}</strong> → <a href="https://articulo.mercadolibre.com.ar/${data.mla}" target="_blank" style="color:var(--accent)">${data.mla}</a>${data.pictureId ? ' 🖼️' : ''}${data.pictureWarn ? ` ⚠️ ${data.pictureWarn}` : ''}`);
+        if (rowEl) rowEl.classList.add('pub-done');
+        // Actualizar lista local para que no aparezca si se recarga
+        const idx = pubProductos.findIndex(x => x.sku === sku);
+        if (idx !== -1) pubProductos.splice(idx, 1);
+      } else {
+        errors++;
+        pubLogAdd(`❌ <strong>${sku}</strong> — ${data.error || 'error desconocido'}`);
+        if (rowEl) rowEl.style.opacity = '1';
+      }
+    } catch (e) {
+      errors++;
+      pubLogAdd(`❌ <strong>${sku}</strong> — ${e.message}`);
+      if (rowEl) rowEl.style.opacity = '1';
+    }
+
+    pubProgressUpdate(done + errors, skus.length);
+    await new Promise(r => setTimeout(r, 380)); // rate limit ~2.6/s
+  }
+
+  pubLogAdd(`<strong>Resumen: ${done} publicado${done !== 1 ? 's' : ''}, ${errors} error${errors !== 1 ? 'es' : ''}</strong>`);
+  document.getElementById('pubBtnPublish').disabled = false;
+  pubRenderTable();
+}
+
+function pubProgressUpdate(current, total) {
+  const pct = total ? Math.round(current / total * 100) : 0;
+  document.getElementById('pubProgressBar').style.width = `${pct}%`;
+  document.getElementById('pubProgressText').textContent = `${current} / ${total}`;
+}
+
+function pubLogAdd(html) {
+  const log = document.getElementById('pubLog');
+  const d = document.createElement('div');
+  d.className = 'pub-log-entry';
+  d.innerHTML = html;
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+}
 
 // ── VARIABLES DESDE SHEET ─────────────────────────────
 let GAS_URL = '';
