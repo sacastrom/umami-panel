@@ -37,7 +37,11 @@ export default async function handler(req, res) {
     const mlToken = (req.headers.authorization || '').replace('Bearer ', '');
     if (!mlToken) return res.status(401).json({ ok: false, error: 'No ML token' });
 
-    const { sku, title, price, listingType, categoryDefault, sheetRow, sheetId, familyName: userFamilyName } = req.body || {};
+    const {
+      sku, title, price, listingType, categoryDefault, sheetRow, sheetId,
+      familyName: userFamilyName, brand, stock, condition: userCondition,
+      warranty, description: userDescription
+    } = req.body || {};
     if (!title?.trim()) return res.status(400).json({ ok: false, error: 'Falta título' });
     if (!price)         return res.status(400).json({ ok: false, error: 'Falta precio' });
 
@@ -71,17 +75,19 @@ export default async function handler(req, res) {
     const familyName = (userFamilyName || '').trim() || autoFamily;
 
     // ── 4. Crear publicación ──────────────────────────────
+    const warrantyValue = warranty || 'Sin garantía';
     const base = () => ({
       title:              title.trim().slice(0, 60),
       price:              Number(price),
       category_id:        categoryId,
       currency_id:        'ARS',
-      available_quantity: 3,
+      available_quantity: Number(stock) || 3,
       buying_mode:        'buy_it_now',
       listing_type_id:    listingType || 'gold_special',
-      condition:          'not_specified',
-      sale_terms: [{ id: 'WARRANTY_TYPE', value_name: 'Sin garantía' }],
-      ...(sku ? { seller_custom_field: sku } : {})
+      condition:          userCondition || 'not_specified',
+      sale_terms: [{ id: 'WARRANTY_TYPE', value_name: warrantyValue }],
+      ...(sku   ? { seller_custom_field: sku } : {}),
+      ...(brand ? { attributes: [{ id: 'BRAND', value_name: brand }] } : {})
     });
 
     const attempts = [];
@@ -115,9 +121,9 @@ export default async function handler(req, res) {
 
     // ── 5. Descripción ────────────────────────────────────
     try {
-      await ml(`/items/${mla}/description`, {
-        plain_text: `${title}.\n\nProducto importado de Asia Oriental. Excelente calidad.\n\nConsultas por chat.`
-      });
+      const descText = userDescription?.trim()
+        || `${title}.\n\nProducto importado de Asia Oriental. Excelente calidad.\n\nConsultas por chat.`;
+      await ml(`/items/${mla}/description`, { plain_text: descText });
     } catch (_) {}
 
     // ── 6. Escribir MLA en Sheet ──────────────────────────

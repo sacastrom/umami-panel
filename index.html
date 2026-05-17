@@ -480,8 +480,8 @@
   .pub-progress-bar-wrap{height:7px;background:var(--surface2);border-radius:4px;overflow:hidden;border:1px solid var(--border);}
   .pub-progress-bar{height:100%;background:var(--accent);width:0%;transition:width .3s;}
   /* Panel de revisión pre-publicación */
-  #pubReviewPanel{display:none;position:fixed;inset:0;background:rgba(26,27,46,.5);z-index:350;backdrop-filter:blur(5px);}
-  #pubReviewPanel.open{display:flex;align-items:flex-start;justify-content:center;padding:20px;}
+  #pubReviewPanel{display:none;position:fixed;inset:0;background:rgba(26,27,46,.5);z-index:350;backdrop-filter:blur(5px);align-items:flex-start;justify-content:center;padding:20px;}
+  #pubReviewPanel.open{display:flex;}
   .pub-review-drawer{background:var(--surface);border:1px solid var(--border);border-radius:18px;width:100%;max-width:720px;max-height:calc(100vh - 40px);display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-md);}
   .pub-review-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0;}
   .pub-review-body{overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:14px;}
@@ -3400,36 +3400,67 @@ function pubAutoFamily(title) {
 
 function pubPrepare() {
   const checks = Array.from(document.querySelectorAll('.pub-chk:checked'));
-  if (!checks.length) return;
+  if (!checks.length) { showToast('Seleccioná al menos un producto', 'error'); return; }
   const skus = checks.map(cb => cb.dataset.sku);
   const body = document.getElementById('pubReviewBody');
-  body.innerHTML = skus.map(sku => {
+  body.innerHTML = skus.map((sku, idx) => {
     const p = pubProductos.find(x => x.sku === sku);
     if (!p) return '';
     const autoFam = pubAutoFamily(p.title);
-    return `<div class="pub-review-card" id="rev-${CSS.escape(sku)}">
+    const autoDesc = `${p.title}.\n\nProducto importado. Excelente calidad y relación precio-producto.\n\nConsultas por chat.`;
+    return `<div class="pub-review-card" data-sku="${sku}" data-idx="${idx}">
       <div class="pub-review-card-title">
         <span class="sku-code">${sku}</span>
-        <span style="color:var(--muted);font-weight:400;">${p.title.slice(0, 55)}</span>
+        <span style="color:var(--muted);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.title}</span>
+        <span style="margin-left:auto;font-size:10px;background:var(--accent-light);color:var(--accent);padding:2px 6px;border-radius:8px;flex-shrink:0;">${p.gondola || '—'}</span>
       </div>
       <div class="pub-review-grid">
         <div class="pub-review-field" style="grid-column:1/-1;">
-          <label>Título ML (máx 60 caracteres)</label>
-          <input type="text" data-sku="${sku}" data-field="title" maxlength="60" value="${p.title.slice(0, 60)}">
+          <label>Título en ML <span style="color:var(--muted)">(máx 60 caracteres)</span></label>
+          <input type="text" data-field="title" maxlength="60" value="${p.title.slice(0, 60)}">
         </div>
         <div class="pub-review-field">
-          <label>Precio ($)</label>
-          <input type="number" data-sku="${sku}" data-field="price" value="${p.price}">
+          <label>⚠️ Family Name <span style="color:var(--muted)">(nombre genérico que agrupa variantes)</span></label>
+          <input type="text" data-field="familyName" maxlength="60" value="${autoFam}" placeholder="Ej: Soda Lima, Marshmallows Glico, Pocky…" style="border-color:var(--orange);">
         </div>
         <div class="pub-review-field">
-          <label>⚠️ Family Name (obligatorio en ML)</label>
-          <input type="text" class="required" data-sku="${sku}" data-field="familyName" maxlength="60"
-            value="${autoFam}" placeholder="Ej: Soda Lima, Marshmallows Glico…">
+          <label>Marca / Brand</label>
+          <input type="text" data-field="brand" placeholder="Ej: Glico, OKF, Lotte…">
+        </div>
+        <div class="pub-review-field">
+          <label>Precio ($ARS)</label>
+          <input type="number" data-field="price" value="${p.price}">
+        </div>
+        <div class="pub-review-field">
+          <label>Stock disponible</label>
+          <input type="number" data-field="stock" value="3" min="1">
+        </div>
+        <div class="pub-review-field">
+          <label>Condición</label>
+          <select data-field="condition" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:12px;color:var(--text);">
+            <option value="not_specified" selected>No especificada (alimentos)</option>
+            <option value="new">Nuevo</option>
+            <option value="used">Usado</option>
+          </select>
+        </div>
+        <div class="pub-review-field">
+          <label>Garantía</label>
+          <select data-field="warranty" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:12px;color:var(--text);">
+            <option value="Sin garantía" selected>Sin garantía</option>
+            <option value="Garantía del vendedor">Garantía del vendedor</option>
+            <option value="Garantía de fábrica">Garantía de fábrica</option>
+          </select>
+        </div>
+        <div class="pub-review-field" style="grid-column:1/-1;">
+          <label>Descripción</label>
+          <textarea data-field="description" rows="3" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:11px;color:var(--text);width:100%;resize:vertical;">${autoDesc}</textarea>
         </div>
       </div>
     </div>`;
   }).join('');
-  document.getElementById('pubReviewPanel').classList.add('open');
+  const panel = document.getElementById('pubReviewPanel');
+  panel.style.display = 'flex';
+  panel.classList.add('open');
 }
 
 async function pubPublishFromReview() {
@@ -3440,9 +3471,22 @@ async function pubPublishFromReview() {
   const cards = document.querySelectorAll('#pubReviewBody .pub-review-card');
   const queue = [];
   cards.forEach(card => {
-    const sku = card.id.replace('rev-', '');
-    const get = (field) => card.querySelector(`[data-field="${field}"]`)?.value?.trim() || '';
-    queue.push({ sku, title: get('title'), price: get('price'), familyName: get('familyName') });
+    const sku = card.dataset.sku;
+    const get = (field) => {
+      const el = card.querySelector(`[data-field="${field}"]`);
+      return el ? el.value.trim() : '';
+    };
+    queue.push({
+      sku,
+      title:       get('title'),
+      price:       get('price'),
+      familyName:  get('familyName'),
+      brand:       get('brand'),
+      stock:       get('stock') || '3',
+      condition:   get('condition') || 'not_specified',
+      warranty:    get('warranty') || 'Sin garantía',
+      description: get('description')
+    });
   });
 
   if (queue.some(q => !q.familyName)) {
@@ -3476,13 +3520,18 @@ async function pubPublishFromReview() {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
         body: JSON.stringify({
           sku,
-          title:          itemTitle,
-          price:          itemPrice,
-          familyName:     itemFamily,
+          title:       item.title,
+          price:       item.price,
+          familyName:  item.familyName,
+          brand:       item.brand,
+          stock:       item.stock,
+          condition:   item.condition,
+          warranty:    item.warranty,
+          description: item.description,
           listingType,
           categoryDefault,
-          sheetRow:       p.rowNum,
-          sheetId:        SHEET_ID
+          sheetRow:    p.rowNum,
+          sheetId:     SHEET_ID
         })
       });
       const rawText = await res.text();
