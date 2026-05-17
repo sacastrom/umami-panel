@@ -89,36 +89,41 @@ export default async function handler(req, res) {
   } catch (_) {}
 
   // ── Paso 2.5: Buscar user_product_id en catálogo ML ──────
-  // Evita el problema de family_name — si el producto existe en el catálogo,
-  // ML asigna automáticamente la familia sin necesidad de family_name manual.
   let userProductId = null;
+  let catalogDebug  = 'no-search';
   try {
-    const prodRes = await fetch(
-      `https://api.mercadolibre.com/products/search?site_id=MLA&q=${encodeURIComponent(title.slice(0, 50))}&limit=3`,
-      { headers: { Authorization: `Bearer ${mlToken}` } }
-    );
-    const prodData = await prodRes.json();
-    if (prodData.results?.length) userProductId = prodData.results[0].id;
-  } catch (_) {}
+    const queries = sku ? [sku, title.slice(0, 40)] : [title.slice(0, 40)];
+    for (const q of queries) {
+      const r1 = await fetch(
+        `https://api.mercadolibre.com/products/search?site_id=MLA&q=${encodeURIComponent(q)}&limit=3`,
+        { headers: { Authorization: `Bearer ${mlToken}` } }
+      );
+      const d1 = await r1.json();
+      if (d1.results?.[0]?.id) {
+        userProductId = d1.results[0].id;
+        catalogDebug = `prod:${userProductId}`;
+        break;
+      }
+      const r2 = await fetch(
+        `https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(q)}&limit=5`,
+        { headers: { Authorization: `Bearer ${mlToken}` } }
+      );
+      const d2 = await r2.json();
+      const hit = (d2.results || []).find(x => x.catalog_product_id);
+      if (hit?.catalog_product_id) {
+        userProductId = hit.catalog_product_id;
+        catalogDebug = `site:${userProductId}`;
+        break;
+      }
+    }
+  } catch (e) { catalogDebug = 'err:' + e.message; }
 
   // ── Paso 3: Crear publicación ──────────────────────────
+  // family_name en Title Case (ML rechaza ALL CAPS)
   const familyName = title.trim()
-    .replace(/\s+\d+\s*(ml|gr|kg|g|l|cc|un|und)\.?\s*$/i, '').trim().slice(0, 60)
-    || title.trim().slice(0, 60);
-
-  const baseFields = () => ({
-    title: title.trim().slice(0, 60),
-    price: Number(price),
-    category_id: categoryId,
-    currency_id: 'ARS',
-    available_quantity: 3,
-    buying_mode: 'buy_it_now',
-    listing_type_id: listingType || 'gold_special',
-    condition: 'new',
-    sale_terms: [{ id: 'WARRANTY_TYPE', value_name: 'Sin garantía' }],
-    ...(sku       ? { seller_custom_field: sku }      : {}),
-    ...(pictureId ? { pictures: [{ id: pictureId }] } : {})
-  });
+    .replace(/\s+\d+\s*(ml|gr|kg|g|l|cc|un|und)\.?\s*$/i, '').trim()
+    .toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).slice(0, 60)
+    || title.trim().slice(0, 30).toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 
   const mlPost = (body) => fetch('https://api.mercadolibre.com/items', {
     method: 'POST',
@@ -134,43 +139,45 @@ export default async function handler(req, res) {
     return d;
   };
 
-  // En ML AR los alimentos/bebidas requieren condition "not_specified" (no "new")
-  // Intentamos primero con not_specified, luego con new como fallback
-  const buildItem = (conditionVal, extra = {}) => ({
+  // Campos base (sin family_name ni user_product_id)
+  const base = () => ({
     title:              title.trim().slice(0, 60),
-    family_name:        familyName,
     price:              Number(price),
     category_id:        categoryId,
     currency_id:        'ARS',
     available_quantity: 3,
     buying_mode:        'buy_it_now',
     listing_type_id:    listingType || 'gold_special',
-    condition:          conditionVal,
+    condition:          'not_specified',
     sale_terms: [{ id: 'WARRANTY_TYPE', value_name: 'Sin garantía' }],
     ...(sku       ? { seller_custom_field: sku }      : {}),
-    ...(pictureId ? { pictures: [{ id: pictureId }] } : {}),
-    ...extra
+    ...(pictureId ? { pictures: [{ id: pictureId }] } : {})
   });
 
   let itemData = { id: null };
 
-  // Intento A: condition not_specified (alimentos/bebidas)
-  itemData = await tryPost('A-notspec', buildItem('not_specified'));
-
-  // Intento B: condition new
-  if (!itemData.id) {
-    itemData = await tryPost('B-new', buildItem('new'));
+  // Intento A: user_product_id del catálogo (SIN family_name) — flujo correcto
+  if (userProductId) {
+    itemData = await tryPost(`A-upid(${catalogDebug})`, { ...base(), user_product_id: userProductId });
   }
 
-  // Intento C: categoría fallback + not_specified
+  // Intento B: family_name Title Case + not_specified
+  if (!itemData.id) {
+    itemData = await tryPost('B-family-ns', { ...base(), family_name: familyName });
+  }
+
+  // Intento C: family_name + condition new
+  if (!itemData.id) {
+    itemData = await tryPost('C-family-new', { ...base(), family_name: familyName, condition: 'new' });
+  }
+
+  // Intento D: categoría fallback MLA5726
   if (!itemData.id && categoryId !== (categoryDefault || 'MLA5726')) {
     categoryId = categoryDefault || 'MLA5726';
-    itemData = await tryPost('C-fallback-notspec', buildItem('not_specified'));
-  }
-
-  // Intento D: categoría fallback + new
-  if (!itemData.id) {
-    itemData = await tryPost('D-fallback-new', buildItem('new'));
+    const bodyD = userProductId
+      ? { ...base(), user_product_id: userProductId }
+      : { ...base(), family_name: familyName };
+    itemData = await tryPost('D-fallback', bodyD);
   }
 
   if (!itemData.id) {
