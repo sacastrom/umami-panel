@@ -78,10 +78,13 @@ export default async function handler(req, res) {
 
     // ── 4. Crear publicación ──────────────────────────────
     const warrantyValue = warranty || 'Sin garantía';
-    const saleTerms = [{ id: 'WARRANTY_TYPE', value_name: warrantyValue }];
-    if (warrantyValue !== 'Sin garantía' && warrantyTime) {
-      saleTerms.push({ id: 'WARRANTY_TIME', value_name: warrantyTime });
-    }
+    // ML requiere WARRANTY_TIME junto con WARRANTY_TYPE cuando hay garantía
+    const saleTerms = warrantyValue === 'Sin garantía'
+      ? [{ id: 'WARRANTY_TYPE', value_name: 'Sin garantía' }]
+      : [
+          { id: 'WARRANTY_TYPE', value_name: warrantyValue },
+          { id: 'WARRANTY_TIME', value_name: warrantyTime || '1 año' }
+        ];
     const attrs = [];
     if (brand) attrs.push({ id: 'BRAND', value_name: brand });
 
@@ -122,11 +125,20 @@ export default async function handler(req, res) {
     if (!item.id) {
       item = await tryItem('C-fam-ns', { family_name: familyName });
     }
-    // D: fallback MLA5726 + family_name
+    // D: sin sale_terms (para aislar si ese campo causa el invalid_fields)
+    if (!item.id) {
+      const noST = { ...baseBody, family_name: familyName };
+      delete noST.sale_terms;
+      const dD = await ml('/items', noST);
+      const detD = dD.id ? 'OK' : `${dD.message} cause=${JSON.stringify(dD.cause)}`;
+      attempts.push(`[D-noST] ${detD}`);
+      if (dD.id) item = dD;
+    }
+    // E: fallback MLA5726 + family_name
     if (!item.id && categoryId !== (categoryDefault || 'MLA5726')) {
       categoryId = categoryDefault || 'MLA5726';
       baseBody.category_id = categoryId;
-      item = await tryItem('D-fallback', { family_name: familyName });
+      item = await tryItem('E-fallback', { family_name: familyName });
     }
 
     if (!item.id) {
