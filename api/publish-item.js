@@ -99,6 +99,7 @@ export default async function handler(req, res) {
     listing_type_id: listingType || 'gold_special',
     condition: 'new',
     catalog_listing: false,
+    family_name: (sku || title).trim().slice(0, 30),
     sale_terms: [
       { id: 'WARRANTY_TYPE', value_name: 'Sin garantía' },
       { id: 'WARRANTY_TIME', value_name: '' }
@@ -118,6 +119,7 @@ export default async function handler(req, res) {
 
   // Si falla por campos requeridos → buscar atributos obligatorios y reintentar
   if (!itemData.id && itemData.cause?.some(c => c.code === 'body.required_fields' || c.code?.includes('required'))) {
+    // Intento 2: añadir atributos requeridos de la categoría
     try {
       const attrRes = await fetch(
         `https://api.mercadolibre.com/categories/${categoryId}/attributes`,
@@ -132,6 +134,13 @@ export default async function handler(req, res) {
         if (retry.id) itemData = retry;
       }
     } catch (_) {}
+
+    // Intento 3: usar categoría fallback si la detectada sigue fallando
+    if (!itemData.id && categoryId !== (categoryDefault || 'MLA5726')) {
+      categoryId = categoryDefault || 'MLA5726';
+      const retry3 = await (await mlPost(buildBody())).json();
+      if (retry3.id) itemData = retry3;
+    }
   }
 
   if (!itemData.id) {
