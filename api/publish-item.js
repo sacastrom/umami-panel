@@ -73,7 +73,7 @@ export default async function handler(req, res) {
         if (Array.isArray(d) && d[0]?.category_id) categoryId = d[0].category_id;
       } catch (_) {}
     }
-    if (!categoryId) categoryId = 'MLA7793'; // Alimentos y Bebidas > Otros
+    if (!categoryId) categoryId = 'MLA114011'; // Golosinas (leaf category válida)
 
     // ── 1b. Subir imagen desde Drive (4s timeout) ─────────
     let pictureId = null;
@@ -136,6 +136,8 @@ export default async function handler(req, res) {
           { id: 'WARRANTY_TIME', value_name: warrantyTime || '1 año' }
         ];
     const attrs = [];
+    // GTIN: el SKU numérico de 8-14 dígitos es un código de barras EAN/GTIN
+    if (sku && /^\d{8,14}$/.test(sku.trim())) attrs.push({ id: 'GTIN', value_name: sku.trim() });
     if (brand)       attrs.push({ id: 'BRAND', value_name: brand });
     if (vat)         attrs.push({ id: 'VALUE_ADDED_TAX', value_name: vat });
     if (importDuty)  attrs.push({ id: 'IMPORT_DUTY', value_name: importDuty });
@@ -198,11 +200,10 @@ export default async function handler(req, res) {
       attempts.push(`[D-noST] ${detD}`);
       if (dD.id) item = dD;
     }
-    // E: fallback a MLA7793 si la categoría detectada falla
-    if (!item.id && categoryId !== 'MLA7793') {
-      categoryId = 'MLA7793';
+    // E: fallback a Golosinas si la categoría detectada falla
+    if (!item.id && categoryId !== 'MLA114011') {
+      categoryId = 'MLA114011';
       baseBody.category_id = categoryId;
-      delete baseBody.attributes; // reset atributos específicos de categoría anterior
       item = await tryItem('E-fallback', { family_name: familyName });
     }
     // F: listing_type free (no requiere fotos — siempre disponible)

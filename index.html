@@ -3428,8 +3428,12 @@ function pubPrepare() {
           <input type="text" data-field="brand" placeholder="Ej: Glico, OKF, Lotte…">
         </div>
         <div class="pub-review-field" style="grid-column:1/-1;">
-          <label>Categoría ML <span style="color:var(--muted)">(ID detectado automáticamente — editá si es incorrecto)</span></label>
-          <input type="text" data-field="categoryOverride" value="" placeholder="Auto-detectada — escribí un ID para forzar, ej: MLA3697">
+          <label>Categoría ML <span style="color:var(--muted)">(dejá vacío para auto-detectar, o buscá abajo)</span></label>
+          <div style="display:flex;gap:6px;">
+            <input type="text" data-field="categoryOverride" placeholder="Auto-detectada · ej: MLA114011" style="flex:1;">
+            <input type="text" id="catSearch-${sku}" placeholder="Buscar categoría…" oninput="pubSearchCat(this,'${sku}')" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:12px;">
+          </div>
+          <div id="catResults-${sku}" style="display:none;border:1px solid var(--border);border-radius:8px;background:var(--surface);max-height:140px;overflow-y:auto;font-size:11px;"></div>
         </div>
         <div class="pub-review-field">
           <label>Precio ($ARS)</label>
@@ -3495,6 +3499,34 @@ function pubPrepare() {
   const panel = document.getElementById('pubReviewPanel');
   panel.classList.add('open');
   panel.style.display = 'flex';
+}
+
+let pubCatTimer = null;
+async function pubSearchCat(input, sku) {
+  clearTimeout(pubCatTimer);
+  const q = input.value.trim();
+  const results = document.getElementById(`catResults-${sku}`);
+  if (!results) return;
+  if (q.length < 3) { results.style.display = 'none'; return; }
+  pubCatTimer = setTimeout(async () => {
+    try {
+      const d = await fetch(`/api/ml?path=${encodeURIComponent('/sites/MLA/domain_discovery/search?q=' + encodeURIComponent(q) + '&limit=8')}`,
+        { headers: { Authorization: 'Bearer ' + accessToken } }).then(r => r.json());
+      if (!Array.isArray(d) || !d.length) { results.innerHTML = '<div style="padding:8px 10px;color:var(--muted);">Sin resultados</div>'; results.style.display = 'block'; return; }
+      results.innerHTML = d.map(c => `<div style="padding:6px 10px;cursor:pointer;border-bottom:1px solid var(--border);" onclick="pubSelectCat(this,'${sku}','${c.category_id}','${(c.domain_title||c.category_id).replace(/'/g,'')}')"
+        onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+        <strong>${c.category_id}</strong> — ${c.domain_title || ''} <span style="color:var(--muted)">${c.category_name || ''}</span>
+      </div>`).join('');
+      results.style.display = 'block';
+    } catch(_) {}
+  }, 400);
+}
+function pubSelectCat(el, sku, catId, catName) {
+  const card = el.closest('.pub-review-card');
+  if (!card) return;
+  card.querySelector('[data-field="categoryOverride"]').value = catId;
+  card.querySelector(`#catSearch-${sku}`).value = `${catId} — ${catName}`;
+  document.getElementById(`catResults-${sku}`).style.display = 'none';
 }
 
 function pubOnWarrantyChange(sel) {
