@@ -156,28 +156,47 @@ export default async function handler(req, res) {
 
   let itemData = { id: null };
 
-  // Intento A: user_product_id del catálogo (SIN family_name) — flujo correcto
+  // Obtener family_name del catálogo ML (debe ser el nombre exacto del producto)
+  let catalogFamilyName = familyName;
   if (userProductId) {
-    itemData = await tryPost(`A-upid(${catalogDebug})`, { ...base(), user_product_id: userProductId });
+    try {
+      const pd = await (await fetch(
+        `https://api.mercadolibre.com/products/${userProductId}`,
+        { headers: { Authorization: `Bearer ${mlToken}` } }
+      )).json();
+      if (pd.name) catalogFamilyName = pd.name;
+      if (pd.family_name) catalogFamilyName = pd.family_name;
+    } catch (_) {}
   }
 
-  // Intento B: family_name Title Case + not_specified
+  let itemData = { id: null };
+
+  // Intento A: user_product_id + family_name del catálogo (ML requiere ambos)
+  if (userProductId) {
+    itemData = await tryPost(`A-upid+fam(${catalogDebug})`,
+      { ...base(), user_product_id: userProductId, family_name: catalogFamilyName });
+  }
+
+  // Intento B: user_product_id sin family_name
+  if (!itemData.id && userProductId) {
+    itemData = await tryPost('B-upid-only', { ...base(), user_product_id: userProductId });
+  }
+
+  // Intento C: family_name del catálogo sin user_product_id
   if (!itemData.id) {
-    itemData = await tryPost('B-family-ns', { ...base(), family_name: familyName });
+    itemData = await tryPost('C-catfam', { ...base(), family_name: catalogFamilyName });
   }
 
-  // Intento C: family_name + condition new
+  // Intento D: family_name generado (Title Case)
   if (!itemData.id) {
-    itemData = await tryPost('C-family-new', { ...base(), family_name: familyName, condition: 'new' });
+    itemData = await tryPost('D-genfam', { ...base(), family_name: familyName });
   }
 
-  // Intento D: categoría fallback MLA5726
+  // Intento E: categoría fallback MLA5726 + mejor family_name disponible
   if (!itemData.id && categoryId !== (categoryDefault || 'MLA5726')) {
     categoryId = categoryDefault || 'MLA5726';
-    const bodyD = userProductId
-      ? { ...base(), user_product_id: userProductId }
-      : { ...base(), family_name: familyName };
-    itemData = await tryPost('D-fallback', bodyD);
+    itemData = await tryPost('E-fallback',
+      { ...base(), family_name: catalogFamilyName, ...(userProductId ? { user_product_id: userProductId } : {}) });
   }
 
   if (!itemData.id) {
