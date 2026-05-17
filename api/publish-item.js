@@ -110,7 +110,7 @@ export default async function handler(req, res) {
       .slice(0, 60);
 
     const baseBody = {
-      title:              mlTitle,
+      // title NO se envía en el esquema UP — ML lo genera desde family_name + atributos
       price:              Number(price),
       category_id:        categoryId,
       currency_id:        'ARS',
