@@ -3420,8 +3420,8 @@ function pubPrepare() {
           <input type="text" data-field="title" maxlength="60" value="${p.title.slice(0, 60)}">
         </div>
         <div class="pub-review-field">
-          <label>⚠️ Family Name <span style="color:var(--muted)">(nombre genérico que agrupa variantes)</span></label>
-          <input type="text" data-field="familyName" maxlength="60" value="${autoFam}" placeholder="Ej: Soda Lima, Marshmallows Glico, Pocky…" style="border-color:var(--orange);">
+          <label>Nombre de familia <span style="color:var(--muted)">(agrupa variantes — ej: "Soda Lima" para todos los sabores)</span></label>
+          <input type="text" data-field="familyName" maxlength="60" value="${autoFam}" placeholder="Ej: Soda Lima, Marshmallows Glico, Pocky…">
         </div>
         <div class="pub-review-field">
           <label>Marca / Brand</label>
@@ -3489,10 +3489,7 @@ async function pubPublishFromReview() {
     });
   });
 
-  if (queue.some(q => !q.familyName)) {
-    showToast('❌ Completá el Family Name de todos los productos', 'error');
-    return;
-  }
+  // family_name es opcional en el formulario — el backend lo maneja
 
   document.getElementById('pubReviewPanel').classList.remove('open');
   const skus = queue.map(q => q.sku);

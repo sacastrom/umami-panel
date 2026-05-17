@@ -99,11 +99,11 @@ export default async function handler(req, res) {
 
     let item = { id: null };
 
-    // A: user_product_id + family_name
+    // A: user_product_id SOLO — mutuamente excluyente con family_name
     if (userProductId) {
-      item = await tryItem(`A-upid(${userProductId})`, { user_product_id: userProductId, family_name: familyName });
+      item = await tryItem('A-upid', { user_product_id: userProductId });
     }
-    // B: solo family_name Title Case
+    // B: family_name solo (usuario lo completó o auto-generado)
     if (!item.id) {
       item = await tryItem('B-family', { family_name: familyName });
     }
