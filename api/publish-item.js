@@ -89,25 +89,27 @@ export default async function handler(req, res) {
   } catch (_) {}
 
   // ── Paso 3: Crear publicación ──────────────────────────
-  const buildBody = (extraAttrs = []) => ({
-    title: title.trim().slice(0, 60),
-    price: Number(price),
-    category_id: categoryId,
-    currency_id: 'ARS',
-    available_quantity: 3,
-    buying_mode: 'buy_it_now',
-    listing_type_id: listingType || 'gold_special',
-    condition: 'new',
-    catalog_listing: false,
-    family_name: (sku || title).trim().slice(0, 30),
-    sale_terms: [
-      { id: 'WARRANTY_TYPE', value_name: 'Sin garantía' },
-      { id: 'WARRANTY_TIME', value_name: '' }
-    ],
-    ...(extraAttrs.length ? { attributes: extraAttrs } : {}),
-    ...(sku       ? { seller_custom_field: sku }      : {}),
-    ...(pictureId ? { pictures: [{ id: pictureId }] } : {})
-  });
+  const buildBody = (extraAttrs = [], opts = {}) => {
+    const base = {
+      title: title.trim().slice(0, 60),
+      price: Number(price),
+      category_id: categoryId,
+      currency_id: 'ARS',
+      available_quantity: 3,
+      buying_mode: 'buy_it_now',
+      listing_type_id: listingType || 'gold_special',
+      condition: 'new',
+      sale_terms: [
+        { id: 'WARRANTY_TYPE', value_name: 'Sin garantía' },
+        { id: 'WARRANTY_TIME', value_name: '' }
+      ],
+      ...(sku       ? { seller_custom_field: sku }      : {}),
+      ...(pictureId ? { pictures: [{ id: pictureId }] } : {})
+    };
+    if (!opts.skipCatalog)  base.catalog_listing = false;
+    if (extraAttrs.length)  base.attributes = extraAttrs;
+    return base;
+  };
 
   const mlPost = (body) => fetch('https://api.mercadolibre.com/items', {
     method: 'POST',
@@ -135,10 +137,10 @@ export default async function handler(req, res) {
       }
     } catch (_) {}
 
-    // Intento 3: usar categoría fallback si la detectada sigue fallando
+    // Intento 3: usar categoría fallback con body mínimo
     if (!itemData.id && categoryId !== (categoryDefault || 'MLA5726')) {
       categoryId = categoryDefault || 'MLA5726';
-      const retry3 = await (await mlPost(buildBody())).json();
+      const retry3 = await (await mlPost(buildBody([], { skipCatalog: true }))).json();
       if (retry3.id) itemData = retry3;
     }
   }
