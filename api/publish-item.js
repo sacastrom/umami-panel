@@ -89,7 +89,7 @@ export default async function handler(req, res) {
   } catch (_) {}
 
   // ── Paso 3: Crear publicación ──────────────────────────
-  const buildBody = (extraAttrs = [], opts = {}) => {
+  const buildBody = (extraAttrs = []) => {
     const base = {
       title: title.trim().slice(0, 60),
       price: Number(price),
@@ -99,14 +99,10 @@ export default async function handler(req, res) {
       buying_mode: 'buy_it_now',
       listing_type_id: listingType || 'gold_special',
       condition: 'new',
-      sale_terms: [
-        { id: 'WARRANTY_TYPE', value_name: 'Sin garantía' },
-        { id: 'WARRANTY_TIME', value_name: '' }
-      ],
+      sale_terms: [{ id: 'WARRANTY_TYPE', value_name: 'Sin garantía' }],
       ...(sku       ? { seller_custom_field: sku }      : {}),
       ...(pictureId ? { pictures: [{ id: pictureId }] } : {})
     };
-    if (!opts.skipCatalog) base.family_name = (sku || title).trim().slice(0, 60);
     if (extraAttrs.length) base.attributes = extraAttrs;
     return base;
   };
@@ -119,43 +115,45 @@ export default async function handler(req, res) {
 
   let itemData = await (await mlPost(buildBody())).json();
 
-  // Si falla por campos requeridos → buscar atributos obligatorios y reintentar
-  if (!itemData.id && itemData.cause?.some(c => c.code === 'body.required_fields' || c.code?.includes('required'))) {
-    // Intento 2: añadir atributos requeridos de la categoría
-    try {
-      const attrRes = await fetch(
-        `https://api.mercadolibre.com/categories/${categoryId}/attributes`,
-        { headers: { Authorization: `Bearer ${mlToken}` } }
-      );
-      const attrs = await attrRes.json();
-      const required = (Array.isArray(attrs) ? attrs : [])
-        .filter(a => a.tags?.required)
-        .map(a => ({ id: a.id, value_name: a.values?.[0]?.name || 'No aplica' }));
-      if (required.length) {
-        const retry = await (await mlPost(buildBody(required))).json();
-        if (retry.id) itemData = retry;
-      }
-    } catch (_) {}
+  // Si falla → obtener atributos requeridos de la categoría y reintentar
+  if (!itemData.id) {
+    const hasRequiredError = itemData.cause?.some(
+      c => c.code === 'body.required_fields' || c.code?.includes('required') || c.code?.includes('invalid')
+    );
+    if (hasRequiredError) {
+      try {
+        const attrRes = await fetch(
+          `https://api.mercadolibre.com/categories/${categoryId}/attributes`,
+          { headers: { Authorization: `Bearer ${mlToken}` } }
+        );
+        const attrs = await attrRes.json();
+        const extraAttrs = (Array.isArray(attrs) ? attrs : [])
+          .filter(a => a.tags?.required)
+          .map(a => {
+            // FAMILY_NAME usa el SKU como valor para que sea único
+            if (a.id === 'FAMILY_NAME') return { id: a.id, value_name: (sku || title).trim().slice(0, 60) };
+            return { id: a.id, value_name: a.values?.[0]?.name || 'No aplica' };
+          });
+        if (extraAttrs.length) {
+          const retry2 = await (await mlPost(buildBody(extraAttrs))).json();
+          if (retry2.id) itemData = retry2;
+        }
+      } catch (_) {}
+    }
 
-    // Intento 3: usar categoría fallback con body mínimo
+    // Fallback: categoría genérica MLA5726 si la detectada sigue fallando
     if (!itemData.id && categoryId !== (categoryDefault || 'MLA5726')) {
       categoryId = categoryDefault || 'MLA5726';
-      const retry3 = await (await mlPost(buildBody([], { skipCatalog: true }))).json();
+      const retry3 = await (await mlPost(buildBody())).json();
       if (retry3.id) itemData = retry3;
     }
   }
 
   if (!itemData.id) {
-    const missingFields = itemData.cause
-      ?.filter(c => c.code?.includes('required'))
-      ?.map(c => c.values?.fields || c.message)
-      ?.flat()
-      ?.join(', ');
+    const causes = (itemData.cause || []).map(c => c.message || c.code).join(' | ');
     return res.status(200).json({
       ok: false,
-      error: missingFields
-        ? `Campos requeridos faltantes: ${missingFields}`
-        : (itemData.message || itemData.cause?.[0]?.message || 'Error creando publicación'),
+      error: causes || itemData.message || 'Error creando publicación',
       details: itemData
     });
   }
