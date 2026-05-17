@@ -98,6 +98,7 @@ export default async function handler(req, res) {
     buying_mode: 'buy_it_now',
     listing_type_id: listingType || 'gold_special',
     condition: 'new',
+    catalog_listing: false,
     sale_terms: [
       { id: 'WARRANTY_TYPE', value_name: 'Sin garantía' },
       { id: 'WARRANTY_TIME', value_name: '' }
