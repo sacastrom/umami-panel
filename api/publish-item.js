@@ -88,29 +88,37 @@ export default async function handler(req, res) {
     if (Array.isArray(d) && d[0]?.category_id) categoryId = d[0].category_id;
   } catch (_) {}
 
-  // ── Paso 3: Crear publicación ──────────────────────────
-  // family_name es obligatorio en el nuevo esquema ML AR (campo top-level, no atributo)
-  // Debe ser un texto genérico que agrupe variantes — usamos el título base
-  const familyName = title.trim().replace(/\s+\d+\s*(ml|gr|kg|g|l|cc|un|und)\.?\s*$/i, '').trim().slice(0, 60) || title.trim().slice(0, 60);
+  // ── Paso 2.5: Buscar user_product_id en catálogo ML ──────
+  // Evita el problema de family_name — si el producto existe en el catálogo,
+  // ML asigna automáticamente la familia sin necesidad de family_name manual.
+  let userProductId = null;
+  try {
+    const prodRes = await fetch(
+      `https://api.mercadolibre.com/products/search?site_id=MLA&q=${encodeURIComponent(title.slice(0, 50))}&limit=3`,
+      { headers: { Authorization: `Bearer ${mlToken}` } }
+    );
+    const prodData = await prodRes.json();
+    if (prodData.results?.length) userProductId = prodData.results[0].id;
+  } catch (_) {}
 
-  const buildBody = (extraAttrs = []) => {
-    const base = {
-      title: title.trim().slice(0, 60),
-      family_name: familyName,
-      price: Number(price),
-      category_id: categoryId,
-      currency_id: 'ARS',
-      available_quantity: 3,
-      buying_mode: 'buy_it_now',
-      listing_type_id: listingType || 'gold_special',
-      condition: 'new',
-      sale_terms: [{ id: 'WARRANTY_TYPE', value_name: 'Sin garantía' }],
-      ...(sku       ? { seller_custom_field: sku }      : {}),
-      ...(pictureId ? { pictures: [{ id: pictureId }] } : {})
-    };
-    if (extraAttrs.length) base.attributes = extraAttrs;
-    return base;
-  };
+  // ── Paso 3: Crear publicación ──────────────────────────
+  const familyName = title.trim()
+    .replace(/\s+\d+\s*(ml|gr|kg|g|l|cc|un|und)\.?\s*$/i, '').trim().slice(0, 60)
+    || title.trim().slice(0, 60);
+
+  const baseFields = () => ({
+    title: title.trim().slice(0, 60),
+    price: Number(price),
+    category_id: categoryId,
+    currency_id: 'ARS',
+    available_quantity: 3,
+    buying_mode: 'buy_it_now',
+    listing_type_id: listingType || 'gold_special',
+    condition: 'new',
+    sale_terms: [{ id: 'WARRANTY_TYPE', value_name: 'Sin garantía' }],
+    ...(sku       ? { seller_custom_field: sku }      : {}),
+    ...(pictureId ? { pictures: [{ id: pictureId }] } : {})
+  });
 
   const mlPost = (body) => fetch('https://api.mercadolibre.com/items', {
     method: 'POST',
@@ -118,47 +126,52 @@ export default async function handler(req, res) {
     body: JSON.stringify(body)
   });
 
-  let itemData = await (await mlPost(buildBody())).json();
+  const attempts = [];
+  const tryPost = async (label, body) => {
+    const d = await (await mlPost(body)).json();
+    const causes = (d.cause || []).map(c => `${c.code}:${c.message}`).join('; ');
+    attempts.push(`[${label}] ${d.id ? 'OK' : (causes || d.message || 'error')}`);
+    return d;
+  };
 
-  // Si falla → obtener atributos requeridos de la categoría y reintentar
+  // Intento A: con user_product_id si encontramos el producto en catálogo
+  let itemData = { id: null };
+  if (userProductId) {
+    itemData = await tryPost('A-catalog', { ...baseFields(), user_product_id: userProductId });
+  }
+
+  // Intento B: con family_name (nuevo esquema ML AR)
   if (!itemData.id) {
-    const hasRequiredError = itemData.cause?.some(
-      c => c.code === 'body.required_fields' || c.code?.includes('required') || c.code?.includes('invalid')
-    );
-    if (hasRequiredError) {
-      try {
-        const attrRes = await fetch(
-          `https://api.mercadolibre.com/categories/${categoryId}/attributes`,
-          { headers: { Authorization: `Bearer ${mlToken}` } }
-        );
-        const attrs = await attrRes.json();
-        const extraAttrs = (Array.isArray(attrs) ? attrs : [])
-          .filter(a => a.tags?.required)
-          .map(a => {
-            // FAMILY_NAME usa el SKU como valor para que sea único
-            if (a.id === 'FAMILY_NAME') return { id: a.id, value_name: (sku || title).trim().slice(0, 60) };
-            return { id: a.id, value_name: a.values?.[0]?.name || 'No aplica' };
-          });
-        if (extraAttrs.length) {
-          const retry2 = await (await mlPost(buildBody(extraAttrs))).json();
-          if (retry2.id) itemData = retry2;
-        }
-      } catch (_) {}
-    }
+    itemData = await tryPost('B-family', { ...baseFields(), family_name: familyName });
+  }
 
-    // Fallback: categoría genérica MLA5726 si la detectada sigue fallando
-    if (!itemData.id && categoryId !== (categoryDefault || 'MLA5726')) {
-      categoryId = categoryDefault || 'MLA5726';
-      const retry3 = await (await mlPost(buildBody())).json();
-      if (retry3.id) itemData = retry3;
-    }
+  // Intento C: con family_name + atributos requeridos de la categoría
+  if (!itemData.id) {
+    try {
+      const attrRes = await fetch(
+        `https://api.mercadolibre.com/categories/${categoryId}/attributes`,
+        { headers: { Authorization: `Bearer ${mlToken}` } }
+      );
+      const attrs = await attrRes.json();
+      const reqAttrs = (Array.isArray(attrs) ? attrs : [])
+        .filter(a => a.tags?.required)
+        .map(a => ({ id: a.id, value_name: a.values?.[0]?.name || 'No aplica' }));
+      if (reqAttrs.length) {
+        itemData = await tryPost('C-family+attrs', { ...baseFields(), family_name: familyName, attributes: reqAttrs });
+      }
+    } catch (_) {}
+  }
+
+  // Intento D: categoría fallback MLA5726 + family_name
+  if (!itemData.id && categoryId !== (categoryDefault || 'MLA5726')) {
+    categoryId = categoryDefault || 'MLA5726';
+    itemData = await tryPost('D-fallback', { ...baseFields(), family_name: familyName });
   }
 
   if (!itemData.id) {
-    const causes = (itemData.cause || []).map(c => c.message || c.code).join(' | ');
     return res.status(200).json({
       ok: false,
-      error: causes || itemData.message || 'Error creando publicación',
+      error: `Intentos: ${attempts.join(' | ')}`,
       details: itemData
     });
   }
