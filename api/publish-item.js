@@ -1,14 +1,13 @@
 import { createSign } from 'node:crypto';
 
-const SCOPES = 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/spreadsheets';
-
 async function googleToken() {
   const creds = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON || 'null');
   if (!creds?.private_key) return null;
   const now = Math.floor(Date.now() / 1000);
   const hdr = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
   const pay = Buffer.from(JSON.stringify({
-    iss: creds.client_email, scope: SCOPES,
+    iss: creds.client_email,
+    scope: 'https://www.googleapis.com/auth/spreadsheets',
     aud: 'https://oauth2.googleapis.com/token',
     exp: now + 3600, iat: now
   })).toString('base64url');
@@ -34,215 +33,112 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).end();
 
-  const mlToken = (req.headers.authorization || '').replace('Bearer ', '');
-  if (!mlToken) return res.status(401).json({ ok: false, error: 'No ML token' });
-
-  const { sku, title, price, listingType, fileId, categoryDefault, sheetRow, sheetId } = req.body || {};
-  if (!title?.trim()) return res.status(400).json({ ok: false, error: 'Falta título' });
-  if (!price)         return res.status(400).json({ ok: false, error: 'Falta precio' });
-
-  // Wrapper global — cualquier error no capturado devuelve JSON válido
   try {
+    const mlToken = (req.headers.authorization || '').replace('Bearer ', '');
+    if (!mlToken) return res.status(401).json({ ok: false, error: 'No ML token' });
 
-  const gToken = await googleToken();
-  let pictureId = null, pictureWarn = null;
+    const { sku, title, price, listingType, categoryDefault, sheetRow, sheetId } = req.body || {};
+    if (!title?.trim()) return res.status(400).json({ ok: false, error: 'Falta título' });
+    if (!price)         return res.status(400).json({ ok: false, error: 'Falta precio' });
 
-  // ── Paso 1: Subir imagen desde Drive ───────────────────
-  if (fileId && gToken) {
-    try {
-      const imgRes = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-        { headers: { Authorization: `Bearer ${gToken}` } }
-      );
-      if (!imgRes.ok) throw new Error(`Drive status ${imgRes.status}`);
-      const buf = Buffer.from(await imgRes.arrayBuffer());
-      const ct  = imgRes.headers.get('content-type') || 'image/jpeg';
-      const ext = ct.includes('png') ? 'png' : ct.includes('gif') ? 'gif' : 'jpg';
-      const bound = 'UmamiPub' + Date.now().toString(36);
-      const body  = Buffer.concat([
-        Buffer.from(`--${bound}\r\nContent-Disposition: form-data; name="file"; filename="img.${ext}"\r\nContent-Type: ${ct}\r\n\r\n`),
-        buf,
-        Buffer.from(`\r\n--${bound}--`)
-      ]);
-      const picRes  = await fetch('https://api.mercadolibre.com/pictures/items/upload', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${mlToken}`,
-          'Content-Type': `multipart/form-data; boundary=${bound}`
-        },
-        body
-      });
-      const picData = await picRes.json();
-      if (picData.id) pictureId = picData.id;
-      else pictureWarn = picData.message || 'No se obtuvo picture_id';
-    } catch (e) {
-      pictureWarn = e.message;
-    }
-  }
-
-  // ── Paso 2: Detectar categoría ─────────────────────────
-  let categoryId = categoryDefault || 'MLA5726';
-  try {
-    const r = await fetch(
-      `https://api.mercadolibre.com/sites/MLA/domain_discovery/search?q=${encodeURIComponent(title)}&limit=1`,
-      { headers: { Authorization: `Bearer ${mlToken}` } }
-    );
-    const d = await r.json();
-    if (Array.isArray(d) && d[0]?.category_id) categoryId = d[0].category_id;
-  } catch (_) {}
-
-  // ── Paso 2.5: Buscar user_product_id en catálogo ML ──────
-  let userProductId = null;
-  let catalogDebug  = 'no-search';
-  try {
-    const queries = sku ? [sku, title.slice(0, 40)] : [title.slice(0, 40)];
-    for (const q of queries) {
-      const r1 = await fetch(
-        `https://api.mercadolibre.com/products/search?site_id=MLA&q=${encodeURIComponent(q)}&limit=3`,
-        { headers: { Authorization: `Bearer ${mlToken}` } }
-      );
-      const d1 = await r1.json();
-      if (d1.results?.[0]?.id) {
-        userProductId = d1.results[0].id;
-        catalogDebug = `prod:${userProductId}`;
-        break;
-      }
-      const r2 = await fetch(
-        `https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(q)}&limit=5`,
-        { headers: { Authorization: `Bearer ${mlToken}` } }
-      );
-      const d2 = await r2.json();
-      const hit = (d2.results || []).find(x => x.catalog_product_id);
-      if (hit?.catalog_product_id) {
-        userProductId = hit.catalog_product_id;
-        catalogDebug = `site:${userProductId}`;
-        break;
-      }
-    }
-  } catch (e) { catalogDebug = 'err:' + e.message; }
-
-  // ── Paso 3: Crear publicación ──────────────────────────
-  // family_name en Title Case (ML rechaza ALL CAPS)
-  const familyName = title.trim()
-    .replace(/\s+\d+\s*(ml|gr|kg|g|l|cc|un|und)\.?\s*$/i, '').trim()
-    .toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).slice(0, 60)
-    || title.trim().slice(0, 30).toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
-
-  const mlPost = (body) => fetch('https://api.mercadolibre.com/items', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${mlToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-
-  const attempts = [];
-  const tryPost = async (label, body) => {
-    const d = await (await mlPost(body)).json();
-    const detail = d.id ? 'OK' : JSON.stringify({ msg: d.message, cause: d.cause });
-    attempts.push(`[${label}] ${detail}`);
-    return d;
-  };
-
-  // Campos base (sin family_name ni user_product_id)
-  const base = () => ({
-    title:              title.trim().slice(0, 60),
-    price:              Number(price),
-    category_id:        categoryId,
-    currency_id:        'ARS',
-    available_quantity: 3,
-    buying_mode:        'buy_it_now',
-    listing_type_id:    listingType || 'gold_special',
-    condition:          'not_specified',
-    sale_terms: [{ id: 'WARRANTY_TYPE', value_name: 'Sin garantía' }],
-    ...(sku       ? { seller_custom_field: sku }      : {}),
-    ...(pictureId ? { pictures: [{ id: pictureId }] } : {})
-  });
-
-  let itemData = { id: null };
-
-  // Obtener family_name del catálogo ML (debe ser el nombre exacto del producto)
-  let catalogFamilyName = familyName;
-  if (userProductId) {
-    try {
-      const pd = await (await fetch(
-        `https://api.mercadolibre.com/products/${userProductId}`,
-        { headers: { Authorization: `Bearer ${mlToken}` } }
-      )).json();
-      if (pd.name) catalogFamilyName = pd.name;
-      if (pd.family_name) catalogFamilyName = pd.family_name;
-    } catch (_) {}
-  }
-
-  let itemData = { id: null };
-
-  // Intento A: user_product_id + family_name del catálogo (ML requiere ambos)
-  if (userProductId) {
-    itemData = await tryPost(`A-upid+fam(${catalogDebug})`,
-      { ...base(), user_product_id: userProductId, family_name: catalogFamilyName });
-  }
-
-  // Intento B: user_product_id sin family_name
-  if (!itemData.id && userProductId) {
-    itemData = await tryPost('B-upid-only', { ...base(), user_product_id: userProductId });
-  }
-
-  // Intento C: family_name del catálogo sin user_product_id
-  if (!itemData.id) {
-    itemData = await tryPost('C-catfam', { ...base(), family_name: catalogFamilyName });
-  }
-
-  // Intento D: family_name generado (Title Case)
-  if (!itemData.id) {
-    itemData = await tryPost('D-genfam', { ...base(), family_name: familyName });
-  }
-
-  // Intento E: categoría fallback MLA5726 + mejor family_name disponible
-  if (!itemData.id && categoryId !== (categoryDefault || 'MLA5726')) {
-    categoryId = categoryDefault || 'MLA5726';
-    itemData = await tryPost('E-fallback',
-      { ...base(), family_name: catalogFamilyName, ...(userProductId ? { user_product_id: userProductId } : {}) });
-  }
-
-  if (!itemData.id) {
-    return res.status(200).json({
-      ok: false,
-      error: `Intentos: ${attempts.join(' | ')}`,
-      details: itemData
-    });
-  }
-
-  const mla = itemData.id;
-
-  // ── Paso 4: Agregar descripción ────────────────────────
-  try {
-    await fetch(`https://api.mercadolibre.com/items/${mla}/description`, {
-      method: 'POST',
+    const ml = (path, body) => fetch(`https://api.mercadolibre.com${path}`, {
+      method: body ? 'POST' : 'GET',
       headers: { Authorization: `Bearer ${mlToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        plain_text: `${title}.\n\nProducto importado de Asia Oriental. Excelente calidad y relación precio-producto.\n\nConsultas por chat de MercadoLibre.`
-      })
-    });
-  } catch (_) {}
+      ...(body ? { body: JSON.stringify(body) } : {})
+    }).then(r => r.json());
 
-  // ── Paso 5: Escribir MLA en la Sheet ──────────────────
-  if (gToken && sheetRow && sheetId) {
+    // ── 1. Detectar categoría ─────────────────────────────
+    let categoryId = categoryDefault || 'MLA5726';
     try {
-      await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/PRODUCTOS!A${sheetRow}?valueInputOption=RAW`,
-        {
-          method: 'PUT',
-          headers: { Authorization: `Bearer ${gToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ values: [[mla]] })
-        }
-      );
+      const d = await ml(`/sites/MLA/domain_discovery/search?q=${encodeURIComponent(title)}&limit=1`);
+      if (Array.isArray(d) && d[0]?.category_id) categoryId = d[0].category_id;
     } catch (_) {}
-  }
 
-  res.status(200).json({
-    ok: true, mla, categoryId, pictureId,
-    ...(pictureWarn ? { pictureWarn } : {})
-  });
+    // ── 2. Buscar user_product_id por EAN/SKU ─────────────
+    let userProductId = null;
+    if (sku) {
+      try {
+        const d = await ml(`/products/search?site_id=MLA&q=${encodeURIComponent(sku)}&limit=1`);
+        if (d.results?.[0]?.id) userProductId = d.results[0].id;
+      } catch (_) {}
+    }
 
-  } catch (fatalErr) {
-    res.status(200).json({ ok: false, error: 'Fatal: ' + fatalErr.message });
+    // ── 3. family_name en Title Case ──────────────────────
+    const familyName = title.trim()
+      .replace(/\s+\d+\s*(ml|gr|kg|g|l|cc|un|und)\.?\s*$/i, '').trim()
+      .toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).slice(0, 60)
+      || title.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).slice(0, 30);
+
+    // ── 4. Crear publicación ──────────────────────────────
+    const base = () => ({
+      title:              title.trim().slice(0, 60),
+      price:              Number(price),
+      category_id:        categoryId,
+      currency_id:        'ARS',
+      available_quantity: 3,
+      buying_mode:        'buy_it_now',
+      listing_type_id:    listingType || 'gold_special',
+      condition:          'not_specified',
+      sale_terms: [{ id: 'WARRANTY_TYPE', value_name: 'Sin garantía' }],
+      ...(sku ? { seller_custom_field: sku } : {})
+    });
+
+    const attempts = [];
+    const tryItem = async (label, extra) => {
+      const d = await ml('/items', { ...base(), ...extra });
+      attempts.push(`[${label}] ${d.id ? 'OK' : (d.message || d.cause?.[0]?.message || JSON.stringify(d.cause))}`);
+      return d;
+    };
+
+    let item = { id: null };
+
+    // A: user_product_id + family_name
+    if (userProductId) {
+      item = await tryItem(`A-upid(${userProductId})`, { user_product_id: userProductId, family_name: familyName });
+    }
+    // B: solo family_name Title Case
+    if (!item.id) {
+      item = await tryItem('B-family', { family_name: familyName });
+    }
+    // C: fallback MLA5726 + family_name
+    if (!item.id && categoryId !== (categoryDefault || 'MLA5726')) {
+      categoryId = categoryDefault || 'MLA5726';
+      item = await tryItem('C-fallback', { family_name: familyName });
+    }
+
+    if (!item.id) {
+      return res.status(200).json({ ok: false, error: `Intentos: ${attempts.join(' | ')}` });
+    }
+
+    const mla = item.id;
+
+    // ── 5. Descripción ────────────────────────────────────
+    try {
+      await ml(`/items/${mla}/description`, {
+        plain_text: `${title}.\n\nProducto importado de Asia Oriental. Excelente calidad.\n\nConsultas por chat.`
+      });
+    } catch (_) {}
+
+    // ── 6. Escribir MLA en Sheet ──────────────────────────
+    if (sheetRow && sheetId) {
+      try {
+        const gToken = await googleToken();
+        if (gToken) {
+          await fetch(
+            `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/PRODUCTOS!A${sheetRow}?valueInputOption=RAW`,
+            {
+              method: 'PUT',
+              headers: { Authorization: `Bearer ${gToken}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ values: [[mla]] })
+            }
+          );
+        }
+      } catch (_) {}
+    }
+
+    res.status(200).json({ ok: true, mla, categoryId, attempts });
+
+  } catch (err) {
+    res.status(200).json({ ok: false, error: 'Fatal: ' + err.message });
   }
 }
