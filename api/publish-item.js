@@ -89,7 +89,7 @@ export default async function handler(req, res) {
   } catch (_) {}
 
   // ── Paso 3: Crear publicación ──────────────────────────
-  const itemBody = {
+  const buildBody = (extraAttrs = []) => ({
     title: title.trim().slice(0, 60),
     price: Number(price),
     category_id: categoryId,
@@ -98,21 +98,52 @@ export default async function handler(req, res) {
     buying_mode: 'buy_it_now',
     listing_type_id: listingType || 'gold_special',
     condition: 'new',
-    ...(sku               ? { seller_custom_field: sku }         : {}),
-    ...(pictureId         ? { pictures: [{ id: pictureId }] }    : {})
-  };
+    sale_terms: [
+      { id: 'WARRANTY_TYPE', value_name: 'Sin garantía' },
+      { id: 'WARRANTY_TIME', value_name: '' }
+    ],
+    ...(extraAttrs.length ? { attributes: extraAttrs } : {}),
+    ...(sku       ? { seller_custom_field: sku }      : {}),
+    ...(pictureId ? { pictures: [{ id: pictureId }] } : {})
+  });
 
-  const itemRes  = await fetch('https://api.mercadolibre.com/items', {
+  const mlPost = (body) => fetch('https://api.mercadolibre.com/items', {
     method: 'POST',
     headers: { Authorization: `Bearer ${mlToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(itemBody)
+    body: JSON.stringify(body)
   });
-  const itemData = await itemRes.json();
+
+  let itemData = await (await mlPost(buildBody())).json();
+
+  // Si falla por campos requeridos → buscar atributos obligatorios y reintentar
+  if (!itemData.id && itemData.cause?.some(c => c.code === 'body.required_fields' || c.code?.includes('required'))) {
+    try {
+      const attrRes = await fetch(
+        `https://api.mercadolibre.com/categories/${categoryId}/attributes`,
+        { headers: { Authorization: `Bearer ${mlToken}` } }
+      );
+      const attrs = await attrRes.json();
+      const required = (Array.isArray(attrs) ? attrs : [])
+        .filter(a => a.tags?.required)
+        .map(a => ({ id: a.id, value_name: a.values?.[0]?.name || 'No aplica' }));
+      if (required.length) {
+        const retry = await (await mlPost(buildBody(required))).json();
+        if (retry.id) itemData = retry;
+      }
+    } catch (_) {}
+  }
 
   if (!itemData.id) {
+    const missingFields = itemData.cause
+      ?.filter(c => c.code?.includes('required'))
+      ?.map(c => c.values?.fields || c.message)
+      ?.flat()
+      ?.join(', ');
     return res.status(200).json({
       ok: false,
-      error: itemData.message || itemData.cause?.[0]?.message || 'Error creando publicación',
+      error: missingFields
+        ? `Campos requeridos faltantes: ${missingFields}`
+        : (itemData.message || itemData.cause?.[0]?.message || 'Error creando publicación'),
       details: itemData
     });
   }
