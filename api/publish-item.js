@@ -129,8 +129,8 @@ export default async function handler(req, res) {
   const attempts = [];
   const tryPost = async (label, body) => {
     const d = await (await mlPost(body)).json();
-    const causes = (d.cause || []).map(c => `${c.code}:${c.message}`).join('; ');
-    attempts.push(`[${label}] ${d.id ? 'OK' : (causes || d.message || 'error')}`);
+    const detail = d.id ? 'OK' : JSON.stringify({ msg: d.message, cause: d.cause });
+    attempts.push(`[${label}] ${detail}`);
     return d;
   };
 
