@@ -134,8 +134,9 @@ export default async function handler(req, res) {
     return d;
   };
 
-  // Cuerpo mínimo absoluto (diagnóstico: sin sale_terms ni seller_custom_field)
-  const minBody = (extra = {}) => ({
+  // En ML AR los alimentos/bebidas requieren condition "not_specified" (no "new")
+  // Intentamos primero con not_specified, luego con new como fallback
+  const buildItem = (conditionVal, extra = {}) => ({
     title:              title.trim().slice(0, 60),
     family_name:        familyName,
     price:              Number(price),
@@ -144,34 +145,32 @@ export default async function handler(req, res) {
     available_quantity: 3,
     buying_mode:        'buy_it_now',
     listing_type_id:    listingType || 'gold_special',
-    condition:          'new',
+    condition:          conditionVal,
+    sale_terms: [{ id: 'WARRANTY_TYPE', value_name: 'Sin garantía' }],
+    ...(sku       ? { seller_custom_field: sku }      : {}),
+    ...(pictureId ? { pictures: [{ id: pictureId }] } : {}),
     ...extra
   });
 
   let itemData = { id: null };
 
-  // Intento A: body mínimo + family_name
-  itemData = await tryPost('A-min', minBody());
+  // Intento A: condition not_specified (alimentos/bebidas)
+  itemData = await tryPost('A-notspec', buildItem('not_specified'));
 
-  // Intento B: body mínimo + family_name + imagen
-  if (!itemData.id && pictureId) {
-    itemData = await tryPost('B-min+pic', minBody({ pictures: [{ id: pictureId }] }));
-  }
-
-  // Intento C: body completo (con sale_terms y seller_custom_field)
+  // Intento B: condition new
   if (!itemData.id) {
-    itemData = await tryPost('C-full', {
-      ...minBody(),
-      sale_terms: [{ id: 'WARRANTY_TYPE', value_name: 'Sin garantía' }],
-      ...(sku       ? { seller_custom_field: sku } : {}),
-      ...(pictureId ? { pictures: [{ id: pictureId }] } : {})
-    });
+    itemData = await tryPost('B-new', buildItem('new'));
   }
 
-  // Intento D: categoría fallback MLA5726
+  // Intento C: categoría fallback + not_specified
   if (!itemData.id && categoryId !== (categoryDefault || 'MLA5726')) {
     categoryId = categoryDefault || 'MLA5726';
-    itemData = await tryPost('D-fallback', minBody());
+    itemData = await tryPost('C-fallback-notspec', buildItem('not_specified'));
+  }
+
+  // Intento D: categoría fallback + new
+  if (!itemData.id) {
+    itemData = await tryPost('D-fallback-new', buildItem('new'));
   }
 
   if (!itemData.id) {
