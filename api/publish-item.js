@@ -58,41 +58,23 @@ export default async function handler(req, res) {
       if (Array.isArray(d) && d[0]?.category_id) categoryId = d[0].category_id;
     } catch (_) {}
 
-    // ── 2. Buscar user_product_id + family_name del catálogo ML ──
-    let userProductId = null;
-    let catalogFamilyName = null;
-
+    // ── 2. Buscar catalog_product_id por EAN/SKU ────────────
+    // NOTA: user_product_id es asignado automáticamente por ML (OUTPUT, no INPUT)
+    // catalog_product_id = ID del catálogo de ML para vincular el item
+    let catalogProductId = null;
     if (sku) {
       try {
         const d = await ml(`/products/search?site_id=MLA&q=${encodeURIComponent(sku)}&limit=1`);
-        if (d.results?.[0]?.id) {
-          userProductId = d.results[0].id;
-          catalogFamilyName = d.results[0].family_name || d.results[0].name || null;
-        }
+        if (d.results?.[0]?.id) catalogProductId = d.results[0].id;
       } catch (_) {}
     }
 
-    // Si encontramos el ID, buscar el family_name exacto del catálogo (2s timeout)
-    if (userProductId && !catalogFamilyName) {
-      try {
-        const ctrl = new AbortController();
-        setTimeout(() => ctrl.abort(), 2000);
-        const r = await fetch(`https://api.mercadolibre.com/products/${userProductId}`, {
-          headers: { Authorization: `Bearer ${mlToken}` },
-          signal: ctrl.signal
-        });
-        const pd = await r.json();
-        catalogFamilyName = pd.family_name || pd.name || null;
-      } catch (_) {}
-    }
-
-    // ── 3. Definir family_name final ──────────────────────
-    // Prioridad: usuario > catálogo ML > auto-generado
-    const autoFamily = title.trim()
-      .replace(/\s+\d+\s*(ml|gr|kg|g|l|cc|un|und)\.?\s*$/i, '').trim()
-      .toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).slice(0, 60)
+    // ── 3. family_name (usuario o auto-generado del título) ─
+    const familyName = (userFamilyName || '').trim()
+      || title.trim()
+           .replace(/\s+\d+\s*(ml|gr|kg|g|l|cc|un|und)\.?\s*$/i, '').trim()
+           .toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).slice(0, 60)
       || title.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).slice(0, 30);
-    const familyName = (userFamilyName || '').trim() || catalogFamilyName || autoFamily;
 
     // ── 4. Crear publicación ──────────────────────────────
     const warrantyValue = warranty || 'Sin garantía';
@@ -103,7 +85,7 @@ export default async function handler(req, res) {
     const attrs = [];
     if (brand) attrs.push({ id: 'BRAND', value_name: brand });
 
-    const base = () => ({
+    const baseBody = {
       title:              title.trim().slice(0, 60),
       price:              Number(price),
       category_id:        categoryId,
@@ -112,40 +94,43 @@ export default async function handler(req, res) {
       buying_mode:        'buy_it_now',
       listing_type_id:    listingType || 'gold_special',
       condition:          userCondition || 'not_specified',
-      sale_terms: saleTerms,
+      sale_terms:         saleTerms,
       ...(sku         ? { seller_custom_field: sku } : {}),
       ...(attrs.length ? { attributes: attrs }        : {})
-    });
+    };
 
     const attempts = [];
     const tryItem = async (label, extra) => {
-      const d = await ml('/items', { ...base(), ...extra });
-      attempts.push(`[${label}] ${d.id ? 'OK' : (d.message || d.cause?.[0]?.message || JSON.stringify(d.cause))}`);
+      const body = { ...baseBody, ...extra };
+      const d = await ml('/items', body);
+      const detail = d.id ? 'OK' : `${d.message || 'error'} cause=${JSON.stringify(d.cause)}`;
+      attempts.push(`[${label}] ${detail}`);
       return d;
     };
 
     let item = { id: null };
 
-    // A: user_product_id + family_name del catálogo (ML exige ambos para UP)
-    if (userProductId) {
-      item = await tryItem(`A-upid+fam`, { user_product_id: userProductId, family_name: familyName });
+    // A: catalog_product_id (vincula al catálogo ML — family_name lo asigna ML automáticamente)
+    if (catalogProductId) {
+      item = await tryItem('A-catalog', { catalog_product_id: catalogProductId });
     }
-    // B: user_product_id solo (por si acaso)
-    if (!item.id && userProductId) {
-      item = await tryItem('B-upid-solo', { user_product_id: userProductId });
-    }
-    // C: family_name solo
+    // B: family_name (crea nueva familia — user_product_id lo asigna ML automáticamente)
     if (!item.id) {
-      item = await tryItem('C-family', { family_name: familyName });
+      item = await tryItem('B-family', { family_name: familyName });
     }
-    // D: fallback MLA5726 + family_name
+    // C: categoría fallback MLA5726 + family_name
     if (!item.id && categoryId !== (categoryDefault || 'MLA5726')) {
       categoryId = categoryDefault || 'MLA5726';
-      item = await tryItem('D-fallback', { family_name: familyName });
+      baseBody.category_id = categoryId;
+      item = await tryItem('C-fallback', { family_name: familyName });
     }
 
     if (!item.id) {
-      return res.status(200).json({ ok: false, error: `Intentos: ${attempts.join(' | ')}` });
+      return res.status(200).json({
+        ok: false,
+        error: `Intentos: ${attempts.join(' | ')}`,
+        sentBody: { ...baseBody, family_name: familyName }  // para debug
+      });
     }
 
     const mla = item.id;
