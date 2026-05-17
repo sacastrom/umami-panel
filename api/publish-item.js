@@ -110,26 +110,30 @@ export default async function handler(req, res) {
 
     let item = { id: null };
 
-    // A: catalog_product_id (vincula al catálogo ML — family_name lo asigna ML automáticamente)
+    // A: catalog_product_id + family_name (documentación: ambos juntos para items de catálogo)
     if (catalogProductId) {
-      item = await tryItem('A-catalog', { catalog_product_id: catalogProductId });
+      item = await tryItem('A-cat+fam', { catalog_product_id: catalogProductId, family_name: familyName });
     }
-    // B: family_name (crea nueva familia — user_product_id lo asigna ML automáticamente)
+    // B: family_name + condition:new (probar con new)
     if (!item.id) {
-      item = await tryItem('B-family', { family_name: familyName });
+      item = await tryItem('B-fam-new', { family_name: familyName, condition: 'new' });
     }
-    // C: categoría fallback MLA5726 + family_name
+    // C: family_name + condition:not_specified
+    if (!item.id) {
+      item = await tryItem('C-fam-ns', { family_name: familyName });
+    }
+    // D: fallback MLA5726 + family_name
     if (!item.id && categoryId !== (categoryDefault || 'MLA5726')) {
       categoryId = categoryDefault || 'MLA5726';
       baseBody.category_id = categoryId;
-      item = await tryItem('C-fallback', { family_name: familyName });
+      item = await tryItem('D-fallback', { family_name: familyName });
     }
 
     if (!item.id) {
       return res.status(200).json({
         ok: false,
         error: `Intentos: ${attempts.join(' | ')}`,
-        sentBody: { ...baseBody, family_name: familyName }  // para debug
+        debug: { familyName, categoryId, catalogProductId, sentBody: baseBody }
       });
     }
 
