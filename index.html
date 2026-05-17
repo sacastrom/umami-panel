@@ -3583,6 +3583,7 @@ async function pubPublishFromReview() {
           description: item.description,
           listingType,
           categoryDefault,
+          fileId:      pubDriveMap[p.sku.toUpperCase()] || null,
           sheetRow:    p.rowNum,
           sheetId:     SHEET_ID
         })

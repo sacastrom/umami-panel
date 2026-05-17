@@ -7,7 +7,7 @@ async function googleToken() {
   const hdr = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
   const pay = Buffer.from(JSON.stringify({
     iss: creds.client_email,
-    scope: 'https://www.googleapis.com/auth/spreadsheets',
+    scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.readonly',
     aud: 'https://oauth2.googleapis.com/token',
     exp: now + 3600, iat: now
   })).toString('base64url');
@@ -38,7 +38,7 @@ export default async function handler(req, res) {
     if (!mlToken) return res.status(401).json({ ok: false, error: 'No ML token' });
 
     const {
-      sku, title, price, listingType, categoryDefault, sheetRow, sheetId,
+      sku, title, price, listingType, fileId, categoryDefault, sheetRow, sheetId,
       familyName: userFamilyName, brand, stock, condition: userCondition,
       warranty, warrantyTime, description: userDescription,
       pkgHeight, pkgWidth, pkgLength, pkgWeight, vat, importDuty
@@ -72,6 +72,39 @@ export default async function handler(req, res) {
       const d = await ml(`/sites/MLA/domain_discovery/search?q=${encodeURIComponent(searchQ)}&limit=1`);
       if (Array.isArray(d) && d[0]?.category_id) categoryId = d[0].category_id;
     } catch (_) {}
+
+    // ── 1b. Subir imagen desde Drive (4s timeout) ─────────
+    let pictureId = null;
+    if (fileId) {
+      try {
+        const gToken = await googleToken();
+        if (gToken) {
+          const ctrl = new AbortController();
+          setTimeout(() => ctrl.abort(), 4000);
+          const imgRes = await fetch(
+            `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+            { headers: { Authorization: `Bearer ${gToken}` }, signal: ctrl.signal }
+          );
+          if (imgRes.ok) {
+            const buf = Buffer.from(await imgRes.arrayBuffer());
+            const ct = imgRes.headers.get('content-type') || 'image/jpeg';
+            const ext = ct.includes('png') ? 'png' : 'jpg';
+            const bound = 'UmamiPic' + Date.now().toString(36);
+            const picBody = Buffer.concat([
+              Buffer.from(`--${bound}\r\nContent-Disposition: form-data; name="file"; filename="img.${ext}"\r\nContent-Type: ${ct}\r\n\r\n`),
+              buf, Buffer.from(`\r\n--${bound}--`)
+            ]);
+            const picRes = await fetch('https://api.mercadolibre.com/pictures/items/upload', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${mlToken}`, 'Content-Type': `multipart/form-data; boundary=${bound}` },
+              body: picBody
+            });
+            const picData = await picRes.json();
+            if (picData.id) pictureId = picData.id;
+          }
+        }
+      } catch (_) {} // falla silenciosamente — publica sin imagen
+    }
 
     // ── 2. Buscar catalog_product_id por EAN/SKU ────────────
     // NOTA: user_product_id es asignado automáticamente por ML (OUTPUT, no INPUT)
@@ -126,8 +159,9 @@ export default async function handler(req, res) {
       listing_type_id:    listingType || 'gold_special',
       condition:          userCondition || 'not_specified',
       sale_terms:         saleTerms,
-      ...(sku         ? { seller_custom_field: sku } : {}),
-      ...(attrs.length ? { attributes: attrs }        : {})
+      ...(sku         ? { seller_custom_field: sku }          : {}),
+      ...(attrs.length ? { attributes: attrs }                 : {}),
+      ...(pictureId   ? { pictures: [{ id: pictureId }] }     : {})
     };
 
     const attempts = [];
@@ -162,11 +196,17 @@ export default async function handler(req, res) {
       attempts.push(`[D-noST] ${detD}`);
       if (dD.id) item = dD;
     }
-    // E: fallback MLA5726 + family_name
-    if (!item.id && categoryId !== (categoryDefault || 'MLA5726')) {
-      categoryId = categoryDefault || 'MLA5726';
+    // E: fallback categoría + family_name
+    if (!item.id && categoryId !== 'MLA109936') {
+      categoryId = 'MLA109936';
       baseBody.category_id = categoryId;
       item = await tryItem('E-fallback', { family_name: familyName });
+    }
+    // F: listing_type free (no requiere fotos — siempre disponible)
+    if (!item.id) {
+      baseBody.listing_type_id = 'free';
+      delete baseBody.pictures; // free no usa fotos
+      item = await tryItem('F-free', { family_name: familyName });
     }
 
     if (!item.id) {
