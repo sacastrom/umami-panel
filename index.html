@@ -3427,6 +3427,10 @@ function pubPrepare() {
           <label>Marca / Brand</label>
           <input type="text" data-field="brand" placeholder="Ej: Glico, OKF, Lotte…">
         </div>
+        <div class="pub-review-field" style="grid-column:1/-1;">
+          <label>Categoría ML <span style="color:var(--muted)">(ID detectado automáticamente — editá si es incorrecto)</span></label>
+          <input type="text" data-field="categoryOverride" value="" placeholder="Auto-detectada — escribí un ID para forzar, ej: MLA3697">
+        </div>
         <div class="pub-review-field">
           <label>Precio ($ARS)</label>
           <input type="number" data-field="price" value="${p.price}">
@@ -3528,6 +3532,7 @@ async function pubPublishFromReview() {
       condition:   get('condition') || 'not_specified',
       warranty:     get('warranty') || 'Sin garantía',
       warrantyTime: get('warrantyTime') || '',
+      categoryOverride: get('categoryOverride') || '',
       pkgHeight:    get('pkgHeight')   || '12',
       pkgWidth:     get('pkgWidth')    || '6',
       pkgLength:    get('pkgLength')   || '6',
@@ -3583,7 +3588,8 @@ async function pubPublishFromReview() {
           description: item.description,
           listingType,
           categoryDefault,
-          fileId:      pubDriveMap[p.sku.toUpperCase()] || null,
+          fileId:          pubDriveMap[p.sku.toUpperCase()] || null,
+          categoryOverride: item.categoryOverride || '',
           sheetRow:    p.rowNum,
           sheetId:     SHEET_ID
         })

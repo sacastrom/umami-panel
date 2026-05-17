@@ -41,7 +41,8 @@ export default async function handler(req, res) {
       sku, title, price, listingType, fileId, categoryDefault, sheetRow, sheetId,
       familyName: userFamilyName, brand, stock, condition: userCondition,
       warranty, warrantyTime, description: userDescription,
-      pkgHeight, pkgWidth, pkgLength, pkgWeight, vat, importDuty
+      pkgHeight, pkgWidth, pkgLength, pkgWeight, vat, importDuty,
+      categoryOverride
     } = req.body || {};
     if (!title?.trim()) return res.status(400).json({ ok: false, error: 'Falta título' });
     if (!price)         return res.status(400).json({ ok: false, error: 'Falta precio' });
@@ -63,15 +64,16 @@ export default async function handler(req, res) {
     };
 
     // ── 1. Detectar categoría ─────────────────────────────
-    // MLA109936 = Alimentos y Bebidas > Bebidas (categoría hoja válida en MLA)
-    let categoryId = categoryDefault && categoryDefault !== 'MLA5726'
-      ? categoryDefault : 'MLA109936';
-    try {
-      // Limpiar título para búsqueda: sin punto final, sin unidades de medida
-      const searchQ = title.trim().replace(/[.!?,]+$/, '').replace(/\s+\d+\s*(ml|gr|kg|g|l|cc)\.?\s*$/i, '').trim();
-      const d = await ml(`/sites/MLA/domain_discovery/search?q=${encodeURIComponent(searchQ)}&limit=1`);
-      if (Array.isArray(d) && d[0]?.category_id) categoryId = d[0].category_id;
-    } catch (_) {}
+    // Detectar categoría: usuario > domain_discovery > fallback genérico alimentario
+    let categoryId = categoryOverride?.trim() || '';
+    if (!categoryId) {
+      try {
+        const searchQ = title.trim().replace(/[.!?,]+$/, '').replace(/\s+\d+\s*(ml|gr|kg|g|l|cc)\.?\s*$/i, '').trim();
+        const d = await ml(`/sites/MLA/domain_discovery/search?q=${encodeURIComponent(searchQ)}&limit=1`);
+        if (Array.isArray(d) && d[0]?.category_id) categoryId = d[0].category_id;
+      } catch (_) {}
+    }
+    if (!categoryId) categoryId = 'MLA7793'; // Alimentos y Bebidas > Otros
 
     // ── 1b. Subir imagen desde Drive (4s timeout) ─────────
     let pictureId = null;
@@ -196,10 +198,11 @@ export default async function handler(req, res) {
       attempts.push(`[D-noST] ${detD}`);
       if (dD.id) item = dD;
     }
-    // E: fallback categoría + family_name
-    if (!item.id && categoryId !== 'MLA109936') {
-      categoryId = 'MLA109936';
+    // E: fallback a MLA7793 si la categoría detectada falla
+    if (!item.id && categoryId !== 'MLA7793') {
+      categoryId = 'MLA7793';
       baseBody.category_id = categoryId;
+      delete baseBody.attributes; // reset atributos específicos de categoría anterior
       item = await tryItem('E-fallback', { family_name: familyName });
     }
     // F: listing_type free (no requiere fotos — siempre disponible)
