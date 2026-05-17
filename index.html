@@ -994,11 +994,11 @@
         <div style="font-family:var(--font-head);font-weight:700;font-size:15px;">✏️ Revisión antes de publicar</div>
         <div style="font-size:11px;color:var(--muted);margin-top:2px;">Completá el <strong>Family Name</strong> de cada producto — descripción genérica que agrupa variantes (ej: "Soda Lima")</div>
       </div>
-      <button class="cfg-close" onclick="document.getElementById('pubReviewPanel').classList.remove('open')">✕</button>
+      <button class="cfg-close" onclick="pubCloseReview()">✕</button>
     </div>
     <div class="pub-review-body" id="pubReviewBody"></div>
     <div class="pub-review-footer">
-      <button class="pub-btn" onclick="document.getElementById('pubReviewPanel').classList.remove('open')">Cancelar</button>
+      <button class="pub-btn" onclick="pubCloseReview()">Cancelar</button>
       <button class="pub-btn-primary" onclick="pubPublishFromReview()">🚀 Publicar todos</button>
     </div>
   </div>
@@ -3444,11 +3444,20 @@ function pubPrepare() {
           </select>
         </div>
         <div class="pub-review-field">
-          <label>Garantía</label>
-          <select data-field="warranty" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:12px;color:var(--text);">
+          <label>Tipo de garantía</label>
+          <select data-field="warranty" onchange="pubOnWarrantyChange(this)" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:12px;color:var(--text);">
             <option value="Sin garantía" selected>Sin garantía</option>
             <option value="Garantía del vendedor">Garantía del vendedor</option>
             <option value="Garantía de fábrica">Garantía de fábrica</option>
+          </select>
+        </div>
+        <div class="pub-review-field" data-warranty-time style="display:none;">
+          <label>Tiempo de garantía</label>
+          <select data-field="warrantyTime" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:12px;color:var(--text);">
+            <option value="3 meses">3 meses</option>
+            <option value="6 meses">6 meses</option>
+            <option value="1 año" selected>1 año</option>
+            <option value="2 años">2 años</option>
           </select>
         </div>
         <div class="pub-review-field" style="grid-column:1/-1;">
@@ -3459,8 +3468,20 @@ function pubPrepare() {
     </div>`;
   }).join('');
   const panel = document.getElementById('pubReviewPanel');
-  panel.style.display = 'flex';
   panel.classList.add('open');
+  panel.style.display = 'flex';
+}
+
+function pubOnWarrantyChange(sel) {
+  const card = sel.closest('.pub-review-card');
+  const timeField = card.querySelector('[data-warranty-time]');
+  if (timeField) timeField.style.display = sel.value === 'Sin garantía' ? 'none' : 'flex';
+}
+
+function pubCloseReview() {
+  const panel = document.getElementById('pubReviewPanel');
+  panel.classList.remove('open');
+  panel.style.display = 'none';
 }
 
 async function pubPublishFromReview() {
@@ -3484,14 +3505,15 @@ async function pubPublishFromReview() {
       brand:       get('brand'),
       stock:       get('stock') || '3',
       condition:   get('condition') || 'not_specified',
-      warranty:    get('warranty') || 'Sin garantía',
+      warranty:     get('warranty') || 'Sin garantía',
+      warrantyTime: get('warrantyTime') || '',
       description: get('description')
     });
   });
 
   // family_name es opcional en el formulario — el backend lo maneja
 
-  document.getElementById('pubReviewPanel').classList.remove('open');
+  pubCloseReview();
   const skus = queue.map(q => q.sku);
 
   document.getElementById('pubProgressSection').style.display = 'block';
@@ -3523,7 +3545,8 @@ async function pubPublishFromReview() {
           brand:       item.brand,
           stock:       item.stock,
           condition:   item.condition,
-          warranty:    item.warranty,
+          warranty:     item.warranty,
+          warrantyTime: item.warrantyTime,
           description: item.description,
           listingType,
           categoryDefault,

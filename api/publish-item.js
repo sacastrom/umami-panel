@@ -40,7 +40,7 @@ export default async function handler(req, res) {
     const {
       sku, title, price, listingType, categoryDefault, sheetRow, sheetId,
       familyName: userFamilyName, brand, stock, condition: userCondition,
-      warranty, description: userDescription
+      warranty, warrantyTime, description: userDescription
     } = req.body || {};
     if (!title?.trim()) return res.status(400).json({ ok: false, error: 'Falta título' });
     if (!price)         return res.status(400).json({ ok: false, error: 'Falta precio' });
@@ -96,6 +96,10 @@ export default async function handler(req, res) {
 
     // ── 4. Crear publicación ──────────────────────────────
     const warrantyValue = warranty || 'Sin garantía';
+    const saleTerms = [{ id: 'WARRANTY_TYPE', value_name: warrantyValue }];
+    if (warrantyValue !== 'Sin garantía' && warrantyTime) {
+      saleTerms.push({ id: 'WARRANTY_TIME', value_name: warrantyTime });
+    }
     const attrs = [];
     if (brand) attrs.push({ id: 'BRAND', value_name: brand });
 
@@ -108,7 +112,7 @@ export default async function handler(req, res) {
       buying_mode:        'buy_it_now',
       listing_type_id:    listingType || 'gold_special',
       condition:          userCondition || 'not_specified',
-      sale_terms: [{ id: 'WARRANTY_TYPE', value_name: warrantyValue }],
+      sale_terms: saleTerms,
       ...(sku         ? { seller_custom_field: sku } : {}),
       ...(attrs.length ? { attributes: attrs }        : {})
     });
