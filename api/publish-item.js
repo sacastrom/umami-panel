@@ -102,8 +102,15 @@ export default async function handler(req, res) {
     const attrs = [];
     if (brand) attrs.push({ id: 'BRAND', value_name: brand });
 
+    // ML rechaza títulos en ALL CAPS — convertir a Title Case y limpiar puntuación final
+    const mlTitle = title.trim()
+      .replace(/[.!?,;:]+$/, '')
+      .toLowerCase()
+      .replace(/\b\w/g, c => c.toUpperCase())
+      .slice(0, 60);
+
     const baseBody = {
-      title:              title.trim().slice(0, 60),
+      title:              mlTitle,
       price:              Number(price),
       category_id:        categoryId,
       currency_id:        'ARS',
@@ -120,7 +127,7 @@ export default async function handler(req, res) {
     const tryItem = async (label, extra) => {
       const body = { ...baseBody, ...extra };
       const d = await ml('/items', body);
-      const detail = d.id ? 'OK' : `${d.message || 'error'} cause=${JSON.stringify(d.cause)}`;
+      const detail = d.id ? 'OK' : `${d.message || 'error'} | ${d.error || ''} cause=${JSON.stringify(d.cause)}`;
       attempts.push(`[${label}] ${detail}`);
       return d;
     };
