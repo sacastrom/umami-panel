@@ -3409,7 +3409,7 @@ function pubPrepare() {
     const p = pubProductos.find(x => x.sku === sku);
     if (!p) return '';
     const autoFam = pubAutoFamily(p.title);
-    const autoDesc = `${p.title}.\n\nProducto importado. Excelente calidad y relación precio-producto.\n\nConsultas por chat.`;
+    const autoDesc = `${p.title}.\n\nProducto importado de Asia Oriental. Excelente calidad y relación precio-producto.`;
     return `<div class="pub-review-card" data-sku="${sku}" data-idx="${idx}">
       <div class="pub-review-card-title">
         <span class="sku-code">${sku}</span>
@@ -3448,25 +3448,26 @@ function pubPrepare() {
         <div class="pub-review-field">
           <label>Condición</label>
           <select data-field="condition" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:12px;color:var(--text);">
-            <option value="not_specified" selected>No especificada (alimentos)</option>
-            <option value="new">Nuevo</option>
+            <option value="not_specified">No especificada (alimentos)</option>
+            <option value="new" selected>Nuevo</option>
             <option value="used">Usado</option>
           </select>
         </div>
         <div class="pub-review-field">
           <label>Tipo de garantía</label>
           <select data-field="warranty" onchange="pubOnWarrantyChange(this)" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:12px;color:var(--text);">
-            <option value="Sin garantía" selected>Sin garantía</option>
-            <option value="Garantía del vendedor">Garantía del vendedor</option>
+            <option value="Sin garantía">Sin garantía</option>
+            <option value="Garantía del vendedor" selected>Garantía del vendedor</option>
             <option value="Garantía de fábrica">Garantía de fábrica</option>
           </select>
         </div>
         <div class="pub-review-field" data-warranty-time style="display:none;">
           <label>Tiempo de garantía</label>
           <select data-field="warrantyTime" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:12px;color:var(--text);">
+            <option value="1 mes" selected>1 mes</option>
             <option value="3 meses">3 meses</option>
             <option value="6 meses">6 meses</option>
-            <option value="1 año" selected>1 año</option>
+            <option value="1 año">1 año</option>
             <option value="2 años">2 años</option>
           </select>
         </div>

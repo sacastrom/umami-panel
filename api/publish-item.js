@@ -228,8 +228,8 @@ export default async function handler(req, res) {
 
     // ── 5. Descripción ────────────────────────────────────
     try {
-      const descText = userDescription?.trim()
-        || `${title}.\n\nProducto importado de Asia Oriental. Excelente calidad.\n\nConsultas por chat.`;
+      const umamiBio = `\n\n¡Bienvenidos a UMAMI!\n\nOfrecemos una amplia variedad de golosinas, snacks, bebidas, productos para sushi, salsas, etc. todos ellos importados directamente desde países asiáticos como Japón, Corea, Tailandia y China.\n\nDescubre sabores únicos y auténticos que no encontrarás en ningún otro lugar, desde dulces tradicionales hasta bebidas refrescantes y deliciosos snacks salados que te sorprenderán. Todos nuestros productos son de alta calidad y están hechos con ingredientes auténticos.\n\n¡No esperes más para probarlos!\n\nHaz tu pedido ahora y disfruta de la experiencia de los auténticos productos asiáticos en la comodidad de tu hogar.\n\n¡Gracias por visitarnos!`;
+      const descText = (userDescription?.trim() || `${title}.`) + umamiBio;
       await ml(`/items/${mla}/description`, { plain_text: descText });
     } catch (_) {}
 
