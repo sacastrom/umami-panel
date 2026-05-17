@@ -120,11 +120,14 @@ export default async function handler(req, res) {
     }
 
     // ── 3. family_name (usuario o auto-generado del título) ─
+    // family_name = título completo en Title Case (ML lo usa como título publicado)
+    // El usuario puede editarlo en el formulario antes de publicar
     const familyName = (userFamilyName || '').trim()
       || title.trim()
-           .replace(/\s+\d+\s*(ml|gr|kg|g|l|cc|un|und)\.?\s*$/i, '').trim()
-           .toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).slice(0, 60)
-      || title.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).slice(0, 30);
+           .replace(/[.!?,;:]+$/, '')  // solo saca puntuación final, no el tamaño
+           .toLowerCase()
+           .replace(/\b\w/g, c => c.toUpperCase())
+           .slice(0, 60);
 
     // ── 4. Crear publicación ──────────────────────────────
     const warrantyValue = warranty || 'Sin garantía';

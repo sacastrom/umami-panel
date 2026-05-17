@@ -3392,10 +3392,12 @@ function pubSelectAll(checked) {
 }
 
 function pubAutoFamily(title) {
+  // Título completo en Title Case — ML lo usa como título publicado
   return title.trim()
-    .replace(/\s+\d+\s*(ml|gr|kg|g|l|cc|un|und)\.?\s*$/i, '').trim()
-    .toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).slice(0, 60)
-    || title.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).slice(0, 30);
+    .replace(/[.!?,;:]+$/, '')
+    .toLowerCase()
+    .replace(/\b\w/g, c => c.toUpperCase())
+    .slice(0, 60);
 }
 
 function pubPrepare() {
