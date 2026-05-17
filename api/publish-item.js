@@ -89,9 +89,14 @@ export default async function handler(req, res) {
   } catch (_) {}
 
   // ── Paso 3: Crear publicación ──────────────────────────
+  // family_name es obligatorio en el nuevo esquema ML AR (campo top-level, no atributo)
+  // Debe ser un texto genérico que agrupe variantes — usamos el título base
+  const familyName = title.trim().replace(/\s+\d+\s*(ml|gr|kg|g|l|cc|un|und)\.?\s*$/i, '').trim().slice(0, 60) || title.trim().slice(0, 60);
+
   const buildBody = (extraAttrs = []) => {
     const base = {
       title: title.trim().slice(0, 60),
+      family_name: familyName,
       price: Number(price),
       category_id: categoryId,
       currency_id: 'ARS',
