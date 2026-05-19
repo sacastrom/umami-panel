@@ -3400,20 +3400,60 @@ function pubAutoFamily(title) {
     .slice(0, 60);
 }
 
-function pubPrepare() {
+async function pubPrepare() {
   const checks = Array.from(document.querySelectorAll('.pub-chk:checked'));
   if (!checks.length) { showToast('Seleccioná al menos un producto', 'error'); return; }
   const skus = checks.map(cb => cb.dataset.sku);
+
+  // Detectar categoría y atributos requeridos para cada producto
+  const catData = {};
+  await Promise.all(skus.map(async sku => {
+    const p = pubProductos.find(x => x.sku === sku);
+    if (!p) return;
+    try {
+      const q = p.title.replace(/[.!?,;:]+$/, '').replace(/\s+\d+\s*(ml|gr|kg|g|l|cc)\.?\s*$/i, '').trim();
+      const disc = await fetch(`/api/ml?path=${encodeURIComponent('/sites/MLA/domain_discovery/search?q=' + encodeURIComponent(q) + '&limit=1')}`,
+        { headers: { Authorization: 'Bearer ' + accessToken } }).then(r => r.json());
+      const catId = Array.isArray(disc) && disc[0]?.category_id ? disc[0].category_id : null;
+      if (catId) {
+        const attrs = await fetch(`/api/ml?path=${encodeURIComponent('/categories/' + catId + '/attributes')}`,
+          { headers: { Authorization: 'Bearer ' + accessToken } }).then(r => r.json());
+        const required = (Array.isArray(attrs) ? attrs : [])
+          .filter(a => a.tags?.required || a.tags?.catalog_required)
+          .filter(a => !['GTIN','BRAND','seller_package_height','seller_package_width','seller_package_length','seller_package_weight','VALUE_ADDED_TAX','IMPORT_DUTY'].includes(a.id));
+        catData[sku] = { catId, required };
+      }
+    } catch(_) {}
+  }));
+
   const body = document.getElementById('pubReviewBody');
   body.innerHTML = skus.map((sku, idx) => {
     const p = pubProductos.find(x => x.sku === sku);
     if (!p) return '';
     const autoFam = pubAutoFamily(p.title);
     const autoDesc = `${p.title}.\n\nProducto importado. Excelente calidad y relación precio-producto.`;
+    const { catId = '', required = [] } = catData[sku] || {};
+    const reqAttrsHtml = required.length ? `
+      <div class="pub-review-field" style="grid-column:1/-1;">
+        <label style="color:var(--orange);">⚠️ Atributos requeridos por ML para esta categoría</label>
+        ${required.map(a => `
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+            <span style="font-size:11px;color:var(--muted);min-width:160px;">${a.name}</span>
+            ${a.values?.length
+              ? `<select data-catattr="${a.id}" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 8px;font-family:var(--font-mono);font-size:12px;color:var(--text);">
+                  <option value="">— elegir —</option>
+                  ${a.values.map(v => `<option value="${v.name}">${v.name}</option>`).join('')}
+                </select>`
+              : `<input type="text" data-catattr="${a.id}" placeholder="${a.name}" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 8px;font-family:var(--font-mono);font-size:12px;color:var(--text);">`
+            }
+          </div>`).join('')}
+      </div>` : '';
+    const detectedCatHtml = catId ? `<span style="font-size:10px;color:var(--accent);background:var(--accent-light);padding:2px 7px;border-radius:8px;margin-left:6px;">${catId}</span>` : '';
     return `<div class="pub-review-card" data-sku="${sku}" data-idx="${idx}">
       <div class="pub-review-card-title">
         <span class="sku-code">${sku}</span>
         <span style="color:var(--muted);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.title}</span>
+        ${detectedCatHtml}
         <span style="margin-left:auto;font-size:10px;background:var(--accent-light);color:var(--accent);padding:2px 6px;border-radius:8px;flex-shrink:0;">${p.gondola || '—'}</span>
       </div>
       <div class="pub-review-grid">
@@ -3492,6 +3532,7 @@ function pubPrepare() {
           <label>Arancel importación (IMPORT_DUTY)</label>
           <input type="text" data-field="importDuty" value="0%" placeholder="0%">
         </div>
+        ${reqAttrsHtml}
         <div class="pub-review-field" style="grid-column:1/-1;">
           <label>Descripción</label>
           <textarea data-field="description" rows="3" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:11px;color:var(--text);width:100%;resize:vertical;">${autoDesc}</textarea>
@@ -3567,7 +3608,10 @@ async function pubPublishFromReview() {
       condition:   get('condition') || 'not_specified',
       warranty:     get('warranty') || 'Sin garantía',
       warrantyTime: get('warrantyTime') || '',
-      categoryOverride: get('categoryOverride') || '',
+      categoryOverride: get('categoryOverride') || (catData[sku]?.catId || ''),
+      extraAttrs: Array.from(card.querySelectorAll('[data-catattr]'))
+        .map(el => ({ id: el.dataset.catattr, value_name: el.value.trim() }))
+        .filter(a => a.value_name),
       pkgHeight:    get('pkgHeight')   || '12',
       pkgWidth:     get('pkgWidth')    || '6',
       pkgLength:    get('pkgLength')   || '6',
@@ -3625,6 +3669,7 @@ async function pubPublishFromReview() {
           categoryDefault,
           fileId:          pubDriveMap[p.sku.toUpperCase()] || null,
           categoryOverride: item.categoryOverride || '',
+          extraAttrs:       item.extraAttrs || [],
           sheetRow:    p.rowNum,
           sheetId:     SHEET_ID
         })

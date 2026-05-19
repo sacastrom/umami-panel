@@ -42,7 +42,7 @@ export default async function handler(req, res) {
       familyName: userFamilyName, brand, stock, condition: userCondition,
       warranty, warrantyTime, description: userDescription,
       pkgHeight, pkgWidth, pkgLength, pkgWeight, vat, importDuty,
-      categoryOverride
+      categoryOverride, extraAttrs
     } = req.body || {};
     if (!title?.trim()) return res.status(400).json({ ok: false, error: 'Falta título' });
     if (!price)         return res.status(400).json({ ok: false, error: 'Falta precio' });
@@ -148,6 +148,8 @@ export default async function handler(req, res) {
     if (pkgWidth)    attrs.push({ id: 'seller_package_width',  value_name: `${pkgWidth} cm`,  value_struct: { number: Number(pkgWidth),  unit: 'cm' } });
     if (pkgLength)   attrs.push({ id: 'seller_package_length', value_name: `${pkgLength} cm`, value_struct: { number: Number(pkgLength), unit: 'cm' } });
     if (pkgWeight)   attrs.push({ id: 'seller_package_weight', value_name: `${pkgWeight} g`,  value_struct: { number: Number(pkgWeight), unit: 'g'  } });
+    // Atributos específicos de categoría completados por el usuario en el formulario
+    if (Array.isArray(extraAttrs)) extraAttrs.forEach(a => { if (a.id && a.value_name) attrs.push(a); });
 
     // ML rechaza títulos en ALL CAPS — convertir a Title Case y limpiar puntuación final
     const mlTitle = title.trim()
