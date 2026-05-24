@@ -1,6 +1,6 @@
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
@@ -41,15 +41,16 @@ export default async function handler(req, res) {
   const url = `https://api.tiendanube.com/v1/${storeId}${tnPath}`;
 
   try {
+    const method = ['POST','PUT','DELETE','GET'].includes(req.method) ? req.method : 'GET';
     const opts = {
-      method: req.method === 'PUT' ? 'PUT' : 'GET',
+      method,
       headers: {
         'Authentication': `bearer ${token}`,
         'User-Agent': 'Umami Panel (umamishopba@gmail.com)',
         'Content-Type': 'application/json'
       }
     };
-    if (req.method === 'PUT' && req.body) {
+    if ((method === 'POST' || method === 'PUT') && req.body) {
       opts.body = JSON.stringify(req.body);
     }
     const r = await fetch(url, opts);

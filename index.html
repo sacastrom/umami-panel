@@ -480,8 +480,8 @@
   .pub-progress-bar-wrap{height:7px;background:var(--surface2);border-radius:4px;overflow:hidden;border:1px solid var(--border);}
   .pub-progress-bar{height:100%;background:var(--accent);width:0%;transition:width .3s;}
   /* Panel de revisión pre-publicación */
-  #pubReviewPanel{display:none;position:fixed;inset:0;background:rgba(26,27,46,.5);z-index:350;backdrop-filter:blur(5px);align-items:flex-start;justify-content:center;padding:20px;}
-  #pubReviewPanel.open{display:flex;}
+  #pubReviewPanel,#pubtnReviewPanel{display:none;position:fixed;inset:0;background:rgba(26,27,46,.5);z-index:350;backdrop-filter:blur(5px);align-items:flex-start;justify-content:center;padding:20px;}
+  #pubReviewPanel.open,#pubtnReviewPanel.open{display:flex;}
   .pub-review-drawer{background:var(--surface);border:1px solid var(--border);border-radius:18px;width:100%;max-width:720px;max-height:calc(100vh - 40px);display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-md);}
   .pub-review-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0;}
   .pub-review-body{overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:14px;}
@@ -623,6 +623,7 @@
     <button class="main-tab" id="tabFlex" onclick="switchTab('flex')">🗺️ Flex</button>
     <button class="main-tab" id="tabInventario" onclick="switchTab('inventario')">📦 Inventario</button>
     <button class="main-tab" id="tabPublicar" onclick="switchTab('publicar')">🚀 Publicar</button>
+    <button class="main-tab" id="tabPublicarTN" onclick="switchTab('publicartn')">📤 Publicar TN</button>
     <button class="main-tab-cfg" onclick="openConfig()" title="Configuración">⚙️</button>
   </div>
 
@@ -983,6 +984,83 @@
       <div id="pubProgressBar" class="pub-progress-bar"></div>
     </div>
     <div id="pubLog" class="pub-log"></div>
+  </div>
+</div>
+
+<!-- ── PUBLICAR TIENDA NUBE ── -->
+<div id="publicartnContent" style="display:none;">
+  <!-- Header -->
+  <div style="padding:14px 20px 10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--border);">
+    <div>
+      <div style="font-family:var(--font-head);font-size:15px;font-weight:700;color:var(--text);">📤 Sin publicar en Tienda Nube</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px;">Productos con MLA en la Sheet que aún no existen en TN (matcheado por SKU)</div>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <select id="pubtnGondolaFilter" class="pub-select" onchange="pubtnSelectedGondola=this.value;pubtnRenderTable()">
+        <option value="">Todas las góndolas</option>
+      </select>
+      <input id="pubtnSearchInput" class="pub-search" type="text" placeholder="Buscar SKU o título…" oninput="pubtnSearchText=this.value;pubtnRenderTable()" style="width:180px;">
+      <button class="pub-btn" onclick="pubtnReload()" title="Recargar">↺ Recargar</button>
+    </div>
+  </div>
+  <!-- Controls -->
+  <div class="pub-controls">
+    <div style="font-size:11px;color:var(--muted);">Las categorías de tu tienda se eligen por producto en el panel de revisión.</div>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+      <button class="pub-btn" onclick="pubtnSelectAll(true)">☑ Todo</button>
+      <button class="pub-btn" onclick="pubtnSelectAll(false)">☐ Ninguno</button>
+      <button id="pubtnBtnPublish" class="pub-btn-primary" onclick="pubtnPrepare()" disabled>
+        ✏️ Preparar seleccionados (<span id="pubtnCount">0</span>)
+      </button>
+    </div>
+  </div>
+  <!-- Table -->
+  <div style="overflow-x:auto;">
+    <table class="pub-tbl">
+      <thead>
+        <tr>
+          <th style="width:32px;"><input type="checkbox" id="pubtnChkAll" onchange="pubtnSelectAll(this.checked)"></th>
+          <th style="width:28px;" title="Imagen en Drive">📷</th>
+          <th>SKU</th>
+          <th>Título</th>
+          <th>Precio TN sugerido</th>
+          <th>Stock ML</th>
+          <th>Góndola</th>
+        </tr>
+      </thead>
+      <tbody id="pubtnTbody">
+        <tr><td colspan="7" style="text-align:center;padding:28px;color:var(--muted2);">Conectá Tienda Nube y hacé click en el tab para cargar</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <!-- Progress -->
+  <div id="pubtnProgressSection" style="display:none;padding:14px 20px 20px;">
+    <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+      <span style="font-size:12px;font-weight:600;color:var(--text);">Publicando en TN…</span>
+      <span id="pubtnProgressText" style="font-size:12px;color:var(--muted);">0 / 0</span>
+    </div>
+    <div class="pub-progress-bar-wrap">
+      <div id="pubtnProgressBar" class="pub-progress-bar"></div>
+    </div>
+    <div id="pubtnLog" class="pub-log"></div>
+  </div>
+</div>
+
+<!-- ── PANEL REVISIÓN PRE-PUBLICACIÓN TN ── -->
+<div id="pubtnReviewPanel">
+  <div class="pub-review-drawer">
+    <div class="pub-review-header">
+      <div>
+        <div style="font-family:var(--font-head);font-weight:700;font-size:15px;">✏️ Revisión antes de publicar en TN</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Revisá título, precio, categoría y descripción antes de crear cada producto.</div>
+      </div>
+      <button class="cfg-close" onclick="pubtnCloseReview()">✕</button>
+    </div>
+    <div class="pub-review-body" id="pubtnReviewBody"></div>
+    <div class="pub-review-footer">
+      <button class="pub-btn" onclick="pubtnCloseReview()">Cancelar</button>
+      <button class="pub-btn-primary" onclick="pubtnPublishFromReview()">📤 Publicar todos en TN</button>
+    </div>
   </div>
 </div>
 
@@ -2034,17 +2112,20 @@ function switchTab(tab) {
   document.getElementById('tabFlex').classList.toggle('active', tab === 'flex');
   document.getElementById('tabInventario').classList.toggle('active', tab === 'inventario');
   document.getElementById('tabPublicar').classList.toggle('active', tab === 'publicar');
+  document.getElementById('tabPublicarTN').classList.toggle('active', tab === 'publicartn');
   document.getElementById('panelContent').style.display = tab === 'publicaciones' ? 'block' : 'none';
   document.getElementById('metricasContent').style.display = tab === 'metricas' ? 'block' : 'none';
   document.getElementById('flexContent').style.display = tab === 'flex' ? 'block' : 'none';
   document.getElementById('inventarioContent').style.display = tab === 'inventario' ? 'block' : 'none';
   document.getElementById('publicarContent').style.display = tab === 'publicar' ? 'block' : 'none';
+  document.getElementById('publicartnContent').style.display = tab === 'publicartn' ? 'block' : 'none';
   if (tab === 'metricas' && !metLoaded) document.getElementById('metEmpty').style.display = 'block';
   if (tab === 'flex') {
     setTimeout(() => { initFlexMap(); if (!flexLoaded) loadFlex(false); else if (flexMap) flexMap.invalidateSize(); }, 100);
   }
   if (tab === 'inventario') invInit();
   if (tab === 'publicar') pubInit();
+  if (tab === 'publicartn') pubtnInit();
 }
 
 // ── MÉTRICAS ──────────────────────────────────────────
@@ -3771,6 +3852,344 @@ function pubProgressUpdate(current, total) {
 
 function pubLogAdd(html) {
   const log = document.getElementById('pubLog');
+  const d = document.createElement('div');
+  d.className = 'pub-log-entry';
+  d.innerHTML = html;
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+}
+
+// ── PUBLICAR TIENDA NUBE ─────────────────────────────
+let pubtnProductos    = [];   // { rowNum, sku, title, price, gondola, mla, fileId, thumbnail }
+let pubtnCategories   = [];   // { id, name }
+let pubtnLoaded       = false;
+let pubtnSelectedGondola = '';
+let pubtnSearchText      = '';
+
+async function pubtnInit() {
+  if (pubtnLoaded) return;
+  if (!tnToken || !tnStoreId) {
+    document.getElementById('pubtnTbody').innerHTML =
+      `<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--orange);">⚠️ Conectá Tienda Nube primero (botón en el header)</td></tr>`;
+    return;
+  }
+  pubtnLoaded = true;
+  pubtnSetLoading(true);
+  await Promise.all([pubtnLoadProducts(), pubLoadDrive(), pubtnLoadCategories()]);
+  pubtnRenderTable();
+}
+
+async function pubtnReload() {
+  pubtnLoaded = false;
+  pubtnProductos = [];
+  pubtnCategories = [];
+  pubDriveLoaded = false; pubDriveMap = {};
+  document.getElementById('pubtnSearchInput').value = '';
+  pubtnSearchText = ''; pubtnSelectedGondola = '';
+  document.getElementById('pubtnGondolaFilter').value = '';
+  await pubtnInit();
+}
+
+async function pubtnLoadProducts() {
+  // Leer Sheet directamente para obtener rowNum y filtrar por SKU no presente en TN
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+    const text = await (await fetch(url)).text();
+    const json = JSON.parse(text.replace(/^[^(]+\(/, '').replace(/\);?$/, ''));
+    pubtnProductos = json.table.rows.map((row, idx) => {
+      const c = row.c;
+      const get = (i) => c[i]?.v ?? '';
+      const mla = String(get(0)).trim();
+      const sku = String(get(1)).trim();
+      const title = String(get(2)).trim();
+      // Sólo los que tienen MLA y NO están en TN
+      if (!mla.startsWith('MLA')) return null;
+      if (!sku) return null;
+      if (tnBySku[sku]) return null; // ya está en TN
+      const precioTnSheet = typeof get(4) === 'number' ? get(4) : 0;
+      const precioMl      = typeof get(9) === 'number' ? get(9) : 0;
+      // Tomar thumbnail desde el array products si está cargado
+      const prod = products.find(p => p.mla === mla);
+      return {
+        rowNum: idx + 2,
+        sku, title, mla,
+        price:   precioTnSheet > 0 ? precioTnSheet : (prod?.precio_ml_real || precioMl || 0),
+        stock:   prod?.stock ?? 3,
+        gondola: String(get(13) || '').trim().toUpperCase(),
+        thumbnail: prod?.thumbnail || ''
+      };
+    }).filter(Boolean);
+  } catch (e) { console.warn('pubtnLoadProducts:', e.message); }
+}
+
+async function pubtnLoadCategories() {
+  try {
+    pubtnCategories = [];
+    let page = 1;
+    while (true) {
+      const items = await tnFetch(`/categories?per_page=200&page=${page}&fields=id,name,parent`);
+      if (!Array.isArray(items) || !items.length) break;
+      items.forEach(c => {
+        const name = c.name?.es || c.name?.pt || Object.values(c.name || {})[0] || `Cat ${c.id}`;
+        pubtnCategories.push({ id: c.id, name, parent: c.parent || null });
+      });
+      if (items.length < 200) break;
+      page++;
+    }
+    pubtnCategories.sort((a, b) => a.name.localeCompare(b.name));
+  } catch (e) { console.warn('pubtnLoadCategories:', e.message); }
+}
+
+function pubtnSetLoading(on) {
+  if (on) {
+    document.getElementById('pubtnTbody').innerHTML =
+      `<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--muted);">
+        <div class="loader" style="display:inline-block;margin-right:8px;"></div>Cargando…
+      </td></tr>`;
+  }
+}
+
+function pubtnFiltered() {
+  return pubtnProductos.filter(p => {
+    if (pubtnSelectedGondola && p.gondola !== pubtnSelectedGondola) return false;
+    const q = pubtnSearchText.toLowerCase();
+    if (q && !p.sku.toLowerCase().includes(q) && !p.title.toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function pubtnRenderTable() {
+  const list  = pubtnFiltered();
+  const tbody = document.getElementById('pubtnTbody');
+  document.getElementById('pubtnChkAll').checked = false;
+  pubtnUpdateCount();
+
+  const gondolas = [...new Set(pubtnProductos.map(p => p.gondola).filter(Boolean))].sort();
+  const sel = document.getElementById('pubtnGondolaFilter');
+  const cur = sel.value;
+  sel.innerHTML = `<option value="">Todas las góndolas</option>` +
+    gondolas.map(g => `<option value="${g}" ${g === cur ? 'selected' : ''}>${g}</option>`).join('');
+
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--muted2);">
+      ${pubtnProductos.length ? 'Sin resultados para el filtro actual' : '✅ Todos los productos con MLA ya están en TN'}
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map(p => {
+    const hasImg = !!pubDriveMap[p.sku.toUpperCase()];
+    return `<tr id="pubtn-row-${CSS.escape(p.sku)}">
+      <td><input type="checkbox" class="pubtn-chk" data-sku="${p.sku}" onchange="pubtnUpdateCount()"></td>
+      <td style="text-align:center;" title="${hasImg ? 'Imagen disponible en Drive' : 'Sin imagen en Drive'}">${hasImg ? '🖼️' : '<span style="color:var(--muted2)">—</span>'}</td>
+      <td class="sku-code">${p.sku || '—'}</td>
+      <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.title}">${p.title || '<span style="color:var(--muted2)">sin título</span>'}</td>
+      <td style="color:var(--accent);font-weight:600;">${p.price ? fmt(p.price) : '<span style="color:var(--muted2)">—</span>'}</td>
+      <td style="text-align:center;color:var(--muted);">${p.stock}</td>
+      <td><span style="font-size:10px;background:var(--accent-light);color:var(--accent);padding:2px 6px;border-radius:8px;">${p.gondola || '—'}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function pubtnUpdateCount() {
+  const n = document.querySelectorAll('.pubtn-chk:checked').length;
+  document.getElementById('pubtnCount').textContent = n;
+  document.getElementById('pubtnBtnPublish').disabled = n === 0;
+}
+
+function pubtnSelectAll(checked) {
+  document.querySelectorAll('.pubtn-chk').forEach(cb => { cb.checked = checked; });
+  if (document.getElementById('pubtnChkAll')) document.getElementById('pubtnChkAll').checked = checked;
+  pubtnUpdateCount();
+}
+
+function pubtnAutoDesc(title) {
+  return `${title}.\n\nProducto importado de Asia. Calidad premium y sabor auténtico.\n\nUMAMI — sabores únicos de Japón, Corea, Tailandia y China.`;
+}
+
+function pubtnPrepare() {
+  const checks = Array.from(document.querySelectorAll('.pubtn-chk:checked'));
+  if (!checks.length) { showToast('Seleccioná al menos un producto', 'error'); return; }
+  const skus = checks.map(cb => cb.dataset.sku);
+
+  const catOptions = `<option value="">— sin categoría —</option>` +
+    pubtnCategories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+
+  const body = document.getElementById('pubtnReviewBody');
+  body.innerHTML = skus.map(sku => {
+    const p = pubtnProductos.find(x => x.sku === sku);
+    if (!p) return '';
+    const autoDesc = pubtnAutoDesc(p.title);
+    return `<div class="pub-review-card" data-sku="${sku}">
+      <div class="pub-review-card-title">
+        <span class="sku-code">${sku}</span>
+        <span style="color:var(--muted);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.title}</span>
+        <span style="margin-left:auto;font-size:10px;background:var(--accent-light);color:var(--accent);padding:2px 6px;border-radius:8px;flex-shrink:0;">${p.gondola || '—'}</span>
+      </div>
+      <div class="pub-review-grid">
+        <div class="pub-review-field" style="grid-column:1/-1;">
+          <label>Nombre del producto en TN <span style="color:var(--muted)">(máx 100 caracteres)</span></label>
+          <input type="text" data-field="title" maxlength="100" value="${p.title.replace(/"/g, '&quot;').slice(0, 100)}">
+        </div>
+        <div class="pub-review-field">
+          <label>Precio ($ARS)</label>
+          <input type="number" data-field="price" step="0.01" value="${p.price}">
+        </div>
+        <div class="pub-review-field">
+          <label>Stock</label>
+          <input type="number" data-field="stock" value="${p.stock}" min="0">
+        </div>
+        <div class="pub-review-field">
+          <label>Marca / Brand</label>
+          <input type="text" data-field="brand" placeholder="Ej: Glico, OKF, Lotte…">
+        </div>
+        <div class="pub-review-field">
+          <label>Peso (kg)</label>
+          <input type="number" data-field="weight" step="0.01" value="0.4" min="0">
+        </div>
+        <div class="pub-review-field" style="grid-column:1/-1;">
+          <label>Categoría en Tienda Nube</label>
+          <select data-field="categoryId" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:12px;color:var(--text);">
+            ${catOptions}
+          </select>
+        </div>
+        <div class="pub-review-field" style="grid-column:1/-1;">
+          <label>Descripción</label>
+          <textarea data-field="description" rows="4" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:11px;color:var(--text);width:100%;resize:vertical;">${autoDesc}</textarea>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const panel = document.getElementById('pubtnReviewPanel');
+  panel.classList.add('open');
+  panel.style.display = 'flex';
+}
+
+function pubtnCloseReview() {
+  const panel = document.getElementById('pubtnReviewPanel');
+  panel.classList.remove('open');
+  panel.style.display = 'none';
+}
+
+async function pubtnPublishFromReview() {
+  if (!tnToken || !tnStoreId) { showToast('⚠️ Conectá Tienda Nube primero', 'error'); return; }
+
+  const cards = document.querySelectorAll('#pubtnReviewBody .pub-review-card');
+  const queue = [];
+  cards.forEach(card => {
+    const sku = card.dataset.sku;
+    const get = (field) => {
+      const el = card.querySelector(`[data-field="${field}"]`);
+      return el ? el.value.trim() : '';
+    };
+    queue.push({
+      sku,
+      title:       get('title'),
+      price:       get('price'),
+      stock:       get('stock') || '3',
+      brand:       get('brand'),
+      weight:      get('weight') || '0.4',
+      categoryId:  get('categoryId'),
+      description: get('description')
+    });
+  });
+
+  pubtnCloseReview();
+  const skus = queue.map(q => q.sku);
+
+  document.getElementById('pubtnProgressSection').style.display = 'block';
+  document.getElementById('pubtnLog').innerHTML = '';
+  document.getElementById('pubtnBtnPublish').disabled = true;
+  document.getElementById('pubtnProgressBar').style.width = '0%';
+
+  let done = 0, errors = 0;
+  pubtnProgressUpdate(0, skus.length);
+
+  for (const item of queue) {
+    const { sku, title: itemTitle } = item;
+    const p = pubtnProductos.find(x => x.sku === sku);
+    if (!p) continue;
+
+    pubtnLogAdd(`⏳ <strong>${sku}</strong> — ${itemTitle.slice(0, 50)}…`);
+    const rowEl = document.getElementById(`pubtn-row-${CSS.escape(sku)}`);
+    if (rowEl) rowEl.style.opacity = '0.4';
+
+    try {
+      const res = await fetch('/api/publish-tn-item', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${tnToken}`,
+          'X-Store-Id': tnStoreId
+        },
+        body: JSON.stringify({
+          sku,
+          title:       item.title,
+          description: item.description,
+          price:       item.price,
+          stock:       item.stock,
+          brand:       item.brand,
+          weight:      item.weight,
+          categoryId:  item.categoryId,
+          fileId:      pubDriveMap[sku.toUpperCase()] || null
+        })
+      });
+      const rawText = await res.text();
+      let data;
+      try { data = JSON.parse(rawText); }
+      catch (_) { data = { ok: false, error: 'Server error: ' + rawText.slice(0, 120) }; }
+
+      if (data.ok) {
+        done++;
+        const tnUrl = `https://${tnStoreId ? 'umamishopba.mitiendanube.com' : ''}/admin/products/${data.productId}`;
+        pubtnLogAdd(`✅ <strong>${sku}</strong> → <a href="${tnUrl}" target="_blank" style="color:var(--accent)">producto ${data.productId}</a>${data.imageId ? ' 🖼️' : ''}${data.imageWarn ? ` ⚠️ ${data.imageWarn}` : ''}`);
+        if (rowEl) rowEl.classList.add('pub-done');
+        const idx = pubtnProductos.findIndex(x => x.sku === sku);
+        if (idx !== -1) pubtnProductos.splice(idx, 1);
+        // Sincronizar al cache local para que el resto del panel sepa que ya está en TN
+        tnBySku[sku] = {
+          product_id: data.productId,
+          variant_id: data.variantId,
+          sku,
+          precio_tn: parseFloat(item.price) || 0,
+          stock_tn:  parseInt(item.stock) || 0
+        };
+        const prod = products.find(x => x.sku === sku);
+        if (prod) {
+          prod.tn_product_id = data.productId;
+          prod.tn_variant_id = data.variantId;
+          prod.precio_tn     = parseFloat(item.price) || 0;
+          prod.stock_tn      = parseInt(item.stock) || 0;
+        }
+      } else {
+        errors++;
+        pubtnLogAdd(`❌ <strong>${sku}</strong> — ${data.error || 'error desconocido'}`);
+        if (rowEl) rowEl.style.opacity = '1';
+      }
+    } catch (e) {
+      errors++;
+      pubtnLogAdd(`❌ <strong>${sku}</strong> — ${e.message}`);
+      if (rowEl) rowEl.style.opacity = '1';
+    }
+
+    pubtnProgressUpdate(done + errors, skus.length);
+    await new Promise(r => setTimeout(r, 450)); // rate limit TN
+  }
+
+  pubtnLogAdd(`<strong>Resumen: ${done} publicado${done !== 1 ? 's' : ''}, ${errors} error${errors !== 1 ? 'es' : ''}</strong>`);
+  document.getElementById('pubtnBtnPublish').disabled = false;
+  pubtnRenderTable();
+}
+
+function pubtnProgressUpdate(current, total) {
+  const pct = total ? Math.round(current / total * 100) : 0;
+  document.getElementById('pubtnProgressBar').style.width = `${pct}%`;
+  document.getElementById('pubtnProgressText').textContent = `${current} / ${total}`;
+}
+
+function pubtnLogAdd(html) {
+  const log = document.getElementById('pubtnLog');
   const d = document.createElement('div');
   d.className = 'pub-log-entry';
   d.innerHTML = html;
