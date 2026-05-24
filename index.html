@@ -2537,12 +2537,69 @@ function invRenderScanned() {
         <div class="inv-item-name" title="${p.name}">${p.name}</div>
         <div class="inv-item-meta">
           <span class="inv-sku">${p.sku}</span>
-          <span class="inv-precio ok">Asia: ${fmt(p.precio_asia)}</span>
+          <span class="inv-precio ok">Asia:
+            <span class="asia-val" id="inv-v-asia-${p.id}" onclick="invStartAsiaEdit(${p.id})" title="✏️ Editar precio Asia">${fmt(p.precio_asia)}</span>
+            <input class="cell-input ci-asia" type="number" step="0.01" id="inv-i-asia-${p.id}"
+              onblur="invSaveAsia(${p.id})" onkeydown="invHkAsia(event,${p.id})"
+              style="display:none;width:80px;">
+            <span class="spin-cell" id="inv-sp-asia-${p.id}"></span>
+          </span>
           <span class="inv-precio ok">ML: ${fmt(p.precio_ml_real || p.precio_ml_calc)}</span>
         </div>
       </div>
       <span class="inv-scan-count">${veces}x</span>
     </div>`).join('');
+}
+
+function invStartAsiaEdit(id) {
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById(`inv-v-asia-${id}`).style.display = 'none';
+  const inp = document.getElementById(`inv-i-asia-${id}`);
+  inp.style.display = 'inline-block';
+  inp.value = p.precio_asia;
+  inp.focus();
+  inp.select();
+}
+
+function invHkAsia(e, id) {
+  if (e.key === 'Enter') { e.preventDefault(); invSaveAsia(id); }
+  if (e.key === 'Escape') {
+    document.getElementById(`inv-v-asia-${id}`).style.display = 'inline';
+    document.getElementById(`inv-i-asia-${id}`).style.display = 'none';
+    document.getElementById('invScanInput').focus();
+  }
+}
+
+async function invSaveAsia(id) {
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  const inp = document.getElementById(`inv-i-asia-${id}`);
+  const sp  = document.getElementById(`inv-sp-asia-${id}`);
+  const v   = document.getElementById(`inv-v-asia-${id}`);
+  if (!inp || !v) return;
+  const newVal = parseFloat(inp.value);
+  if (isNaN(newVal) || newVal <= 0) { v.style.display = 'inline'; inp.style.display = 'none'; return; }
+  if (newVal === p.precio_asia) { v.style.display = 'inline'; inp.style.display = 'none'; document.getElementById('invScanInput').focus(); return; }
+  inp.style.display = 'none'; sp.style.display = 'inline-block'; v.style.display = 'inline';
+  try {
+    await sheetUpdatePrecioAsia(p.mla, newVal);
+    p.precio_asia = newVal;
+    const desc = V.descuentos[p.descuento] ?? 0;
+    p.costo = newVal * (1 - desc);
+    p.precio_ml_calc = calcPrecioML(p.costo, p.margen, p.tipo);
+    const pr = p.precio_ml_real || p.precio_ml_calc;
+    p.gan_pesos = calcGanReal(pr, p.costo, p.tipo);
+    p.gan_pct   = calcGanPct(pr, p.costo, p.tipo);
+    p.semaforo  = p.gan_pct >= 30 ? '🟢' : p.gan_pct >= 15 ? '🟡' : '🔴';
+    v.textContent = fmt(newVal);
+    showToast(`✅ Precio Asia actualizado — ${p.sku}`, 'success');
+    if (typeof doFilter === 'function') doFilter();
+  } catch(err) {
+    showToast('❌ ' + err.message, 'error');
+  }
+  sp.style.display = 'none';
+  document.getElementById('invScanInput').focus();
 }
 
 function invFinalizar() {
