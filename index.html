@@ -4043,9 +4043,14 @@ function pubtnPrepare() {
           <label>Marca / Brand</label>
           <input type="text" data-field="brand" placeholder="Ej: Glico, OKF, Lotte…">
         </div>
-        <div class="pub-review-field">
-          <label>Peso (kg)</label>
-          <input type="number" data-field="weight" step="0.01" value="0.4" min="0">
+        <div class="pub-review-field" style="grid-column:1/-1;">
+          <label>Peso y dimensiones del paquete</label>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
+            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Peso (kg)</span><input type="number" data-field="weight" step="0.01" value="0.4" min="0"></div>
+            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Profundidad (cm)</span><input type="number" data-field="depth" step="0.1" value="10" min="0"></div>
+            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Ancho (cm)</span><input type="number" data-field="width" step="0.1" value="10" min="0"></div>
+            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Alto (cm)</span><input type="number" data-field="height" step="0.1" value="10" min="0"></div>
+          </div>
         </div>
         <div class="pub-review-field" style="grid-column:1/-1;">
           <label>Categoría en Tienda Nube</label>
@@ -4090,6 +4095,9 @@ async function pubtnPublishFromReview() {
       stock:       get('stock') || '3',
       brand:       get('brand'),
       weight:      get('weight') || '0.4',
+      depth:       get('depth')  || '',
+      width:       get('width')  || '',
+      height:      get('height') || '',
       categoryId:  get('categoryId'),
       description: get('description')
     });
@@ -4131,6 +4139,9 @@ async function pubtnPublishFromReview() {
           stock:       item.stock,
           brand:       item.brand,
           weight:      item.weight,
+          depth:       item.depth,
+          width:       item.width,
+          height:      item.height,
           categoryId:  item.categoryId,
           fileId:      pubDriveMap[sku.toUpperCase()] || null
         })

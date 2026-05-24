@@ -41,7 +41,7 @@ export default async function handler(req, res) {
 
     const {
       sku, title, description, price, stock,
-      brand, categoryId, weight, fileId
+      brand, categoryId, weight, depth, width, height, fileId
     } = req.body || {};
     if (!title?.trim()) return res.status(400).json({ ok: false, error: 'Falta título' });
     if (!price)         return res.status(400).json({ ok: false, error: 'Falta precio' });
@@ -71,7 +71,10 @@ export default async function handler(req, res) {
         stock_management: true,
         stock: Number(stock) || 3,
         ...(sku ? { sku: String(sku).trim() } : {}),
-        ...(weight ? { weight: String(weight) } : {})
+        ...(weight ? { weight: String(weight) } : {}),
+        ...(depth  ? { depth:  String(depth)  } : {}),
+        ...(width  ? { width:  String(width)  } : {}),
+        ...(height ? { height: String(height) } : {})
       }],
       ...(brand ? { brand: String(brand).trim() } : {}),
       ...(categoryId ? { categories: [Number(categoryId)] } : {})
