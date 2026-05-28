@@ -828,6 +828,9 @@
             <label style="font-size:11px;color:var(--muted);">Cantidad</label>
             <input id="ofiQty" type="number" value="1" min="1" step="1"
               style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono);font-size:13px;background:var(--surface);color:var(--text);text-align:center;">
+            <label style="font-size:11px;color:var(--muted);">Vencimiento</label>
+            <input id="ofiVence" type="date"
+              style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono);font-size:12px;background:var(--surface);color:var(--text);">
             <label style="font-size:11px;color:var(--muted);">Motivo</label>
             <select id="ofiMotivo" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono);font-size:12px;background:var(--surface);color:var(--text);">
               <option value="Cancelación ML">Cancelación ML</option>
@@ -850,35 +853,37 @@
         <!-- Stats -->
         <div class="inv-stats" style="margin-top:10px;">
           <div class="inv-stat">
-            <div class="inv-stat-val" id="ofiTotalSkus" style="color:var(--orange)">0</div>
+            <div class="inv-stat-val" id="ofiTotalSkus" style="color:var(--accent)">0</div>
             <div class="inv-stat-label">SKUs con stock</div>
           </div>
           <div class="inv-stat">
             <div class="inv-stat-val" id="ofiTotalUnits" style="color:var(--accent)">0</div>
             <div class="inv-stat-label">Unidades totales</div>
           </div>
+          <div class="inv-stat" style="cursor:pointer;" onclick="ofiToggleSoloVencen()" title="Filtrar solo los que vencen pronto">
+            <div class="inv-stat-val" id="ofiVencenSoon" style="color:var(--orange)">0</div>
+            <div class="inv-stat-label">⚠️ Vencen ≤45d</div>
+          </div>
         </div>
-      </div>
-
-      <!-- Toggle vistas -->
-      <div style="border-top:1px solid var(--border);padding:10px 14px 6px;background:var(--surface2);display:flex;gap:6px;">
-        <button class="inv-btn" id="ofiTabConStockBtn" onclick="ofiSetTab('stock')" style="flex:1;font-size:11px;">📦 Con stock</button>
-        <button class="inv-btn" id="ofiTabHistorialBtn" onclick="ofiSetTab('hist')" style="flex:1;font-size:11px;">📜 Historial</button>
-      </div>
-      <div class="inv-scanned-list" id="ofiList">
-        <div style="padding:20px;text-align:center;color:var(--muted2);font-size:12px;">Sin productos con stock todavía</div>
       </div>
     </div>
 
-    <!-- Panel derecho: search libre + ayuda -->
-    <div style="padding:16px 20px;flex:1;min-width:0;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+    <!-- Panel derecho: lista grande + tabs -->
+    <div style="padding:16px 20px;flex:1;min-width:0;overflow:hidden;display:flex;flex-direction:column;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+        <div style="display:flex;gap:4px;background:var(--surface2);padding:3px;border-radius:8px;">
+          <button class="inv-btn" id="ofiTabConStockBtn" onclick="ofiSetTab('stock')" style="font-size:11px;padding:6px 12px;">📦 Con stock</button>
+          <button class="inv-btn" id="ofiTabHistorialBtn" onclick="ofiSetTab('hist')" style="font-size:11px;padding:6px 12px;">📜 Historial</button>
+        </div>
         <input id="ofiSearch" type="text" placeholder="Buscar por SKU o nombre…" oninput="ofiRender()"
-          style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);">
+          style="flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);">
         <button class="inv-btn" onclick="ofiReload()" title="Recargar desde Sheet">↺ Recargar</button>
       </div>
-      <div id="ofiInfo" style="font-size:11px;color:var(--muted);padding:6px 0;">
-        💡 Escaneá el SKU para sumar o restar unidades. Cada movimiento queda registrado en la hoja <strong>MOVIMIENTOS_OFICINA</strong>.
+      <div id="ofiSoloVencenInfo" style="display:none;font-size:11px;color:var(--orange);padding:4px 8px;background:var(--orange-light, rgba(234,88,12,.08));border-radius:6px;margin-bottom:8px;">
+        ⚠️ Mostrando solo productos que vencen en ≤45 días — <a href="#" onclick="event.preventDefault();ofiToggleSoloVencen()" style="color:var(--orange);">quitar filtro</a>
+      </div>
+      <div id="ofiList" style="flex:1;overflow-y:auto;border:1px solid var(--border);border-radius:10px;background:var(--surface);">
+        <div style="padding:30px;text-align:center;color:var(--muted2);font-size:13px;">Sin productos con stock todavía</div>
       </div>
     </div>
   </div>
@@ -1393,6 +1398,18 @@ async function loadFromSheets() {
       precio_sheets: typeof get(9) === 'number' ? get(9) : 0,
       gondola: String(get(13) || '').trim().toUpperCase(),
       stock_oficina: typeof get(14) === 'number' ? get(14) : (parseInt(get(14)) || 0),
+      vencimiento: (() => {
+        const v = get(15);
+        if (!v) return '';
+        if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0,10);
+        // gviz puede devolver Date(YYYY,M,D)
+        const m = String(v).match(/Date\((\d+),(\d+),(\d+)/);
+        if (m) {
+          const y = m[1], mo = String(Number(m[2])+1).padStart(2,'0'), d = String(m[3]).padStart(2,'0');
+          return `${y}-${mo}-${d}`;
+        }
+        return String(v);
+      })(),
     };
   }).filter(Boolean);
 }
@@ -1446,6 +1463,7 @@ function buildProducts(rows, mlMap) {
       gondola: row.gondola || '',
       precio_tn_sheet: row.precio_tn_sheet || 0,
       stock_oficina: row.stock_oficina || 0,
+      vencimiento: row.vencimiento || '',
       tn_product_id: tn ? tn.product_id : null,
       tn_variant_id: tn ? tn.variant_id : null,
       precio_tn: tn ? tn.precio_tn : null,
@@ -3508,6 +3526,30 @@ let ofiTab = 'stock';          // 'stock' | 'hist'
 let ofiMovimientos = [];        // últimos movimientos (cargados de la sheet)
 let ofiFeedbackTimer = null;
 let ofiHistLoaded = false;
+let ofiSoloVencen = false;
+const OFI_ALERT_DAYS = 45;
+
+function ofiDiasHasta(fechaStr) {
+  if (!fechaStr) return null;
+  const m = String(fechaStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const target = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  return Math.round((target - today) / 86400000);
+}
+
+function ofiVenceBadge(fecha) {
+  if (!fecha) return `<span style="font-size:10px;color:var(--muted2);">sin fecha</span>`;
+  const dias = ofiDiasHasta(fecha);
+  if (dias === null) return `<span style="font-size:10px;color:var(--muted2);">${fecha}</span>`;
+  let color, bg, txt;
+  if (dias < 0)        { color = '#fff'; bg = 'var(--red)';    txt = `🔴 VENCIDO ${Math.abs(dias)}d`; }
+  else if (dias <= 15) { color = 'var(--red)';    bg = 'var(--red-light)';    txt = `🔴 ${dias}d`; }
+  else if (dias <= 45) { color = 'var(--orange)'; bg = 'rgba(234,88,12,.12)'; txt = `🟠 ${dias}d`; }
+  else                 { color = 'var(--green)';  bg = 'var(--green-light)';  txt = `🟢 ${dias}d`; }
+  return `<span style="font-size:10px;color:${color};background:${bg};padding:2px 6px;border-radius:6px;font-weight:600;" title="Vence: ${fecha}">${txt}</span>`;
+}
 
 function oficinaInit() {
   ofiSetTab('stock');
@@ -3591,6 +3633,7 @@ function ofiBuscarSku(sku) {
   if (p.thumbnail) { thumb.src = p.thumbnail; thumb.style.display = 'block'; }
   else { thumb.style.display = 'none'; }
   document.getElementById('ofiQty').value = 1;
+  document.getElementById('ofiVence').value = p.vencimiento || '';
   document.getElementById('ofiQty').focus();
   document.getElementById('ofiQty').select();
   fb.className = 'inv-feedback ok';
@@ -3610,6 +3653,7 @@ async function ofiAplicar(signo) {
   if (!p) return;
   const qty = Math.abs(parseInt(document.getElementById('ofiQty').value) || 1);
   const motivo = document.getElementById('ofiMotivo').value;
+  const vencimiento = document.getElementById('ofiVence').value || '';
   const delta = signo * qty;
   const fb = document.getElementById('ofiFeedback');
   clearTimeout(ofiFeedbackTimer);
@@ -3625,18 +3669,22 @@ async function ofiAplicar(signo) {
         sku: p.sku,
         delta,
         motivo,
-        productName: p.name
+        productName: p.name,
+        vencimiento
       })
     });
     const data = await r.json();
     if (!data.ok) throw new Error(data.error || 'Error');
 
     p.stock_oficina = data.stockOficina;
+    if (data.stockOficina === 0) p.vencimiento = '';
+    else if (data.vencimiento) p.vencimiento = data.vencimiento;
     document.getElementById('ofiCardStock').textContent = data.stockOficina;
     // Agregar a historial local (al inicio)
     ofiMovimientos.unshift({
       timestamp: new Date().toISOString().replace('T',' ').slice(0,19),
-      sku: p.sku, nombre: p.name, delta: data.delta, motivo, resultado: data.stockOficina
+      sku: p.sku, nombre: p.name, delta: data.delta, motivo, resultado: data.stockOficina,
+      vencimiento: data.vencimiento || ''
     });
 
     fb.className = 'inv-feedback ok';
@@ -3651,6 +3699,37 @@ async function ofiAplicar(signo) {
   }
 }
 
+function ofiToggleSoloVencen() {
+  ofiSoloVencen = !ofiSoloVencen;
+  document.getElementById('ofiSoloVencenInfo').style.display = ofiSoloVencen ? 'block' : 'none';
+  ofiRender();
+}
+
+async function ofiAjusteRapido(sku, delta) {
+  const p = products.find(x => x.sku === sku);
+  if (!p) return;
+  try {
+    const r = await fetch('/api/stock-oficina', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sheetId: SHEET_ID, sku, delta, motivo: 'Ajuste rápido', productName: p.name })
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    p.stock_oficina = data.stockOficina;
+    if (data.stockOficina === 0) p.vencimiento = '';
+    ofiMovimientos.unshift({
+      timestamp: new Date().toISOString().replace('T',' ').slice(0,19),
+      sku, nombre: p.name, delta: data.delta, motivo: 'Ajuste rápido',
+      resultado: data.stockOficina, vencimiento: data.vencimiento || ''
+    });
+    ofiRender();
+    showToast(`${delta > 0 ? '➕' : '➖'} ${p.sku} → ${data.stockOficina}u`, 'success');
+  } catch(e) {
+    showToast('❌ ' + e.message, 'error');
+  }
+}
+
 function ofiRender() {
   const list = document.getElementById('ofiList');
   const q = (document.getElementById('ofiSearch')?.value || '').toLowerCase();
@@ -3658,52 +3737,111 @@ function ofiRender() {
   // Stats globales
   const conStock = products.filter(p => (p.stock_oficina || 0) > 0);
   const totalUnits = conStock.reduce((s, p) => s + (p.stock_oficina || 0), 0);
+  const vencenSoon = conStock.filter(p => {
+    const d = ofiDiasHasta(p.vencimiento);
+    return d !== null && d <= OFI_ALERT_DAYS;
+  }).length;
   document.getElementById('ofiTotalSkus').textContent = conStock.length;
   document.getElementById('ofiTotalUnits').textContent = totalUnits;
+  document.getElementById('ofiVencenSoon').textContent = vencenSoon;
+
+  // Tabs styling activa
+  document.getElementById('ofiTabConStockBtn').style.background = ofiTab === 'stock' ? 'var(--accent-light)' : '';
+  document.getElementById('ofiTabConStockBtn').style.color      = ofiTab === 'stock' ? 'var(--accent)' : '';
+  document.getElementById('ofiTabHistorialBtn').style.background = ofiTab === 'hist' ? 'var(--accent-light)' : '';
+  document.getElementById('ofiTabHistorialBtn').style.color      = ofiTab === 'hist' ? 'var(--accent)' : '';
 
   if (ofiTab === 'stock') {
     let filtered = conStock;
     if (q) filtered = filtered.filter(p => p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q));
+    if (ofiSoloVencen) filtered = filtered.filter(p => {
+      const d = ofiDiasHasta(p.vencimiento);
+      return d !== null && d <= OFI_ALERT_DAYS;
+    });
     if (!filtered.length) {
-      list.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted2);font-size:12px;">${conStock.length ? 'Sin resultados para la búsqueda' : 'Sin productos con stock en oficina'}</div>`;
+      list.innerHTML = `<div style="padding:30px;text-align:center;color:var(--muted2);font-size:13px;">${conStock.length ? 'Sin resultados para los filtros' : 'Sin productos con stock en oficina — escaneá un código para empezar'}</div>`;
       return;
     }
-    filtered.sort((a, b) => (b.stock_oficina || 0) - (a.stock_oficina || 0));
-    list.innerHTML = filtered.map(p => `
-      <div class="inv-item">
-        ${p.thumbnail ? `<img class="inv-item-thumb" src="${p.thumbnail}" alt="">` : `<div class="inv-item-thumb-ph">□</div>`}
-        <div class="inv-item-info">
-          <div class="inv-item-name" title="${p.name}">${p.name}</div>
-          <div class="inv-item-meta">
-            <span class="inv-sku" onclick="ofiBuscarSku('${p.sku}')" style="cursor:pointer;text-decoration:underline;" title="Cargar en panel">${p.sku}</span>
-            <span style="font-size:10px;color:var(--muted);">${p.gondola || '—'}</span>
-          </div>
-        </div>
-        <span class="inv-scan-count" style="background:var(--orange);">${p.stock_oficina}u</span>
-      </div>`).join('');
+    // Ordenar: primero los que vencen antes, después por stock desc
+    filtered.sort((a, b) => {
+      const da = ofiDiasHasta(a.vencimiento);
+      const db = ofiDiasHasta(b.vencimiento);
+      if (da !== null && db !== null) return da - db;
+      if (da !== null) return -1;
+      if (db !== null) return 1;
+      return (b.stock_oficina || 0) - (a.stock_oficina || 0);
+    });
+    list.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead style="background:var(--surface2);position:sticky;top:0;z-index:1;">
+          <tr style="text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">
+            <th style="padding:8px 10px;width:44px;"></th>
+            <th style="padding:8px 10px;">Producto</th>
+            <th style="padding:8px 10px;">Góndola</th>
+            <th style="padding:8px 10px;text-align:center;">Stock</th>
+            <th style="padding:8px 10px;">Vence</th>
+            <th style="padding:8px 10px;text-align:center;width:140px;">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+        ${filtered.map(p => `
+          <tr style="border-top:1px solid var(--border);">
+            <td style="padding:6px 10px;">${p.thumbnail ? `<img src="${p.thumbnail}" style="width:34px;height:34px;border-radius:6px;object-fit:cover;">` : `<div style="width:34px;height:34px;border-radius:6px;background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--muted2);">□</div>`}</td>
+            <td style="padding:6px 10px;max-width:280px;">
+              <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.name}">${p.name}</div>
+              <div style="font-size:10px;color:var(--muted);font-family:var(--font-mono);">
+                <span style="cursor:pointer;text-decoration:underline;" onclick="ofiBuscarSku('${p.sku}')" title="Cargar en panel">${p.sku}</span>
+                · ${p.mla}
+              </div>
+            </td>
+            <td style="padding:6px 10px;"><span style="font-size:10px;background:var(--accent-light);color:var(--accent);padding:2px 6px;border-radius:8px;">${p.gondola || '—'}</span></td>
+            <td style="padding:6px 10px;text-align:center;"><span style="font-weight:700;color:var(--accent);font-size:14px;">${p.stock_oficina}</span><span style="font-size:10px;color:var(--muted);"> u.</span></td>
+            <td style="padding:6px 10px;">${ofiVenceBadge(p.vencimiento)}</td>
+            <td style="padding:6px 10px;text-align:center;">
+              <button onclick="ofiAjusteRapido('${p.sku}',1)" title="Sumar 1" style="background:var(--green-light);color:var(--green);border:1px solid rgba(22,163,74,.3);border-radius:6px;padding:3px 8px;font-weight:700;cursor:pointer;">+</button>
+              <button onclick="ofiAjusteRapido('${p.sku}',-1)" title="Restar 1" style="background:var(--red-light);color:var(--red);border:1px solid rgba(220,38,38,.25);border-radius:6px;padding:3px 8px;font-weight:700;cursor:pointer;margin-left:4px;">−</button>
+              <button onclick="ofiBuscarSku('${p.sku}')" title="Editar (cantidad + motivo + fecha)" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer;margin-left:4px;">✏️</button>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
   } else {
     // Historial
     let items = ofiMovimientos;
     if (q) items = items.filter(m => m.sku.toLowerCase().includes(q) || (m.nombre || '').toLowerCase().includes(q));
     if (!items.length) {
-      list.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted2);font-size:12px;">${ofiHistLoaded ? 'Sin movimientos registrados' : 'Cargando historial…'}</div>`;
+      list.innerHTML = `<div style="padding:30px;text-align:center;color:var(--muted2);font-size:13px;">${ofiHistLoaded ? 'Sin movimientos registrados' : 'Cargando historial…'}</div>`;
       return;
     }
-    list.innerHTML = items.slice(0, 200).map(m => {
-      const pos = m.delta >= 0;
-      return `<div class="inv-item">
-        <div class="inv-item-thumb-ph" style="background:${pos ? 'var(--green-light)' : 'var(--red-light)'};color:${pos ? 'var(--green)' : 'var(--red)'};font-weight:700;">${pos ? '+' : ''}${m.delta}</div>
-        <div class="inv-item-info">
-          <div class="inv-item-name" title="${m.nombre}">${m.nombre || m.sku}</div>
-          <div class="inv-item-meta">
-            <span class="inv-sku">${m.sku}</span>
-            <span style="font-size:10px;color:var(--muted);">${m.motivo}</span>
-            <span style="font-size:10px;color:var(--muted2);">${m.timestamp}</span>
-          </div>
-        </div>
-        <span class="inv-scan-count" style="background:var(--accent);">→ ${m.resultado}u</span>
-      </div>`;
-    }).join('');
+    list.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead style="background:var(--surface2);position:sticky;top:0;z-index:1;">
+          <tr style="text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">
+            <th style="padding:8px 10px;">Fecha</th>
+            <th style="padding:8px 10px;">Producto</th>
+            <th style="padding:8px 10px;">Motivo</th>
+            <th style="padding:8px 10px;text-align:center;">Δ</th>
+            <th style="padding:8px 10px;text-align:center;">Resultado</th>
+            <th style="padding:8px 10px;">Vence</th>
+          </tr>
+        </thead>
+        <tbody>
+        ${items.slice(0, 300).map(m => {
+          const pos = m.delta >= 0;
+          return `<tr style="border-top:1px solid var(--border);">
+            <td style="padding:6px 10px;font-family:var(--font-mono);font-size:10px;color:var(--muted);white-space:nowrap;">${m.timestamp}</td>
+            <td style="padding:6px 10px;max-width:280px;">
+              <div style="font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${m.nombre}">${m.nombre || m.sku}</div>
+              <div style="font-size:10px;color:var(--muted);font-family:var(--font-mono);">${m.sku}</div>
+            </td>
+            <td style="padding:6px 10px;font-size:11px;color:var(--muted);">${m.motivo || '—'}</td>
+            <td style="padding:6px 10px;text-align:center;"><span style="font-weight:700;color:${pos ? 'var(--green)' : 'var(--red)'};">${pos ? '+' : ''}${m.delta}</span></td>
+            <td style="padding:6px 10px;text-align:center;color:var(--accent);font-weight:600;">${m.resultado}u</td>
+            <td style="padding:6px 10px;">${m.vencimiento ? ofiVenceBadge(m.vencimiento) : '<span style="font-size:10px;color:var(--muted2);">—</span>'}</td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>`;
   }
 }
 

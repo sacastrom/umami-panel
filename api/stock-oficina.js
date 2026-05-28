@@ -46,11 +46,11 @@ async function ensureMovimientosSheet(token, sheetId) {
     }
   );
   await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/MOVIMIENTOS_OFICINA!A1:F1?valueInputOption=RAW`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/MOVIMIENTOS_OFICINA!A1:G1?valueInputOption=RAW`,
     {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ values: [['TIMESTAMP','SKU','NOMBRE','DELTA','MOTIVO','STOCK_RESULTANTE']] })
+      body: JSON.stringify({ values: [['TIMESTAMP','SKU','NOMBRE','DELTA','MOTIVO','STOCK_RESULTANTE','VENCIMIENTO']] })
     }
   );
 }
@@ -63,7 +63,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
   try {
-    const { sheetId, sku, delta, motivo, productName } = req.body || {};
+    const { sheetId, sku, delta, motivo, productName, vencimiento } = req.body || {};
     if (!sheetId) return res.status(400).json({ ok: false, error: 'Falta sheetId' });
     if (!sku)     return res.status(400).json({ ok: false, error: 'Falta sku' });
     if (typeof delta !== 'number' || !Number.isFinite(delta)) {
@@ -106,21 +106,45 @@ export default async function handler(req, res) {
       }
     );
 
+    // ── 3b. Actualizar VENCIMIENTO en columna P si se proveyó y delta>0, o si el stock llega a 0 limpiarlo
+    let venceFinal = null;
+    if (next === 0) {
+      // Limpiar vencimiento si ya no hay stock
+      await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/PRODUCTOS!P${sheetRow}?valueInputOption=RAW`,
+        {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ values: [['']] })
+        }
+      );
+    } else if (vencimiento && /^\d{4}-\d{2}-\d{2}$/.test(String(vencimiento).trim())) {
+      venceFinal = String(vencimiento).trim();
+      await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/PRODUCTOS!P${sheetRow}?valueInputOption=RAW`,
+        {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ values: [[venceFinal]] })
+        }
+      );
+    }
+
     // ── 4. Asegurar hoja MOVIMIENTOS y appendear
     await ensureMovimientosSheet(token, sheetId);
     const ts = new Date().toISOString().replace('T', ' ').slice(0, 19);
     await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/MOVIMIENTOS_OFICINA!A:F:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/MOVIMIENTOS_OFICINA!A:G:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
       {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          values: [[ts, sku, productName || '', realDelta, motivo || '', next]]
+          values: [[ts, sku, productName || '', realDelta, motivo || '', next, venceFinal || '']]
         })
       }
     );
 
-    res.status(200).json({ ok: true, sku, stockOficina: next, delta: realDelta, row: sheetRow });
+    res.status(200).json({ ok: true, sku, stockOficina: next, delta: realDelta, vencimiento: venceFinal, row: sheetRow });
   } catch (err) {
     res.status(200).json({ ok: false, error: err.message });
   }
