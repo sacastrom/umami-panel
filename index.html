@@ -622,6 +622,7 @@
     <button class="main-tab" id="tabMetricas" onclick="switchTab('metricas')">📊 Métricas</button>
     <button class="main-tab" id="tabFlex" onclick="switchTab('flex')">🗺️ Flex</button>
     <button class="main-tab" id="tabInventario" onclick="switchTab('inventario')">📦 Inventario</button>
+    <button class="main-tab" id="tabOficina" onclick="switchTab('oficina')">🏢 Stock oficina</button>
     <button class="main-tab" id="tabPublicar" onclick="switchTab('publicar')">🚀 Publicar</button>
     <button class="main-tab" id="tabPublicarTN" onclick="switchTab('publicartn')">📤 Publicar TN</button>
     <button class="main-tab-cfg" onclick="openConfig()" title="Configuración">⚙️</button>
@@ -794,6 +795,95 @@
     </div>
   </div>
 </div>
+<!-- ── STOCK OFICINA ── -->
+<div id="oficinaContent" style="display:none;">
+  <div class="inv-layout">
+    <!-- Panel izquierdo: escaneo y carga -->
+    <div class="inv-panel">
+      <div class="inv-panel-header">🏢 Stock en oficina</div>
+      <div class="inv-scan-box">
+        <div class="inv-input-wrap">
+          <span class="inv-scan-icon">🔍</span>
+          <input class="inv-scan-input" id="ofiScanInput" type="text"
+            placeholder="Escaneá el código o tipeá el SKU…"
+            autocomplete="off" autocorrect="off" spellcheck="false"
+            onkeydown="ofiOnKey(event)">
+        </div>
+        <div class="inv-feedback" id="ofiFeedback"></div>
+
+        <!-- Card del producto encontrado -->
+        <div id="ofiCard" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;margin-top:6px;">
+          <div style="display:flex;gap:10px;align-items:center;">
+            <img id="ofiCardThumb" class="inv-item-thumb" src="" alt="" style="display:none;">
+            <div style="flex:1;min-width:0;">
+              <div id="ofiCardName" class="inv-item-name" style="font-weight:600;"></div>
+              <div class="inv-item-meta" style="margin-top:4px;">
+                <span class="inv-sku" id="ofiCardSku"></span>
+                <span class="inv-sku" id="ofiCardMla"></span>
+                <span style="font-size:11px;color:var(--orange);font-weight:600;">Oficina: <span id="ofiCardStock">0</span> u.</span>
+              </div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:90px 1fr;gap:8px;margin-top:10px;align-items:center;">
+            <label style="font-size:11px;color:var(--muted);">Cantidad</label>
+            <input id="ofiQty" type="number" value="1" min="1" step="1"
+              style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono);font-size:13px;background:var(--surface);color:var(--text);text-align:center;">
+            <label style="font-size:11px;color:var(--muted);">Motivo</label>
+            <select id="ofiMotivo" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono);font-size:12px;background:var(--surface);color:var(--text);">
+              <option value="Cancelación ML">Cancelación ML</option>
+              <option value="Cancelación TN">Cancelación TN</option>
+              <option value="Traje del super">Traje del super</option>
+              <option value="Devolución de cliente">Devolución de cliente</option>
+              <option value="Venta directa">Venta directa</option>
+              <option value="Llevé al super">Llevé al super</option>
+              <option value="Ajuste manual">Ajuste manual</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:10px;">
+            <button class="inv-btn" onclick="ofiAplicar(1)" style="flex:1;background:var(--green-light);color:var(--green);border:1px solid rgba(22,163,74,.3);">➕ Sumar</button>
+            <button class="inv-btn" onclick="ofiAplicar(-1)" style="flex:1;background:var(--red-light);color:var(--red);border:1px solid rgba(220,38,38,.25);">➖ Restar</button>
+            <button class="inv-btn" onclick="ofiClearCard()" title="Cerrar" style="width:40px;">✕</button>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="inv-stats" style="margin-top:10px;">
+          <div class="inv-stat">
+            <div class="inv-stat-val" id="ofiTotalSkus" style="color:var(--orange)">0</div>
+            <div class="inv-stat-label">SKUs con stock</div>
+          </div>
+          <div class="inv-stat">
+            <div class="inv-stat-val" id="ofiTotalUnits" style="color:var(--accent)">0</div>
+            <div class="inv-stat-label">Unidades totales</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toggle vistas -->
+      <div style="border-top:1px solid var(--border);padding:10px 14px 6px;background:var(--surface2);display:flex;gap:6px;">
+        <button class="inv-btn" id="ofiTabConStockBtn" onclick="ofiSetTab('stock')" style="flex:1;font-size:11px;">📦 Con stock</button>
+        <button class="inv-btn" id="ofiTabHistorialBtn" onclick="ofiSetTab('hist')" style="flex:1;font-size:11px;">📜 Historial</button>
+      </div>
+      <div class="inv-scanned-list" id="ofiList">
+        <div style="padding:20px;text-align:center;color:var(--muted2);font-size:12px;">Sin productos con stock todavía</div>
+      </div>
+    </div>
+
+    <!-- Panel derecho: search libre + ayuda -->
+    <div style="padding:16px 20px;flex:1;min-width:0;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        <input id="ofiSearch" type="text" placeholder="Buscar por SKU o nombre…" oninput="ofiRender()"
+          style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);">
+        <button class="inv-btn" onclick="ofiReload()" title="Recargar desde Sheet">↺ Recargar</button>
+      </div>
+      <div id="ofiInfo" style="font-size:11px;color:var(--muted);padding:6px 0;">
+        💡 Escaneá el SKU para sumar o restar unidades. Cada movimiento queda registrado en la hoja <strong>MOVIMIENTOS_OFICINA</strong>.
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="updateModal">
   <div class="modal-box">
     <div class="modal-title">⚡ Actualizando precios en ML</div>
@@ -1302,6 +1392,7 @@ async function loadFromSheets() {
       tipo: tipoRaw.includes('FULL') && !tipoRaw.includes('NO') ? 'FULL' : 'NO FULL',
       precio_sheets: typeof get(9) === 'number' ? get(9) : 0,
       gondola: String(get(13) || '').trim().toUpperCase(),
+      stock_oficina: typeof get(14) === 'number' ? get(14) : (parseInt(get(14)) || 0),
     };
   }).filter(Boolean);
 }
@@ -1354,6 +1445,7 @@ function buildProducts(rows, mlMap) {
       precio_ml_calc, precio_ml_real, gan_pesos, gan_pct,
       gondola: row.gondola || '',
       precio_tn_sheet: row.precio_tn_sheet || 0,
+      stock_oficina: row.stock_oficina || 0,
       tn_product_id: tn ? tn.product_id : null,
       tn_variant_id: tn ? tn.variant_id : null,
       precio_tn: tn ? tn.precio_tn : null,
@@ -2111,12 +2203,14 @@ function switchTab(tab) {
   document.getElementById('tabMetricas').classList.toggle('active', tab === 'metricas');
   document.getElementById('tabFlex').classList.toggle('active', tab === 'flex');
   document.getElementById('tabInventario').classList.toggle('active', tab === 'inventario');
+  document.getElementById('tabOficina').classList.toggle('active', tab === 'oficina');
   document.getElementById('tabPublicar').classList.toggle('active', tab === 'publicar');
   document.getElementById('tabPublicarTN').classList.toggle('active', tab === 'publicartn');
   document.getElementById('panelContent').style.display = tab === 'publicaciones' ? 'block' : 'none';
   document.getElementById('metricasContent').style.display = tab === 'metricas' ? 'block' : 'none';
   document.getElementById('flexContent').style.display = tab === 'flex' ? 'block' : 'none';
   document.getElementById('inventarioContent').style.display = tab === 'inventario' ? 'block' : 'none';
+  document.getElementById('oficinaContent').style.display = tab === 'oficina' ? 'block' : 'none';
   document.getElementById('publicarContent').style.display = tab === 'publicar' ? 'block' : 'none';
   document.getElementById('publicartnContent').style.display = tab === 'publicartn' ? 'block' : 'none';
   if (tab === 'metricas' && !metLoaded) document.getElementById('metEmpty').style.display = 'block';
@@ -2124,6 +2218,7 @@ function switchTab(tab) {
     setTimeout(() => { initFlexMap(); if (!flexLoaded) loadFlex(false); else if (flexMap) flexMap.invalidateSize(); }, 100);
   }
   if (tab === 'inventario') invInit();
+  if (tab === 'oficina') oficinaInit();
   if (tab === 'publicar') pubInit();
   if (tab === 'publicartn') pubtnInit();
 }
@@ -3406,6 +3501,211 @@ document.addEventListener('click', function(e) {
     if (note) note.innerHTML += ' &nbsp;·&nbsp; <a href="#" onclick="loginTN()" style="color:var(--accent);">Conectar Tienda Nube</a>';
   }
 })();
+
+// ── STOCK OFICINA ─────────────────────────────────────
+let ofiCurrentSku = null;
+let ofiTab = 'stock';          // 'stock' | 'hist'
+let ofiMovimientos = [];        // últimos movimientos (cargados de la sheet)
+let ofiFeedbackTimer = null;
+let ofiHistLoaded = false;
+
+function oficinaInit() {
+  ofiSetTab('stock');
+  ofiRender();
+  setTimeout(() => document.getElementById('ofiScanInput')?.focus(), 100);
+}
+
+function ofiSetTab(tab) {
+  ofiTab = tab;
+  document.getElementById('ofiTabConStockBtn').style.background = tab === 'stock' ? 'var(--accent-light)' : '';
+  document.getElementById('ofiTabConStockBtn').style.color      = tab === 'stock' ? 'var(--accent)' : '';
+  document.getElementById('ofiTabHistorialBtn').style.background = tab === 'hist' ? 'var(--accent-light)' : '';
+  document.getElementById('ofiTabHistorialBtn').style.color      = tab === 'hist' ? 'var(--accent)' : '';
+  if (tab === 'hist' && !ofiHistLoaded) ofiLoadHistorial();
+  ofiRender();
+}
+
+async function ofiReload() {
+  ofiHistLoaded = false;
+  await loadFromSheets().then(rows => {
+    // Actualizar stock_oficina en products
+    rows.forEach(r => {
+      const p = products.find(x => x.sku === r.sku);
+      if (p) p.stock_oficina = r.stock_oficina || 0;
+    });
+  });
+  if (ofiTab === 'hist') await ofiLoadHistorial();
+  ofiRender();
+  showToast('🔄 Stock oficina recargado', 'info');
+}
+
+async function ofiLoadHistorial() {
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('MOVIMIENTOS_OFICINA')}`;
+    const text = await (await fetch(url)).text();
+    const json = JSON.parse(text.replace(/^[^(]+\(/, '').replace(/\);?$/, ''));
+    ofiMovimientos = (json.table.rows || []).map(row => {
+      const c = row.c;
+      const get = (i) => c[i] && c[i].v != null ? c[i].v : (c[i]?.f || '');
+      return {
+        timestamp: String(get(0) || ''),
+        sku:       String(get(1) || ''),
+        nombre:    String(get(2) || ''),
+        delta:     Number(get(3)) || 0,
+        motivo:    String(get(4) || ''),
+        resultado: Number(get(5)) || 0
+      };
+    }).reverse();
+    ofiHistLoaded = true;
+  } catch (e) {
+    ofiMovimientos = [];
+    console.warn('ofiLoadHistorial:', e.message);
+  }
+}
+
+function ofiOnKey(e) {
+  if (e.key === 'Enter') {
+    const sku = e.target.value.trim();
+    e.target.value = '';
+    if (sku) ofiBuscarSku(sku);
+  }
+}
+
+function ofiBuscarSku(sku) {
+  const fb = document.getElementById('ofiFeedback');
+  clearTimeout(ofiFeedbackTimer);
+  const p = products.find(x => x.sku === sku);
+  if (!p) {
+    fb.className = 'inv-feedback error';
+    fb.textContent = `❌ SKU ${sku} no encontrado en la Sheet`;
+    ofiFeedbackTimer = setTimeout(() => fb.className = 'inv-feedback', 3000);
+    return;
+  }
+  ofiCurrentSku = sku;
+  document.getElementById('ofiCard').style.display = 'block';
+  document.getElementById('ofiCardName').textContent = p.name;
+  document.getElementById('ofiCardSku').textContent = p.sku;
+  document.getElementById('ofiCardMla').textContent = p.mla;
+  document.getElementById('ofiCardStock').textContent = p.stock_oficina || 0;
+  const thumb = document.getElementById('ofiCardThumb');
+  if (p.thumbnail) { thumb.src = p.thumbnail; thumb.style.display = 'block'; }
+  else { thumb.style.display = 'none'; }
+  document.getElementById('ofiQty').value = 1;
+  document.getElementById('ofiQty').focus();
+  document.getElementById('ofiQty').select();
+  fb.className = 'inv-feedback ok';
+  fb.textContent = `✅ ${p.name.slice(0,45)} — actual: ${p.stock_oficina || 0} u.`;
+  ofiFeedbackTimer = setTimeout(() => fb.className = 'inv-feedback', 3500);
+}
+
+function ofiClearCard() {
+  ofiCurrentSku = null;
+  document.getElementById('ofiCard').style.display = 'none';
+  document.getElementById('ofiScanInput').focus();
+}
+
+async function ofiAplicar(signo) {
+  if (!ofiCurrentSku) return;
+  const p = products.find(x => x.sku === ofiCurrentSku);
+  if (!p) return;
+  const qty = Math.abs(parseInt(document.getElementById('ofiQty').value) || 1);
+  const motivo = document.getElementById('ofiMotivo').value;
+  const delta = signo * qty;
+  const fb = document.getElementById('ofiFeedback');
+  clearTimeout(ofiFeedbackTimer);
+  fb.className = 'inv-feedback';
+  fb.textContent = '⏳ Guardando…';
+
+  try {
+    const r = await fetch('/api/stock-oficina', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sheetId: SHEET_ID,
+        sku: p.sku,
+        delta,
+        motivo,
+        productName: p.name
+      })
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+
+    p.stock_oficina = data.stockOficina;
+    document.getElementById('ofiCardStock').textContent = data.stockOficina;
+    // Agregar a historial local (al inicio)
+    ofiMovimientos.unshift({
+      timestamp: new Date().toISOString().replace('T',' ').slice(0,19),
+      sku: p.sku, nombre: p.name, delta: data.delta, motivo, resultado: data.stockOficina
+    });
+
+    fb.className = 'inv-feedback ok';
+    fb.textContent = `✅ ${signo > 0 ? '+' : ''}${data.delta} u. — ${p.sku} ahora: ${data.stockOficina} u.`;
+    ofiFeedbackTimer = setTimeout(() => fb.className = 'inv-feedback', 3500);
+    ofiRender();
+    document.getElementById('ofiScanInput').focus();
+  } catch(e) {
+    fb.className = 'inv-feedback error';
+    fb.textContent = `❌ ${e.message}`;
+    ofiFeedbackTimer = setTimeout(() => fb.className = 'inv-feedback', 4000);
+  }
+}
+
+function ofiRender() {
+  const list = document.getElementById('ofiList');
+  const q = (document.getElementById('ofiSearch')?.value || '').toLowerCase();
+
+  // Stats globales
+  const conStock = products.filter(p => (p.stock_oficina || 0) > 0);
+  const totalUnits = conStock.reduce((s, p) => s + (p.stock_oficina || 0), 0);
+  document.getElementById('ofiTotalSkus').textContent = conStock.length;
+  document.getElementById('ofiTotalUnits').textContent = totalUnits;
+
+  if (ofiTab === 'stock') {
+    let filtered = conStock;
+    if (q) filtered = filtered.filter(p => p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q));
+    if (!filtered.length) {
+      list.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted2);font-size:12px;">${conStock.length ? 'Sin resultados para la búsqueda' : 'Sin productos con stock en oficina'}</div>`;
+      return;
+    }
+    filtered.sort((a, b) => (b.stock_oficina || 0) - (a.stock_oficina || 0));
+    list.innerHTML = filtered.map(p => `
+      <div class="inv-item">
+        ${p.thumbnail ? `<img class="inv-item-thumb" src="${p.thumbnail}" alt="">` : `<div class="inv-item-thumb-ph">□</div>`}
+        <div class="inv-item-info">
+          <div class="inv-item-name" title="${p.name}">${p.name}</div>
+          <div class="inv-item-meta">
+            <span class="inv-sku" onclick="ofiBuscarSku('${p.sku}')" style="cursor:pointer;text-decoration:underline;" title="Cargar en panel">${p.sku}</span>
+            <span style="font-size:10px;color:var(--muted);">${p.gondola || '—'}</span>
+          </div>
+        </div>
+        <span class="inv-scan-count" style="background:var(--orange);">${p.stock_oficina}u</span>
+      </div>`).join('');
+  } else {
+    // Historial
+    let items = ofiMovimientos;
+    if (q) items = items.filter(m => m.sku.toLowerCase().includes(q) || (m.nombre || '').toLowerCase().includes(q));
+    if (!items.length) {
+      list.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted2);font-size:12px;">${ofiHistLoaded ? 'Sin movimientos registrados' : 'Cargando historial…'}</div>`;
+      return;
+    }
+    list.innerHTML = items.slice(0, 200).map(m => {
+      const pos = m.delta >= 0;
+      return `<div class="inv-item">
+        <div class="inv-item-thumb-ph" style="background:${pos ? 'var(--green-light)' : 'var(--red-light)'};color:${pos ? 'var(--green)' : 'var(--red)'};font-weight:700;">${pos ? '+' : ''}${m.delta}</div>
+        <div class="inv-item-info">
+          <div class="inv-item-name" title="${m.nombre}">${m.nombre || m.sku}</div>
+          <div class="inv-item-meta">
+            <span class="inv-sku">${m.sku}</span>
+            <span style="font-size:10px;color:var(--muted);">${m.motivo}</span>
+            <span style="font-size:10px;color:var(--muted2);">${m.timestamp}</span>
+          </div>
+        </div>
+        <span class="inv-scan-count" style="background:var(--accent);">→ ${m.resultado}u</span>
+      </div>`;
+    }).join('');
+  }
+}
 
 // ── PUBLICAR ──────────────────────────────────────────
 let pubProductos    = [];   // { rowNum, sku, title, price, gondola }
