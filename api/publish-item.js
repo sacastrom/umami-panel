@@ -141,6 +141,8 @@ export default async function handler(req, res) {
     const attrs = [];
     // GTIN: el SKU numérico de 8-14 dígitos es un código de barras EAN/GTIN
     if (sku && /^\d{8,14}$/.test(sku.trim())) attrs.push({ id: 'GTIN', value_name: sku.trim() });
+    // SELLER_SKU: ML lo expone como "Código de identificación (SKU)" en cada variación
+    if (sku)         attrs.push({ id: 'SELLER_SKU', value_name: String(sku).trim() });
     if (brand)       attrs.push({ id: 'BRAND', value_name: brand });
     if (vat)         attrs.push({ id: 'VALUE_ADDED_TAX', value_name: vat });
     if (importDuty)  attrs.push({ id: 'IMPORT_DUTY', value_name: importDuty });
@@ -227,6 +229,31 @@ export default async function handler(req, res) {
     }
 
     const mla = item.id;
+
+    // ── 4b. Forzar SKU en cada variación (catálogo) ──────
+    // Cuando ML genera variations desde catalog_product_id, no siempre
+    // hereda el SELLER_SKU del item. Lo seteamos explícitamente por variación.
+    if (sku && Array.isArray(item.variations) && item.variations.length > 0) {
+      try {
+        const newVariations = item.variations.map(v => {
+          const existingAttrs = Array.isArray(v.attributes) ? v.attributes.filter(a => a.id !== 'SELLER_SKU') : [];
+          return {
+            id: v.id,
+            attributes: [...existingAttrs, { id: 'SELLER_SKU', value_name: String(sku).trim() }]
+          };
+        });
+        await fetch(`https://api.mercadolibre.com/items/${mla}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${mlToken}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'User-Agent': 'Umami-Panel/1.0'
+          },
+          body: JSON.stringify({ variations: newVariations })
+        });
+      } catch (_) {}
+    }
 
     // ── 5. Descripción ────────────────────────────────────
     try {
