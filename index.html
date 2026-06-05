@@ -967,20 +967,18 @@
       <thead style="position:sticky;top:0;background:var(--surface2);z-index:1;">
         <tr>
           <th style="width:90px;">Fecha</th>
-          <th>Producto</th>
-          <th style="width:60px;">SKU</th>
-          <th style="width:40px;text-align:center;">Qty</th>
-          <th style="text-align:right;">Bruto</th>
-          <th style="text-align:right;color:var(--red);">- Comisión</th>
-          <th style="text-align:right;color:var(--orange);">- Envío</th>
-          <th style="text-align:right;font-weight:700;">= Neto</th>
-          <th style="text-align:right;color:var(--muted);">- Costo</th>
-          <th style="text-align:right;font-weight:700;">Ganancia</th>
+          <th>Compra / Carrito</th>
+          <th style="text-align:right;width:90px;">Bruto</th>
+          <th style="text-align:right;color:var(--red);width:90px;">- Comisión</th>
+          <th style="text-align:right;color:var(--orange);width:90px;">- Envío</th>
+          <th style="text-align:right;font-weight:700;width:90px;">= Neto</th>
+          <th style="text-align:right;color:var(--muted);width:90px;">- Costo</th>
+          <th style="text-align:right;font-weight:700;width:90px;">Ganancia</th>
           <th style="text-align:center;width:60px;">%</th>
         </tr>
       </thead>
       <tbody id="ventasTbody">
-        <tr><td colspan="11" style="text-align:center;padding:28px;color:var(--muted2);">Hacé click en el tab para cargar las ventas</td></tr>
+        <tr><td colspan="9" style="text-align:center;padding:28px;color:var(--muted2);">Hacé click en el tab para cargar las ventas</td></tr>
       </tbody>
     </table>
   </div>
@@ -4926,7 +4924,7 @@ async function loadVentas() {
   if (!accessToken || !mlUserId) { showToast('Sin sesión ML', 'error'); return; }
 
   ventasData = [];
-  document.getElementById('ventasTbody').innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--muted);">Cargando…</td></tr>';
+  document.getElementById('ventasTbody').innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--muted);">Cargando…</td></tr>';
   document.getElementById('ventasLoadingMsg').style.display = 'block';
   document.getElementById('ventasLoadingText').textContent = 'Consultando órdenes…';
 
@@ -4961,17 +4959,28 @@ async function loadVentas() {
     const gross = Number(o.total_amount) || items.reduce((s, it) => s + ((it.unit_price || 0) * (it.quantity || 0)), 0);
     const comm  = payments.reduce((s, p) => s + (Number(p.marketplace_fee) || 0), 0);
 
-    // Match productos para costo + tipo
-    let costo = 0, tipo = 'NO FULL', gondola = '', costoFound = false;
-    items.forEach(it => {
-      const mla = it.item?.id;
+    // Mapear cada item del carrito con su producto y costo
+    let costo = 0, tipo = 'NO FULL', gondola = '', anyCostMissing = false;
+    const cart = items.map(it => {
+      const mla = it.item?.id || '';
       const p = products.find(x => x.mla === mla);
-      if (p) {
-        costo += (p.costo || 0) * (it.quantity || 1);
-        tipo = p.tipo || tipo;
-        gondola = p.gondola || gondola;
-        costoFound = true;
-      }
+      const unitCost = p ? (p.costo || 0) : 0;
+      const itemQty  = it.quantity || 1;
+      const lineCost = unitCost * itemQty;
+      costo += lineCost;
+      if (p) { tipo = p.tipo || tipo; gondola = p.gondola || gondola; }
+      else   { anyCostMissing = true; }
+      return {
+        mla,
+        title:    it.item?.title || '—',
+        sku:      it.item?.seller_sku || it.item?.seller_custom_field || '',
+        qty:      itemQty,
+        unitPrice: it.unit_price || 0,
+        lineGross: (it.unit_price || 0) * itemQty,
+        unitCost,
+        lineCost,
+        costoFound: !!p
+      };
     });
 
     // Estimar envío seller: si NO FULL y precio >= umbral envío gratis
@@ -4984,17 +4993,16 @@ async function loadVentas() {
     const ganancia = net - costo;
     const ganPct = costo > 0 ? (ganancia / costo) * 100 : 0;
 
-    const item0 = items[0] || {};
     return {
       id: o.id,
       date: o.date_created,
       gross, comm, envio, net, costo, ganancia, ganPct, tipo,
-      mla:      item0.item?.id || '',
-      title:    item0.item?.title || '—',
-      sku:      item0.item?.seller_sku || item0.item?.seller_custom_field || '',
-      qty:      items.reduce((s, it) => s + (it.quantity || 0), 0),
-      itemCount: items.length,
-      gondola, costoFound,
+      cart,
+      itemCount: cart.length,
+      totalQty:  cart.reduce((s, c) => s + c.qty, 0),
+      isCart:    cart.length > 1,
+      gondola,
+      costoFound: !anyCostMissing,
       buyer: o.buyer?.nickname || '—',
       status: o.status
     };
@@ -5027,7 +5035,7 @@ function renderVentas() {
 
   const tbody = document.getElementById('ventasTbody');
   if (!ventasData.length) {
-    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:28px;color:var(--muted2);">Sin ventas en el rango seleccionado</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:28px;color:var(--muted2);">Sin ventas en el rango seleccionado</td></tr>';
     return;
   }
 
@@ -5035,39 +5043,61 @@ function renderVentas() {
     const fecha = new Date(v.date).toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit' });
     const hora  = new Date(v.date).toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' });
     const semColor = v.ganPct >= 30 ? 'var(--green)' : v.ganPct >= 15 ? 'var(--orange)' : 'var(--red)';
-    const titleClip = v.title.length > 55 ? v.title.slice(0,55) + '…' : v.title;
-    const warn = !v.costoFound ? ` <span title="No se encontró el producto en la Sheet — costo = 0" style="color:var(--red);">⚠️</span>` : '';
+    const warn = !v.costoFound ? ` <span title="Alguno de los productos no está en la Sheet — costo parcial" style="color:var(--red);">⚠️</span>` : '';
+
+    // Detalle del carrito: lista compacta de productos
+    const cartHtml = v.cart.map(c => {
+      const titleClip = c.title.length > 55 ? c.title.slice(0,55) + '…' : c.title;
+      const miss = !c.costoFound ? `<span title="Sin costo en Sheet" style="color:var(--red);font-size:9px;">⚠️</span>` : '';
+      return `<div style="display:flex;gap:6px;align-items:baseline;padding:2px 0;border-top:1px dashed var(--border);">
+        <span style="background:var(--accent-light);color:var(--accent);font-weight:700;font-size:10px;padding:1px 5px;border-radius:8px;min-width:22px;text-align:center;">${c.qty}×</span>
+        <a href="https://articulo.mercadolibre.com.ar/${c.mla}" target="_blank" style="color:var(--text);text-decoration:none;flex:1;min-width:0;font-size:11px;" title="${c.title}">${titleClip}</a>
+        <span style="font-size:9px;color:var(--muted2);font-family:var(--font-mono);white-space:nowrap;">${c.sku || c.mla}</span>
+        <span style="font-size:10px;color:var(--blue);font-weight:600;white-space:nowrap;">${fmt(c.lineGross)}</span>
+        ${miss}
+      </div>`;
+    }).join('');
+
+    const headerHtml = v.isCart
+      ? `<div style="display:flex;gap:6px;align-items:center;margin-bottom:2px;">
+          <span style="background:var(--orange-light, rgba(234,88,12,.12));color:var(--orange);font-weight:700;font-size:10px;padding:2px 7px;border-radius:8px;">🛒 CARRITO · ${v.itemCount} prod · ${v.totalQty} u.</span>
+          <span style="font-size:10px;color:var(--muted);">${v.buyer}</span>${warn}
+        </div>`
+      : `<div style="display:flex;gap:6px;align-items:center;margin-bottom:2px;">
+          <span style="font-size:10px;color:var(--muted);">👤 ${v.buyer}</span>${warn}
+        </div>`;
+
     return `<tr>
-      <td style="white-space:nowrap;color:var(--muted);font-family:var(--font-mono);">${fecha}<br><span style="font-size:9px;color:var(--muted2);">${hora}</span></td>
-      <td style="max-width:300px;">
-        <a href="https://articulo.mercadolibre.com.ar/${v.mla}" target="_blank" style="color:var(--text);text-decoration:none;font-weight:500;" title="${v.title}">${titleClip}</a>${warn}
-        <div style="font-size:9px;color:var(--muted2);">${v.mla} · ${v.buyer}${v.itemCount > 1 ? ` · ${v.itemCount} items` : ''}</div>
+      <td style="white-space:nowrap;color:var(--muted);font-family:var(--font-mono);vertical-align:top;">${fecha}<br><span style="font-size:9px;color:var(--muted2);">${hora}</span><br><span style="font-size:9px;color:var(--muted2);">#${v.id}</span></td>
+      <td style="max-width:380px;vertical-align:top;">
+        ${headerHtml}
+        ${cartHtml}
       </td>
-      <td class="sku-code" style="font-size:10px;">${v.sku || '—'}</td>
-      <td style="text-align:center;font-weight:600;">${v.qty}</td>
-      <td style="text-align:right;color:var(--blue);">${fmt(v.gross)}</td>
-      <td style="text-align:right;color:var(--red);">-${fmt(v.comm)}</td>
-      <td style="text-align:right;color:var(--orange);">${v.envio > 0 ? '-' + fmt(v.envio) : '—'}</td>
-      <td style="text-align:right;font-weight:700;color:var(--text);">${fmt(v.net)}</td>
-      <td style="text-align:right;color:var(--muted);">-${fmt(v.costo)}</td>
-      <td style="text-align:right;font-weight:700;color:${semColor};">${fmt(v.ganancia)}</td>
-      <td style="text-align:center;font-weight:700;color:${semColor};">${v.ganPct.toFixed(0)}%</td>
+      <td style="text-align:right;color:var(--blue);font-weight:600;vertical-align:top;">${fmt(v.gross)}</td>
+      <td style="text-align:right;color:var(--red);vertical-align:top;">-${fmt(v.comm)}</td>
+      <td style="text-align:right;color:var(--orange);vertical-align:top;">${v.envio > 0 ? '-' + fmt(v.envio) : '—'}</td>
+      <td style="text-align:right;font-weight:700;color:var(--text);vertical-align:top;">${fmt(v.net)}</td>
+      <td style="text-align:right;color:var(--muted);vertical-align:top;">-${fmt(v.costo)}</td>
+      <td style="text-align:right;font-weight:700;color:${semColor};vertical-align:top;">${fmt(v.ganancia)}</td>
+      <td style="text-align:center;font-weight:700;color:${semColor};vertical-align:top;">${v.ganPct.toFixed(0)}%</td>
     </tr>`;
   }).join('');
 }
 
 function ventasExportCSV() {
   if (!ventasData.length) { showToast('No hay datos para exportar', 'error'); return; }
-  const headers = ['Fecha','Hora','MLA','SKU','Producto','Cantidad','Bruto','Comisión','Envío','Neto','Costo','Ganancia','%','Comprador','Status'];
+  const headers = ['Fecha','Hora','Orden','Comprador','Items','Detalle','Bruto','Comisión','Envío','Neto','Costo','Ganancia','%','Status'];
   const rows = ventasData.map(v => {
     const d = new Date(v.date);
+    const detalle = v.cart.map(c => `${c.qty}x ${c.sku || c.mla} ${c.title}`).join(' | ');
     return [
       d.toLocaleDateString('es-AR'),
       d.toLocaleTimeString('es-AR'),
-      v.mla, v.sku, `"${(v.title || '').replace(/"/g,'""')}"`,
-      v.qty, v.gross.toFixed(2), v.comm.toFixed(2), v.envio.toFixed(2),
+      v.id, v.buyer, v.itemCount,
+      `"${detalle.replace(/"/g,'""')}"`,
+      v.gross.toFixed(2), v.comm.toFixed(2), v.envio.toFixed(2),
       v.net.toFixed(2), v.costo.toFixed(2), v.ganancia.toFixed(2),
-      v.ganPct.toFixed(1), v.buyer, v.status
+      v.ganPct.toFixed(1), v.status
     ].join(',');
   });
   const csv = '﻿' + headers.join(',') + '\n' + rows.join('\n');
