@@ -987,6 +987,9 @@
       </tbody>
     </table>
   </div>
+  <div style="padding:8px 20px;font-size:10px;color:var(--muted2);">
+    <span>*</span> Valor estimado por tabla cuando la API de ML no devolvió el dato real (ocurre en órdenes recientes o sin settlement).
+  </div>
 </div>
 
 <div id="updateModal">
@@ -4956,13 +4959,33 @@ async function loadVentas() {
     return;
   }
 
-  // Procesar
-  ventasData = all.map(o => {
-    const items = o.order_items || [];
-    const payments = o.payments || [];
-    const payment = payments[0] || {};
-    const gross = Number(o.total_amount) || items.reduce((s, it) => s + ((it.unit_price || 0) * (it.quantity || 0)), 0);
-    const comm  = payments.reduce((s, p) => s + (Number(p.marketplace_fee) || 0), 0);
+  // Helper para estimar comisión (variable + costo fijo) cuando ML no devuelve marketplace_fee
+  const estimateCommission = (gross, tipo) => {
+    if (!gross) return 0;
+    const tabla = tipo === 'FULL' ? V.full : V.nf;
+    let cf = 0;
+    for (const tramo of tabla) { cf = tramo.cf; if (gross <= tramo.hasta) break; }
+    return gross * V.comision + cf;
+  };
+
+  // Agrupar órdenes por pack_id — un carrito real puede ser N órdenes con el mismo pack_id
+  const packMap = new Map();
+  all.forEach(o => {
+    const key = o.pack_id ? `pack-${o.pack_id}` : `solo-${o.id}`;
+    if (!packMap.has(key)) packMap.set(key, []);
+    packMap.get(key).push(o);
+  });
+
+  // Procesar cada compra (1 fila = 1 pack/carrito)
+  ventasData = Array.from(packMap.entries()).map(([key, orderGroup]) => {
+    // Ordenar por fecha asc para que el primero sea el "principal"
+    orderGroup.sort((a, b) => new Date(a.date_created) - new Date(b.date_created));
+    const o = orderGroup[0];
+    const items    = orderGroup.flatMap(x => x.order_items || []);
+    const payments = orderGroup.flatMap(x => x.payments || []);
+    const gross    = orderGroup.reduce((s, x) => s + (Number(x.total_amount) || 0), 0)
+                  || items.reduce((s, it) => s + ((it.unit_price || 0) * (it.quantity || 0)), 0);
+    let comm  = payments.reduce((s, p) => s + (Number(p.marketplace_fee) || 0), 0);
 
     // Mapear cada item del carrito con su producto y costo
     let costo = 0, tipo = 'NO FULL', gondola = '', anyCostMissing = false;
@@ -4989,11 +5012,13 @@ async function loadVentas() {
     });
 
     // ── Datos reales del payment de ML
-    // marketplace_fee = cargo por venta TOTAL (variable + fijo)
-    // taxes_amount    = impuestos (SIRTAC, IIBB, etc)
-    // shipping_cost   = lo que el seller realmente pagó de envío (0 si ML lo bonificó)
-    // coupon_amount   = descuento aplicado (positivo = ML lo paga, no afecta al seller)
-    const taxes   = payments.reduce((s, p) => s + (Number(p.taxes_amount) || 0), 0);
+    // /orders/search a veces NO trae marketplace_fee (viene 0). Estimamos como fallback.
+    let commEstimado = false;
+    if (comm === 0 && gross > 0) {
+      comm = estimateCommission(gross, tipo);
+      commEstimado = true;
+    }
+    const taxes    = payments.reduce((s, p) => s + (Number(p.taxes_amount) || 0), 0);
     const shipReal = payments.reduce((s, p) => s + (Number(p.shipping_cost) || 0), 0);
 
     // Envío: priorizar dato real; si vino 0 y es NO FULL con precio sobre umbral, estimar
@@ -5004,15 +5029,17 @@ async function loadVentas() {
       envioEstimado = true;
     }
 
-    // Neto: gross - comisión - envío real - impuestos
+    // Neto: gross - comisión - envío - impuestos
     const net = gross - comm - envio - taxes;
     const ganancia = net - costo;
     const ganPct = costo > 0 ? (ganancia / costo) * 100 : 0;
 
     return {
-      id: o.id,
+      id:     orderGroup.length > 1 ? (o.pack_id || o.id) : o.id,
+      packId: o.pack_id || null,
+      orderIds: orderGroup.map(x => x.id),
       date: o.date_created,
-      gross, comm, envio, envioEstimado, taxes, net, costo, ganancia, ganPct, tipo,
+      gross, comm, commEstimado, envio, envioEstimado, taxes, net, costo, ganancia, ganPct, tipo,
       cart,
       itemCount: cart.length,
       totalQty:  cart.reduce((s, c) => s + c.qty, 0),
@@ -5023,6 +5050,8 @@ async function loadVentas() {
       status: o.status
     };
   });
+  // Ordenar de más reciente a más antiguo
+  ventasData.sort((a, b) => new Date(b.date) - new Date(a.date));
 
   ventasLoaded = true;
   document.getElementById('ventasLoadingMsg').style.display = 'none';
@@ -5092,7 +5121,7 @@ function renderVentas() {
         ${cartHtml}
       </td>
       <td style="text-align:right;color:var(--blue);font-weight:600;vertical-align:top;">${fmt(v.gross)}</td>
-      <td style="text-align:right;color:var(--red);vertical-align:top;">-${fmt(v.comm)}</td>
+      <td style="text-align:right;color:var(--red);vertical-align:top;" title="${v.commEstimado ? 'Estimado por tabla (ML no devolvió el dato)' : 'Real desde ML'}">-${fmt(v.comm)}${v.commEstimado ? '<span style="color:var(--muted2);font-size:9px;">*</span>' : ''}</td>
       <td style="text-align:right;color:var(--orange);vertical-align:top;" title="${v.envioEstimado ? 'Estimado por tabla' : 'Real desde ML'}">${v.envio > 0 ? '-' + fmt(v.envio) + (v.envioEstimado ? '<span style="color:var(--muted2);font-size:9px;">*</span>' : '') : '—'}</td>
       <td style="text-align:right;color:var(--red);vertical-align:top;">${v.taxes > 0 ? '-' + fmt(v.taxes) : '—'}</td>
       <td style="text-align:right;font-weight:700;color:var(--text);vertical-align:top;">${fmt(v.net)}</td>
