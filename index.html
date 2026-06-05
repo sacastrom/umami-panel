@@ -623,6 +623,7 @@
     <button class="main-tab" id="tabFlex" onclick="switchTab('flex')">🗺️ Flex</button>
     <button class="main-tab" id="tabInventario" onclick="switchTab('inventario')">📦 Inventario</button>
     <button class="main-tab" id="tabOficina" onclick="switchTab('oficina')">🏢 Stock oficina</button>
+    <button class="main-tab" id="tabVentas" onclick="switchTab('ventas')">💰 Ventas</button>
     <button class="main-tab" id="tabPublicar" onclick="switchTab('publicar')">🚀 Publicar</button>
     <button class="main-tab" id="tabPublicarTN" onclick="switchTab('publicartn')">📤 Publicar TN</button>
     <button class="main-tab-cfg" onclick="openConfig()" title="Configuración">⚙️</button>
@@ -900,6 +901,88 @@
         <div style="padding:30px;text-align:center;color:var(--muted2);font-size:13px;">Sin productos con stock todavía</div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ── VENTAS / GANANCIAS ── -->
+<div id="ventasContent" style="display:none;">
+  <!-- Header con filtros y totales -->
+  <div style="padding:14px 20px 12px;border-bottom:1px solid var(--border);">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+      <div style="font-family:var(--font-head);font-size:15px;font-weight:700;">💰 Detalle de ventas y ganancias</div>
+      <div style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        <span style="font-size:11px;color:var(--muted);">Rango:</span>
+        <select id="ventasRange" onchange="ventasRange=this.value;loadVentas()"
+          style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--surface);color:var(--text);font-family:var(--font-mono);">
+          <option value="7">Últimos 7 días</option>
+          <option value="30" selected>Últimos 30 días</option>
+          <option value="90">Últimos 90 días</option>
+          <option value="mes">Mes actual</option>
+          <option value="mes-1">Mes anterior</option>
+        </select>
+        <button class="pub-btn" onclick="loadVentas()">↺ Recargar</button>
+        <button class="pub-btn" onclick="ventasExportCSV()" title="Descargar CSV">⬇️ CSV</button>
+      </div>
+    </div>
+    <!-- Totales -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">
+      <div class="venta-stat" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Ventas</div>
+        <div id="ventasTotalCount" style="font-size:20px;font-weight:700;color:var(--text);">—</div>
+      </div>
+      <div class="venta-stat" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Bruto vendido</div>
+        <div id="ventasTotalGross" style="font-size:18px;font-weight:700;color:var(--blue);">—</div>
+      </div>
+      <div class="venta-stat" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Comisión ML</div>
+        <div id="ventasTotalComm" style="font-size:18px;font-weight:700;color:var(--red);">—</div>
+      </div>
+      <div class="venta-stat" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Envío seller (est.)</div>
+        <div id="ventasTotalShip" style="font-size:18px;font-weight:700;color:var(--orange);">—</div>
+      </div>
+      <div class="venta-stat" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Cobrado neto</div>
+        <div id="ventasTotalNet" style="font-size:18px;font-weight:700;color:var(--text);">—</div>
+      </div>
+      <div class="venta-stat" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Costo productos</div>
+        <div id="ventasTotalCost" style="font-size:18px;font-weight:700;color:var(--muted);">—</div>
+      </div>
+      <div class="venta-stat" style="background:var(--green-light);border:1px solid rgba(22,163,74,.3);border-radius:10px;padding:10px 12px;">
+        <div style="font-size:10px;color:var(--green);text-transform:uppercase;letter-spacing:.5px;font-weight:700;">💵 Ganancia</div>
+        <div id="ventasTotalProfit" style="font-size:20px;font-weight:800;color:var(--green);">—</div>
+        <div id="ventasTotalProfitPct" style="font-size:11px;color:var(--green);font-weight:600;">—</div>
+      </div>
+    </div>
+    <div id="ventasLoadingMsg" style="display:none;font-size:11px;color:var(--muted);margin-top:8px;">
+      <div class="loader" style="display:inline-block;width:14px;height:14px;border-width:2px;margin-right:6px;vertical-align:middle;"></div>
+      <span id="ventasLoadingText">Cargando ventas…</span>
+    </div>
+  </div>
+  <!-- Tabla -->
+  <div style="overflow-x:auto;max-height:calc(100vh - 320px);overflow-y:auto;">
+    <table class="pub-tbl" style="font-size:11px;">
+      <thead style="position:sticky;top:0;background:var(--surface2);z-index:1;">
+        <tr>
+          <th style="width:90px;">Fecha</th>
+          <th>Producto</th>
+          <th style="width:60px;">SKU</th>
+          <th style="width:40px;text-align:center;">Qty</th>
+          <th style="text-align:right;">Bruto</th>
+          <th style="text-align:right;color:var(--red);">- Comisión</th>
+          <th style="text-align:right;color:var(--orange);">- Envío</th>
+          <th style="text-align:right;font-weight:700;">= Neto</th>
+          <th style="text-align:right;color:var(--muted);">- Costo</th>
+          <th style="text-align:right;font-weight:700;">Ganancia</th>
+          <th style="text-align:center;width:60px;">%</th>
+        </tr>
+      </thead>
+      <tbody id="ventasTbody">
+        <tr><td colspan="11" style="text-align:center;padding:28px;color:var(--muted2);">Hacé click en el tab para cargar las ventas</td></tr>
+      </tbody>
+    </table>
   </div>
 </div>
 
@@ -2236,6 +2319,7 @@ function switchTab(tab) {
   document.getElementById('tabFlex').classList.toggle('active', tab === 'flex');
   document.getElementById('tabInventario').classList.toggle('active', tab === 'inventario');
   document.getElementById('tabOficina').classList.toggle('active', tab === 'oficina');
+  document.getElementById('tabVentas').classList.toggle('active', tab === 'ventas');
   document.getElementById('tabPublicar').classList.toggle('active', tab === 'publicar');
   document.getElementById('tabPublicarTN').classList.toggle('active', tab === 'publicartn');
   document.getElementById('panelContent').style.display = tab === 'publicaciones' ? 'block' : 'none';
@@ -2243,6 +2327,7 @@ function switchTab(tab) {
   document.getElementById('flexContent').style.display = tab === 'flex' ? 'block' : 'none';
   document.getElementById('inventarioContent').style.display = tab === 'inventario' ? 'block' : 'none';
   document.getElementById('oficinaContent').style.display = tab === 'oficina' ? 'block' : 'none';
+  document.getElementById('ventasContent').style.display = tab === 'ventas' ? 'block' : 'none';
   document.getElementById('publicarContent').style.display = tab === 'publicar' ? 'block' : 'none';
   document.getElementById('publicartnContent').style.display = tab === 'publicartn' ? 'block' : 'none';
   if (tab === 'metricas' && !metLoaded) document.getElementById('metEmpty').style.display = 'block';
@@ -2251,6 +2336,7 @@ function switchTab(tab) {
   }
   if (tab === 'inventario') invInit();
   if (tab === 'oficina') oficinaInit();
+  if (tab === 'ventas') ventasInit();
   if (tab === 'publicar') pubInit();
   if (tab === 'publicartn') pubtnInit();
 }
@@ -4810,6 +4896,188 @@ function pubtnLogAdd(html) {
   d.innerHTML = html;
   log.appendChild(d);
   log.scrollTop = log.scrollHeight;
+}
+
+// ── VENTAS / GANANCIAS ────────────────────────────────
+let ventasRange = '30';
+let ventasData = [];
+let ventasLoaded = false;
+
+function ventasInit() {
+  if (!ventasLoaded) loadVentas();
+}
+
+function ventasGetDateRange() {
+  const now = new Date();
+  let from, to = new Date(now);
+  if (ventasRange === 'mes') {
+    from = new Date(now.getFullYear(), now.getMonth(), 1);
+  } else if (ventasRange === 'mes-1') {
+    from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    to   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+  } else {
+    const dias = parseInt(ventasRange) || 30;
+    from = new Date(now.getTime() - dias * 86400000);
+  }
+  return { from: from.toISOString(), to: to.toISOString() };
+}
+
+async function loadVentas() {
+  if (!accessToken || !mlUserId) { showToast('Sin sesión ML', 'error'); return; }
+
+  ventasData = [];
+  document.getElementById('ventasTbody').innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--muted);">Cargando…</td></tr>';
+  document.getElementById('ventasLoadingMsg').style.display = 'block';
+  document.getElementById('ventasLoadingText').textContent = 'Consultando órdenes…';
+
+  const { from, to } = ventasGetDateRange();
+  const params = `seller=${mlUserId}&order.status=paid&order.date_created.from=${encodeURIComponent(from)}&order.date_created.to=${encodeURIComponent(to)}&sort=date_desc&limit=50`;
+
+  let all = [];
+  let offset = 0;
+  try {
+    while (true) {
+      const data = await mlFetch(`/orders/search?${params}&offset=${offset}`);
+      const results = data?.results || [];
+      if (!results.length) break;
+      all = all.concat(results);
+      document.getElementById('ventasLoadingText').textContent = `Cargando órdenes… ${all.length}`;
+      if (results.length < 50) break;
+      offset += 50;
+      if (offset >= 1000) break; // safety: 1000 ventas máx por carga
+      await new Promise(r => setTimeout(r, 120));
+    }
+  } catch(e) {
+    document.getElementById('ventasLoadingMsg').style.display = 'none';
+    showToast('❌ Error cargando: ' + e.message, 'error');
+    return;
+  }
+
+  // Procesar
+  ventasData = all.map(o => {
+    const items = o.order_items || [];
+    const payments = o.payments || [];
+    const payment = payments[0] || {};
+    const gross = Number(o.total_amount) || items.reduce((s, it) => s + ((it.unit_price || 0) * (it.quantity || 0)), 0);
+    const comm  = payments.reduce((s, p) => s + (Number(p.marketplace_fee) || 0), 0);
+
+    // Match productos para costo + tipo
+    let costo = 0, tipo = 'NO FULL', gondola = '', costoFound = false;
+    items.forEach(it => {
+      const mla = it.item?.id;
+      const p = products.find(x => x.mla === mla);
+      if (p) {
+        costo += (p.costo || 0) * (it.quantity || 1);
+        tipo = p.tipo || tipo;
+        gondola = p.gondola || gondola;
+        costoFound = true;
+      }
+    });
+
+    // Estimar envío seller: si NO FULL y precio >= umbral envío gratis
+    let envio = 0;
+    if (tipo !== 'FULL' && gross >= V.precioEnvioGratis) {
+      envio = V.costoEnvioGratis;
+    }
+
+    const net = gross - comm - envio;
+    const ganancia = net - costo;
+    const ganPct = costo > 0 ? (ganancia / costo) * 100 : 0;
+
+    const item0 = items[0] || {};
+    return {
+      id: o.id,
+      date: o.date_created,
+      gross, comm, envio, net, costo, ganancia, ganPct, tipo,
+      mla:      item0.item?.id || '',
+      title:    item0.item?.title || '—',
+      sku:      item0.item?.seller_sku || item0.item?.seller_custom_field || '',
+      qty:      items.reduce((s, it) => s + (it.quantity || 0), 0),
+      itemCount: items.length,
+      gondola, costoFound,
+      buyer: o.buyer?.nickname || '—',
+      status: o.status
+    };
+  });
+
+  ventasLoaded = true;
+  document.getElementById('ventasLoadingMsg').style.display = 'none';
+  renderVentas();
+}
+
+function renderVentas() {
+  const totals = ventasData.reduce((a, v) => ({
+    gross: a.gross + v.gross,
+    comm:  a.comm  + v.comm,
+    envio: a.envio + v.envio,
+    net:   a.net   + v.net,
+    costo: a.costo + v.costo,
+    ganancia: a.ganancia + v.ganancia
+  }), { gross:0, comm:0, envio:0, net:0, costo:0, ganancia:0 });
+
+  document.getElementById('ventasTotalCount').textContent = ventasData.length;
+  document.getElementById('ventasTotalGross').textContent = fmt(totals.gross);
+  document.getElementById('ventasTotalComm').textContent  = fmt(totals.comm);
+  document.getElementById('ventasTotalShip').textContent  = fmt(totals.envio);
+  document.getElementById('ventasTotalNet').textContent   = fmt(totals.net);
+  document.getElementById('ventasTotalCost').textContent  = fmt(totals.costo);
+  document.getElementById('ventasTotalProfit').textContent = fmt(totals.ganancia);
+  const totPct = totals.costo > 0 ? (totals.ganancia / totals.costo * 100) : 0;
+  document.getElementById('ventasTotalProfitPct').textContent = `${totPct >= 0 ? '+' : ''}${totPct.toFixed(1)}% sobre costo`;
+
+  const tbody = document.getElementById('ventasTbody');
+  if (!ventasData.length) {
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:28px;color:var(--muted2);">Sin ventas en el rango seleccionado</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = ventasData.map(v => {
+    const fecha = new Date(v.date).toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit' });
+    const hora  = new Date(v.date).toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' });
+    const semColor = v.ganPct >= 30 ? 'var(--green)' : v.ganPct >= 15 ? 'var(--orange)' : 'var(--red)';
+    const titleClip = v.title.length > 55 ? v.title.slice(0,55) + '…' : v.title;
+    const warn = !v.costoFound ? ` <span title="No se encontró el producto en la Sheet — costo = 0" style="color:var(--red);">⚠️</span>` : '';
+    return `<tr>
+      <td style="white-space:nowrap;color:var(--muted);font-family:var(--font-mono);">${fecha}<br><span style="font-size:9px;color:var(--muted2);">${hora}</span></td>
+      <td style="max-width:300px;">
+        <a href="https://articulo.mercadolibre.com.ar/${v.mla}" target="_blank" style="color:var(--text);text-decoration:none;font-weight:500;" title="${v.title}">${titleClip}</a>${warn}
+        <div style="font-size:9px;color:var(--muted2);">${v.mla} · ${v.buyer}${v.itemCount > 1 ? ` · ${v.itemCount} items` : ''}</div>
+      </td>
+      <td class="sku-code" style="font-size:10px;">${v.sku || '—'}</td>
+      <td style="text-align:center;font-weight:600;">${v.qty}</td>
+      <td style="text-align:right;color:var(--blue);">${fmt(v.gross)}</td>
+      <td style="text-align:right;color:var(--red);">-${fmt(v.comm)}</td>
+      <td style="text-align:right;color:var(--orange);">${v.envio > 0 ? '-' + fmt(v.envio) : '—'}</td>
+      <td style="text-align:right;font-weight:700;color:var(--text);">${fmt(v.net)}</td>
+      <td style="text-align:right;color:var(--muted);">-${fmt(v.costo)}</td>
+      <td style="text-align:right;font-weight:700;color:${semColor};">${fmt(v.ganancia)}</td>
+      <td style="text-align:center;font-weight:700;color:${semColor};">${v.ganPct.toFixed(0)}%</td>
+    </tr>`;
+  }).join('');
+}
+
+function ventasExportCSV() {
+  if (!ventasData.length) { showToast('No hay datos para exportar', 'error'); return; }
+  const headers = ['Fecha','Hora','MLA','SKU','Producto','Cantidad','Bruto','Comisión','Envío','Neto','Costo','Ganancia','%','Comprador','Status'];
+  const rows = ventasData.map(v => {
+    const d = new Date(v.date);
+    return [
+      d.toLocaleDateString('es-AR'),
+      d.toLocaleTimeString('es-AR'),
+      v.mla, v.sku, `"${(v.title || '').replace(/"/g,'""')}"`,
+      v.qty, v.gross.toFixed(2), v.comm.toFixed(2), v.envio.toFixed(2),
+      v.net.toFixed(2), v.costo.toFixed(2), v.ganancia.toFixed(2),
+      v.ganPct.toFixed(1), v.buyer, v.status
+    ].join(',');
+  });
+  const csv = '﻿' + headers.join(',') + '\n' + rows.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `ventas_umami_${ventasRange}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── VARIABLES DESDE SHEET ─────────────────────────────
