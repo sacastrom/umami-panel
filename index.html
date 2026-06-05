@@ -970,20 +970,19 @@
     <table class="pub-tbl" style="font-size:11px;">
       <thead style="position:sticky;top:0;background:var(--surface2);z-index:1;">
         <tr>
+          <th style="width:34px;"></th>
           <th style="width:90px;">Fecha</th>
-          <th>Compra / Carrito</th>
-          <th style="text-align:right;width:90px;">Bruto</th>
-          <th style="text-align:right;color:var(--red);width:90px;" title="Cargo por venta total (variable + costo fijo)">- Comisión</th>
-          <th style="text-align:right;color:var(--orange);width:80px;" title="Envío que pagó el seller (real desde ML)">- Envío</th>
-          <th style="text-align:right;color:var(--red);width:75px;" title="Retenciones impositivas (SIRTAC, IIBB)">- Impuestos</th>
-          <th style="text-align:right;font-weight:700;width:90px;">= Neto ML</th>
-          <th style="text-align:right;color:var(--muted);width:90px;">- Costo</th>
-          <th style="text-align:right;font-weight:700;width:90px;">Ganancia</th>
+          <th>Comprador / Productos</th>
+          <th style="text-align:center;width:60px;">Items</th>
+          <th style="text-align:right;width:100px;">Bruto</th>
+          <th style="text-align:right;font-weight:700;width:110px;">Neto ML</th>
+          <th style="text-align:right;color:var(--muted);width:100px;">Costo</th>
+          <th style="text-align:right;font-weight:700;width:110px;">Ganancia</th>
           <th style="text-align:center;width:60px;">%</th>
         </tr>
       </thead>
       <tbody id="ventasTbody">
-        <tr><td colspan="10" style="text-align:center;padding:28px;color:var(--muted2);">Hacé click en el tab para cargar las ventas</td></tr>
+        <tr><td colspan="9" style="text-align:center;padding:28px;color:var(--muted2);">Hacé click en el tab para cargar las ventas</td></tr>
       </tbody>
     </table>
   </div>
@@ -4907,6 +4906,7 @@ function pubtnLogAdd(html) {
 // ── VENTAS / GANANCIAS ────────────────────────────────
 let ventasRange = '30';
 let ventasData = [];
+let ventasOrdersRaw = [];
 let ventasLoaded = false;
 
 function ventasInit() {
@@ -4932,7 +4932,7 @@ async function loadVentas() {
   if (!accessToken || !mlUserId) { showToast('Sin sesión ML', 'error'); return; }
 
   ventasData = [];
-  document.getElementById('ventasTbody').innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--muted);">Cargando…</td></tr>';
+  document.getElementById('ventasTbody').innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--muted);">Cargando…</td></tr>';
   document.getElementById('ventasLoadingMsg').style.display = 'block';
   document.getElementById('ventasLoadingText').textContent = 'Consultando órdenes…';
 
@@ -4958,6 +4958,9 @@ async function loadVentas() {
     showToast('❌ Error cargando: ' + e.message, 'error');
     return;
   }
+
+  // Guardar órdenes crudas para el detalle expandido
+  ventasOrdersRaw = all;
 
   // Helper para estimar comisión (variable + costo fijo) cuando ML no devuelve marketplace_fee
   const estimateCommission = (gross, tipo) => {
@@ -4991,23 +4994,27 @@ async function loadVentas() {
     let costo = 0, tipo = 'NO FULL', gondola = '', anyCostMissing = false;
     const cart = items.map(it => {
       const mla = it.item?.id || '';
-      const p = products.find(x => x.mla === mla);
+      const sku = String(it.item?.seller_sku || it.item?.seller_custom_field || '').trim();
+      // Buscar primero por MLA, luego por SKU como fallback
+      let p = products.find(x => x.mla === mla);
+      let matchBy = 'mla';
+      if (!p && sku) { p = products.find(x => x.sku === sku); if (p) matchBy = 'sku'; }
       const unitCost = p ? (p.costo || 0) : 0;
       const itemQty  = it.quantity || 1;
       const lineCost = unitCost * itemQty;
       costo += lineCost;
       if (p) { tipo = p.tipo || tipo; gondola = p.gondola || gondola; }
-      else   { anyCostMissing = true; }
+      else   { anyCostMissing = true; matchBy = 'none'; }
       return {
-        mla,
+        mla, sku, matchBy,
         title:    it.item?.title || '—',
-        sku:      it.item?.seller_sku || it.item?.seller_custom_field || '',
         qty:      itemQty,
         unitPrice: it.unit_price || 0,
         lineGross: (it.unit_price || 0) * itemQty,
         unitCost,
         lineCost,
-        costoFound: !!p
+        costoFound: !!p,
+        thumbnail: p?.thumbnail || ''
       };
     });
 
@@ -5082,54 +5089,179 @@ function renderVentas() {
 
   const tbody = document.getElementById('ventasTbody');
   if (!ventasData.length) {
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:28px;color:var(--muted2);">Sin ventas en el rango seleccionado</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:28px;color:var(--muted2);">Sin ventas en el rango seleccionado</td></tr>';
     return;
   }
 
-  tbody.innerHTML = ventasData.map(v => {
-    const fecha = new Date(v.date).toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit' });
-    const hora  = new Date(v.date).toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' });
-    const semColor = v.ganPct >= 30 ? 'var(--green)' : v.ganPct >= 15 ? 'var(--orange)' : 'var(--red)';
-    const warn = !v.costoFound ? ` <span title="Alguno de los productos no está en la Sheet — costo parcial" style="color:var(--red);">⚠️</span>` : '';
+  tbody.innerHTML = ventasData.map(v => ventaRowHtml(v)).join('');
+}
 
-    // Detalle del carrito: lista compacta de productos
-    const cartHtml = v.cart.map(c => {
-      const titleClip = c.title.length > 55 ? c.title.slice(0,55) + '…' : c.title;
-      const miss = !c.costoFound ? `<span title="Sin costo en Sheet" style="color:var(--red);font-size:9px;">⚠️</span>` : '';
-      return `<div style="display:flex;gap:6px;align-items:baseline;padding:2px 0;border-top:1px dashed var(--border);">
-        <span style="background:var(--accent-light);color:var(--accent);font-weight:700;font-size:10px;padding:1px 5px;border-radius:8px;min-width:22px;text-align:center;">${c.qty}×</span>
-        <a href="https://articulo.mercadolibre.com.ar/${c.mla}" target="_blank" style="color:var(--text);text-decoration:none;flex:1;min-width:0;font-size:11px;" title="${c.title}">${titleClip}</a>
-        <span style="font-size:9px;color:var(--muted2);font-family:var(--font-mono);white-space:nowrap;">${c.sku || c.mla}</span>
-        <span style="font-size:10px;color:var(--blue);font-weight:600;white-space:nowrap;">${fmt(c.lineGross)}</span>
-        ${miss}
-      </div>`;
-    }).join('');
+function ventaRowHtml(v) {
+  const fecha = new Date(v.date).toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit' });
+  const hora  = new Date(v.date).toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' });
+  const semColor = v.ganPct >= 30 ? 'var(--green)' : v.ganPct >= 15 ? 'var(--orange)' : 'var(--red)';
+  const warn = !v.costoFound ? ` <span title="Algún producto no se encontró en la Sheet" style="color:var(--red);">⚠️</span>` : '';
+  const isOpen = !!ventasExpanded[v.id];
+  const arrow  = isOpen ? '▼' : '▶';
+  // Resumen del carrito (1 línea)
+  const itemsSummary = v.cart.length === 1
+    ? v.cart[0].title.slice(0, 70) + (v.cart[0].title.length > 70 ? '…' : '')
+    : `🛒 ${v.cart.length} productos: ` + v.cart.map(c => `${c.qty}× ${c.title.slice(0,25)}`).join(' · ').slice(0, 100) + '…';
+  return `<tr class="venta-row" data-vid="${v.id}" onclick="ventaToggleExpand('${v.id}')" style="cursor:pointer;${isOpen ? 'background:var(--surface2);' : ''}">
+    <td style="text-align:center;color:var(--muted);font-size:11px;">${arrow}</td>
+    <td style="white-space:nowrap;color:var(--muted);font-family:var(--font-mono);">${fecha}<br><span style="font-size:9px;color:var(--muted2);">${hora}</span><br><span style="font-size:9px;color:var(--muted2);">#${v.id}</span></td>
+    <td style="max-width:420px;">
+      <div style="font-weight:600;color:var(--text);">👤 ${v.buyer}${warn}</div>
+      <div style="font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${itemsSummary}</div>
+    </td>
+    <td style="text-align:center;color:var(--accent);font-weight:700;">${v.totalQty}u<br><span style="font-size:9px;color:var(--muted);">${v.itemCount} prod</span></td>
+    <td style="text-align:right;color:var(--blue);font-weight:600;">${fmt(v.gross)}</td>
+    <td style="text-align:right;font-weight:700;color:var(--text);">${fmt(v.net)}</td>
+    <td style="text-align:right;color:var(--muted);">-${fmt(v.costo)}</td>
+    <td style="text-align:right;font-weight:700;color:${semColor};">${fmt(v.ganancia)}</td>
+    <td style="text-align:center;font-weight:700;color:${semColor};">${v.ganPct.toFixed(0)}%</td>
+  </tr>${isOpen ? `<tr class="venta-detail-row" data-vid-detail="${v.id}"><td colspan="9" style="padding:0;background:var(--surface2);"><div id="ventaDetail-${v.id}" style="padding:16px 20px;">${ventaDetailHtml(v)}</div></td></tr>` : ''}`;
+}
 
-    const headerHtml = v.isCart
-      ? `<div style="display:flex;gap:6px;align-items:center;margin-bottom:2px;">
-          <span style="background:var(--orange-light, rgba(234,88,12,.12));color:var(--orange);font-weight:700;font-size:10px;padding:2px 7px;border-radius:8px;">🛒 CARRITO · ${v.itemCount} prod · ${v.totalQty} u.</span>
-          <span style="font-size:10px;color:var(--muted);">${v.buyer}</span>${warn}
-        </div>`
-      : `<div style="display:flex;gap:6px;align-items:center;margin-bottom:2px;">
-          <span style="font-size:10px;color:var(--muted);">👤 ${v.buyer}</span>${warn}
-        </div>`;
+let ventasExpanded = {};
+let ventasFeeDetailsCache = {}; // payment_id → fee_details[]
 
-    return `<tr>
-      <td style="white-space:nowrap;color:var(--muted);font-family:var(--font-mono);vertical-align:top;">${fecha}<br><span style="font-size:9px;color:var(--muted2);">${hora}</span><br><span style="font-size:9px;color:var(--muted2);">#${v.id}</span></td>
-      <td style="max-width:380px;vertical-align:top;">
-        ${headerHtml}
-        ${cartHtml}
-      </td>
-      <td style="text-align:right;color:var(--blue);font-weight:600;vertical-align:top;">${fmt(v.gross)}</td>
-      <td style="text-align:right;color:var(--red);vertical-align:top;" title="${v.commEstimado ? 'Estimado por tabla (ML no devolvió el dato)' : 'Real desde ML'}">-${fmt(v.comm)}${v.commEstimado ? '<span style="color:var(--muted2);font-size:9px;">*</span>' : ''}</td>
-      <td style="text-align:right;color:var(--orange);vertical-align:top;" title="${v.envioEstimado ? 'Estimado por tabla' : 'Real desde ML'}">${v.envio > 0 ? '-' + fmt(v.envio) + (v.envioEstimado ? '<span style="color:var(--muted2);font-size:9px;">*</span>' : '') : '—'}</td>
-      <td style="text-align:right;color:var(--red);vertical-align:top;">${v.taxes > 0 ? '-' + fmt(v.taxes) : '—'}</td>
-      <td style="text-align:right;font-weight:700;color:var(--text);vertical-align:top;">${fmt(v.net)}</td>
-      <td style="text-align:right;color:var(--muted);vertical-align:top;">-${fmt(v.costo)}</td>
-      <td style="text-align:right;font-weight:700;color:${semColor};vertical-align:top;">${fmt(v.ganancia)}</td>
-      <td style="text-align:center;font-weight:700;color:${semColor};vertical-align:top;">${v.ganPct.toFixed(0)}%</td>
-    </tr>`;
-  }).join('');
+async function ventaToggleExpand(vid) {
+  const v = ventasData.find(x => x.id == vid);
+  if (!v) return;
+  ventasExpanded[vid] = !ventasExpanded[vid];
+  renderVentas();
+  if (ventasExpanded[vid]) {
+    // Cargar fee_details de cada payment si no están cacheados
+    const detailEl = document.getElementById(`ventaDetail-${vid}`);
+    if (!detailEl) return;
+    // Listar todos los payment IDs únicos del pack
+    const paymentIds = [];
+    (v.orderIds || [v.id]).forEach(oid => {
+      // Buscar en el cache de orden original
+      const ord = ventasOrdersRaw.find(o => o.id == oid);
+      if (!ord) return;
+      (ord.payments || []).forEach(p => { if (p.id) paymentIds.push(p.id); });
+    });
+    const toFetch = paymentIds.filter(pid => !ventasFeeDetailsCache[pid]);
+    if (toFetch.length) {
+      detailEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);"><div class="loader" style="display:inline-block;width:16px;height:16px;border-width:2px;margin-right:8px;vertical-align:middle;"></div>Consultando detalle a Mercado Pago…</div>';
+      for (const pid of toFetch) {
+        try {
+          const r = await fetch(`/api/mp?path=${encodeURIComponent('/v1/payments/' + pid)}`, {
+            headers: { 'Authorization': 'Bearer ' + accessToken }
+          });
+          const data = await r.json();
+          ventasFeeDetailsCache[pid] = data?.fee_details || data?.charges_details || [];
+        } catch(_) { ventasFeeDetailsCache[pid] = []; }
+      }
+      detailEl.innerHTML = ventaDetailHtml(v);
+    }
+  }
+}
+
+function ventaDetailHtml(v) {
+  // Recolectar fee_details si están cacheados
+  const allFees = [];
+  (v.orderIds || [v.id]).forEach(oid => {
+    const ord = ventasOrdersRaw.find(o => o.id == oid);
+    if (!ord) return;
+    (ord.payments || []).forEach(p => {
+      const fd = ventasFeeDetailsCache[p.id];
+      if (fd) allFees.push(...fd);
+    });
+  });
+
+  const FEE_TYPE_LABELS = {
+    mercadopago_fee:        'Mercado Pago',
+    marketplace_fee:        'Cargo por venta',
+    financing_fee:          'Costo financiero',
+    application_fee:        'Aplicación',
+    discount_fee:           'Descuento',
+    shipping_paid_by_seller:'Envío pagado por seller',
+    shipping_cost:          'Costo de envío',
+    discount_marketplace:   'Bonificación de Mercado Libre',
+    tax_amount:             'Impuestos',
+    sirtac:                 'Retención SIRTAC',
+    iibb:                   'Retención IIBB',
+    ganancias:              'Retención Ganancias'
+  };
+
+  // Si tenemos fee_details, usamos esos. Si no, mostramos el resumen calculado.
+  let cobroHtml = '';
+  if (allFees.length) {
+    cobroHtml = `<table style="width:100%;font-size:12px;border-collapse:collapse;">
+      <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 0;color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:.5px;" colspan="2">Detalle de cobro (ML)</td></tr>
+      <tr><td style="padding:5px 0;">Precio de los productos</td><td style="text-align:right;color:var(--blue);font-weight:600;">${fmt(v.gross)}</td></tr>
+      ${allFees.map(f => {
+        const label = FEE_TYPE_LABELS[f.type] || f.type;
+        const amt = Number(f.amount) || 0;
+        const sign = amt > 0 ? '-' : '+';
+        const color = amt > 0 ? 'var(--red)' : 'var(--green)';
+        return `<tr><td style="padding:4px 0 4px 12px;color:var(--muted);font-size:11px;">${label}${f.fee_payer && f.fee_payer !== 'collector' ? ` <span style="color:var(--muted2);font-size:9px;">(${f.fee_payer})</span>` : ''}</td><td style="text-align:right;color:${color};">${sign}${fmt(Math.abs(amt))}</td></tr>`;
+      }).join('')}
+      <tr style="border-top:2px solid var(--border);"><td style="padding:8px 0;font-weight:700;">Total cobrado</td><td style="text-align:right;font-weight:700;color:var(--text);">${fmt(v.net)}</td></tr>
+    </table>`;
+  } else {
+    // Fallback al cálculo agregado
+    cobroHtml = `<table style="width:100%;font-size:12px;border-collapse:collapse;">
+      <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 0;color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:.5px;" colspan="2">Detalle de cobro <span style="color:var(--muted2);">(cargando detalle…)</span></td></tr>
+      <tr><td style="padding:5px 0;">Precio de los productos</td><td style="text-align:right;color:var(--blue);font-weight:600;">${fmt(v.gross)}</td></tr>
+      <tr><td style="padding:4px 0 4px 12px;color:var(--muted);">Cargo por venta total${v.commEstimado ? ' <span style="color:var(--muted2);font-size:9px;">(estimado)</span>' : ''}</td><td style="text-align:right;color:var(--red);">-${fmt(v.comm)}</td></tr>
+      ${v.envio > 0 ? `<tr><td style="padding:4px 0 4px 12px;color:var(--muted);">Envío seller${v.envioEstimado ? ' <span style="color:var(--muted2);font-size:9px;">(estimado)</span>' : ''}</td><td style="text-align:right;color:var(--orange);">-${fmt(v.envio)}</td></tr>` : ''}
+      ${v.taxes > 0 ? `<tr><td style="padding:4px 0 4px 12px;color:var(--muted);">Impuestos</td><td style="text-align:right;color:var(--red);">-${fmt(v.taxes)}</td></tr>` : ''}
+      <tr style="border-top:2px solid var(--border);"><td style="padding:8px 0;font-weight:700;">Total cobrado</td><td style="text-align:right;font-weight:700;color:var(--text);">${fmt(v.net)}</td></tr>
+    </table>`;
+  }
+
+  // Tabla de costos por item
+  const costosHtml = `<table style="width:100%;font-size:12px;border-collapse:collapse;margin-top:14px;">
+    <tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:6px 0;color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:.5px;" colspan="5">Costos de productos (desde Sheet)</td>
+    </tr>
+    <tr style="color:var(--muted);font-size:10px;">
+      <th style="padding:4px 6px;text-align:left;font-weight:400;">Item</th>
+      <th style="padding:4px 6px;text-align:left;font-weight:400;">SKU / MLA</th>
+      <th style="padding:4px 6px;text-align:center;font-weight:400;">Cant</th>
+      <th style="padding:4px 6px;text-align:right;font-weight:400;">Costo u.</th>
+      <th style="padding:4px 6px;text-align:right;font-weight:400;">Subtotal</th>
+    </tr>
+    ${v.cart.map(c => {
+      const matchBadge = c.matchBy === 'sku' ? `<span style="font-size:9px;background:var(--orange);color:#fff;padding:1px 5px;border-radius:6px;margin-left:4px;" title="Matcheado por SKU porque el MLA no coincide">SKU</span>` :
+                        c.matchBy === 'none' ? `<span style="font-size:9px;background:var(--red);color:#fff;padding:1px 5px;border-radius:6px;margin-left:4px;cursor:pointer;" title="No se encontró ni por MLA (${c.mla}) ni por SKU (${c.sku || '—'}). Click para copiar MLA." onclick="event.stopPropagation();navigator.clipboard.writeText('${c.mla}');showToast('📋 MLA copiado: ${c.mla}','info');">NO MATCH</span>` : '';
+      return `<tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px;">${c.thumbnail ? `<img src="${c.thumbnail}" style="width:24px;height:24px;border-radius:4px;object-fit:cover;vertical-align:middle;margin-right:6px;">` : ''}<a href="https://articulo.mercadolibre.com.ar/${c.mla}" target="_blank" style="color:var(--text);text-decoration:none;" onclick="event.stopPropagation();">${c.title.slice(0,55)}${c.title.length > 55 ? '…' : ''}</a></td>
+        <td style="padding:6px;font-family:var(--font-mono);font-size:10px;color:var(--muted);">${c.sku || '—'}<br><span style="font-size:9px;color:var(--muted2);">${c.mla}</span>${matchBadge}</td>
+        <td style="padding:6px;text-align:center;font-weight:600;">${c.qty}</td>
+        <td style="padding:6px;text-align:right;color:var(--muted);">${fmt(c.unitCost)}</td>
+        <td style="padding:6px;text-align:right;font-weight:600;${!c.costoFound ? 'color:var(--red);' : 'color:var(--muted);'}">${fmt(c.lineCost)}</td>
+      </tr>`;
+    }).join('')}
+    <tr style="border-top:2px solid var(--border);">
+      <td colspan="4" style="padding:8px 6px;font-weight:700;">Total costo</td>
+      <td style="padding:8px 6px;text-align:right;font-weight:700;color:var(--muted);">${fmt(v.costo)}</td>
+    </tr>
+  </table>`;
+
+  // Resta final
+  const semColor = v.ganPct >= 30 ? 'var(--green)' : v.ganPct >= 15 ? 'var(--orange)' : 'var(--red)';
+  const gananciaHtml = `<div style="margin-top:14px;background:var(--surface);border:2px solid ${semColor};border-radius:10px;padding:12px 16px;">
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px;">
+      <span>Cobrado neto</span><span style="font-family:var(--font-mono);color:var(--text);">${fmt(v.net)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:8px;">
+      <span>− Costo productos</span><span style="font-family:var(--font-mono);color:var(--muted);">-${fmt(v.costo)}</span>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:8px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:13px;font-weight:700;color:${semColor};">💵 Ganancia neta</span>
+      <span style="font-size:18px;font-weight:800;color:${semColor};font-family:var(--font-mono);">${fmt(v.ganancia)} <span style="font-size:12px;">(${v.ganPct.toFixed(1)}%)</span></span>
+    </div>
+  </div>`;
+
+  return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start;">
+    <div>${cobroHtml}</div>
+    <div>${costosHtml}</div>
+  </div>${gananciaHtml}`;
 }
 
 function ventasExportCSV() {
