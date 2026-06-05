@@ -681,8 +681,8 @@
         </div>
         <div class="flex-stats">
           <div class="flex-stat"><div class="flex-stat-val" id="flexTotal">—</div><div class="flex-stat-label">Total</div></div>
-          <div class="flex-stat"><div class="flex-stat-val" style="color:var(--green)" id="flexYoCount">0</div><div class="flex-stat-label">🟢 Yo</div></div>
-          <div class="flex-stat"><div class="flex-stat-val" style="color:var(--red)" id="flexLogCount">0</div><div class="flex-stat-label">🔴 Logística</div></div>
+          <div class="flex-stat"><div class="flex-stat-val" style="color:#16a34a" id="flexFlexCount">0</div><div class="flex-stat-label">🟢 Flex</div></div>
+          <div class="flex-stat"><div class="flex-stat-val" style="color:#8b5cf6" id="flexDespCount">0</div><div class="flex-stat-label">🟣 Despacho</div></div>
           <div class="flex-stat"><div class="flex-stat-val" style="color:var(--muted)" id="flexPendCount">0</div><div class="flex-stat-label">⏳ Sin decidir</div></div>
         </div>
         <div id="flexLoading" class="flex-loading" style="display:none;">
@@ -2428,9 +2428,18 @@ function initFlexMap() {
   }).addTo(flexMap);
 }
 
-function getFlexIcon(decision) {
-  const color = decision === 'yo' ? '#16a34a' : decision === 'log' ? '#dc2626' : '#6c63ff';
-  const emoji = decision === 'yo' ? '🟢' : decision === 'log' ? '🔴' : '📦';
+function getFlexIcon(envio) {
+  // Compatibilidad: si recibe string, lo trata como decision (legacy)
+  const tipo = (typeof envio === 'object' && envio) ? (envio.tipo || 'flex') : 'flex';
+  const decision = (typeof envio === 'object' && envio) ? envio.decision : envio;
+  let color, emoji;
+  if (tipo === 'despacho') {
+    color = '#8b5cf6';
+    emoji = '🟣';
+  } else {
+    color = decision === 'yo' ? '#16a34a' : decision === 'log' ? '#dc2626' : '#6c63ff';
+    emoji = decision === 'yo' ? '🟢' : decision === 'log' ? '🔴' : '📦';
+  }
   return L.divIcon({
     html: `<div style="background:${color};color:#fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,.3);border:2px solid #fff;">${emoji}</div>`,
     iconSize: [32, 32],
@@ -2463,6 +2472,8 @@ async function loadFlex(forceRefresh) {
         flexLoaded = true;
         renderFlexList();
         renderFlexMap();
+        // Revalidar status en background — eliminar los ya enviados
+        revalidateFlexCache();
         return;
       }
     } catch(e) {}
@@ -2513,6 +2524,10 @@ async function loadFlex(forceRefresh) {
         const lat = addr.latitude, lng = addr.longitude;
         const coords = (lat && lng) ? { lat: parseFloat(lat), lng: parseFloat(lng) } : null;
 
+        // logistic_type: self_service = Flex, otros me2 (xd_drop_off, drop_off) = Punto de despacho
+        const logisticType = ship.logistic_type || '';
+        const tipo = logisticType === 'self_service' ? 'flex' : 'despacho';
+
         // Buscar orden correspondiente para datos del comprador y producto
         const orden = recientes.find(o => o.pack_id == item.packId || (o.shipping && o.shipping.id == item.shipId));
         const buyer = orden && orden.buyer || {};
@@ -2525,6 +2540,7 @@ async function loadFlex(forceRefresh) {
           buyer: buyer.nickname || '—',
           receiverName: addr.receiver_name || buyer.nickname || '—',
           direccion, coords, producto,
+          tipo, logisticType,
           decision: flexDecisiones[item.packId] || null
         });
       } catch(e) { console.warn('shipment error', item.shipId, e); }
@@ -2551,22 +2567,40 @@ function setDecision(packId, decision) {
   flexDecisiones[packId] = envio.decision;
   localStorage.setItem('flex_decisiones', JSON.stringify(flexDecisiones));
   renderFlexList();
-  // Actualizar marker en mapa
   if (flexMarkers[packId]) {
-    flexMarkers[packId].setIcon(getFlexIcon(envio.decision));
+    flexMarkers[packId].setIcon(getFlexIcon(envio));
   }
   updateFlexStats();
 }
 
 function updateFlexStats() {
-  const total = flexEnvios.length;
-  const yo = flexEnvios.filter(e => e.decision === 'yo').length;
-  const log = flexEnvios.filter(e => e.decision === 'log').length;
-  const pend = total - yo - log;
-  document.getElementById('flexTotal').textContent = total;
-  document.getElementById('flexYoCount').textContent = yo;
-  document.getElementById('flexLogCount').textContent = log;
+  const flex = flexEnvios.filter(e => e.tipo === 'flex');
+  const desp = flexEnvios.filter(e => e.tipo === 'despacho');
+  const pend = flex.filter(e => !e.decision).length;
+  document.getElementById('flexTotal').textContent  = flexEnvios.length;
+  document.getElementById('flexFlexCount').textContent = flex.length;
+  document.getElementById('flexDespCount').textContent = desp.length;
   document.getElementById('flexPendCount').textContent = pend;
+}
+
+function renderFlexCard(e) {
+  const dec = e.decision;
+  const esDespacho = e.tipo === 'despacho';
+  const cardClass = esDespacho ? 'flex-desp' : (dec === 'yo' ? 'flex-yo' : dec === 'log' ? 'flex-log' : '');
+  const borderColor = esDespacho ? '#8b5cf6' : (dec === 'yo' ? '#16a34a' : dec === 'log' ? '#dc2626' : 'var(--border)');
+  return `<div class="flex-card ${cardClass}" id="fcard-${e.packId}" onclick="focusFlexMarker('${e.packId}')" style="border-left:3px solid ${borderColor};">
+    <div class="flex-card-header">
+      <span class="flex-pack">${esDespacho ? '🟣 Despacho' : '🟢 Flex'} · ${e.packId}</span>
+      <span style="font-size:9px;color:var(--muted2);">${e.coords ? '📍' : '❓ Sin coords'}</span>
+    </div>
+    <div class="flex-buyer">${e.receiverName || e.buyer}</div>
+    <div class="flex-addr">${e.direccion}</div>
+    <div style="font-size:10px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e.producto}</div>
+    ${esDespacho ? '' : `<div class="flex-btns">
+      <button class="flex-btn flex-btn-yo ${dec === 'yo' ? 'active' : ''}" onclick="event.stopPropagation();setDecision('${e.packId}','yo')">🟢 Lo hago yo</button>
+      <button class="flex-btn flex-btn-log ${dec === 'log' ? 'active' : ''}" onclick="event.stopPropagation();setDecision('${e.packId}','log')">🔴 Logística</button>
+    </div>`}
+  </div>`;
 }
 
 function renderFlexList() {
@@ -2574,47 +2608,70 @@ function renderFlexList() {
   updateFlexStats();
 
   if (!flexEnvios.length) {
-    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px;">No hay envíos Flex para hoy</div>';
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px;">No hay envíos pendientes</div>';
     return;
   }
 
-  list.innerHTML = flexEnvios.map(e => {
-    const dec = e.decision;
-    const cardClass = dec === 'yo' ? 'flex-yo' : dec === 'log' ? 'flex-log' : '';
-    return `<div class="flex-card ${cardClass}" id="fcard-${e.packId}" onclick="focusFlexMarker('${e.packId}')">
-      <div class="flex-card-header">
-        <span class="flex-pack">Pack ${e.packId}</span>
-        <span style="font-size:9px;color:var(--muted2);">${e.coords ? '📍' : '❓ Sin coords'}</span>
-      </div>
-      <div class="flex-buyer">${e.receiverName || e.buyer}</div>
-      <div class="flex-addr">${e.direccion}</div>
-      <div style="font-size:10px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e.producto}</div>
-      <div class="flex-btns">
-        <button class="flex-btn flex-btn-yo ${dec === 'yo' ? 'active' : ''}" onclick="event.stopPropagation();setDecision('${e.packId}','yo')">🟢 Lo hago yo</button>
-        <button class="flex-btn flex-btn-log ${dec === 'log' ? 'active' : ''}" onclick="event.stopPropagation();setDecision('${e.packId}','log')">🔴 Logística</button>
-      </div>
-    </div>`;
-  }).join('');
+  const flex = flexEnvios.filter(e => e.tipo === 'flex');
+  const desp = flexEnvios.filter(e => e.tipo === 'despacho');
+  const titleStyle = 'padding:8px 12px 4px;font-size:10px;text-transform:uppercase;letter-spacing:.6px;font-weight:700;color:var(--muted);border-top:1px solid var(--border);background:var(--surface2);position:sticky;top:0;z-index:1;';
+  const firstTitleStyle = titleStyle.replace('border-top:1px solid var(--border);', '');
+
+  let html = '';
+  if (flex.length) {
+    html += `<div style="${firstTitleStyle}"><span style="color:#16a34a;">🟢 FLEX</span> <span style="color:var(--muted2);">· ${flex.length} envío${flex.length !== 1 ? 's' : ''}</span></div>`;
+    html += flex.map(renderFlexCard).join('');
+  }
+  if (desp.length) {
+    html += `<div style="${flex.length ? titleStyle : firstTitleStyle}"><span style="color:#8b5cf6;">🟣 PUNTO DE DESPACHO</span> <span style="color:var(--muted2);">· ${desp.length} envío${desp.length !== 1 ? 's' : ''}</span></div>`;
+    html += desp.map(renderFlexCard).join('');
+  }
+  list.innerHTML = html;
 }
 
 function renderFlexMap() {
   if (!flexMap) initFlexMap();
-  // Limpiar markers anteriores
   Object.values(flexMarkers).forEach(m => flexMap.removeLayer(m));
   flexMarkers = {};
 
   const bounds = [];
   flexEnvios.forEach(e => {
     if (!e.coords) return;
-    const marker = L.marker([e.coords.lat, e.coords.lng], { icon: getFlexIcon(e.decision) })
+    const marker = L.marker([e.coords.lat, e.coords.lng], { icon: getFlexIcon(e) })
       .addTo(flexMap)
-      .bindPopup(`<b>${e.buyer}</b><br>${e.direccion}<br><small>Pack ${e.packId}</small>`);
+      .bindPopup(`<b>${e.tipo === 'despacho' ? '🟣 Despacho' : '🟢 Flex'}</b><br>${e.buyer}<br>${e.direccion}<br><small>Pack ${e.packId}</small>`);
     flexMarkers[e.packId] = marker;
     bounds.push([e.coords.lat, e.coords.lng]);
   });
 
   if (bounds.length > 0) {
     flexMap.fitBounds(bounds, { padding: [30, 30] });
+  }
+}
+
+async function revalidateFlexCache() {
+  if (!flexEnvios.length) return;
+  const stillValid = [];
+  const before = flexEnvios.length;
+  for (const e of flexEnvios) {
+    try {
+      const ship = await mlFetch(`/shipments/${e.shipId}`);
+      if (ship && ship.status === 'ready_to_ship' && ship.mode === 'me2') {
+        // Re-asignar tipo por si cambió (raro pero por seguridad)
+        e.tipo = (ship.logistic_type === 'self_service') ? 'flex' : 'despacho';
+        e.logisticType = ship.logistic_type || e.logisticType;
+        stillValid.push(e);
+      }
+    } catch(_) { stillValid.push(e); /* en caso de error, no descartamos */ }
+    await new Promise(r => setTimeout(r, 80));
+  }
+  if (stillValid.length !== before) {
+    flexEnvios = stillValid;
+    const hoy = new Date().toISOString().split('T')[0];
+    localStorage.setItem(FLEX_CACHE_KEY, JSON.stringify({ fecha: hoy, envios: flexEnvios }));
+    renderFlexList();
+    renderFlexMap();
+    showToast(`🔄 ${before - stillValid.length} envío(s) ya despachados removidos de la lista`, 'info');
   }
 }
 
