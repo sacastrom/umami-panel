@@ -939,8 +939,12 @@
         <div id="ventasTotalComm" style="font-size:18px;font-weight:700;color:var(--red);">—</div>
       </div>
       <div class="venta-stat" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
-        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Envío seller (est.)</div>
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Envío seller</div>
         <div id="ventasTotalShip" style="font-size:18px;font-weight:700;color:var(--orange);">—</div>
+      </div>
+      <div class="venta-stat" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Impuestos</div>
+        <div id="ventasTotalTaxes" style="font-size:18px;font-weight:700;color:var(--red);">—</div>
       </div>
       <div class="venta-stat" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Cobrado neto</div>
@@ -969,16 +973,17 @@
           <th style="width:90px;">Fecha</th>
           <th>Compra / Carrito</th>
           <th style="text-align:right;width:90px;">Bruto</th>
-          <th style="text-align:right;color:var(--red);width:90px;">- Comisión</th>
-          <th style="text-align:right;color:var(--orange);width:90px;">- Envío</th>
-          <th style="text-align:right;font-weight:700;width:90px;">= Neto</th>
+          <th style="text-align:right;color:var(--red);width:90px;" title="Cargo por venta total (variable + costo fijo)">- Comisión</th>
+          <th style="text-align:right;color:var(--orange);width:80px;" title="Envío que pagó el seller (real desde ML)">- Envío</th>
+          <th style="text-align:right;color:var(--red);width:75px;" title="Retenciones impositivas (SIRTAC, IIBB)">- Impuestos</th>
+          <th style="text-align:right;font-weight:700;width:90px;">= Neto ML</th>
           <th style="text-align:right;color:var(--muted);width:90px;">- Costo</th>
           <th style="text-align:right;font-weight:700;width:90px;">Ganancia</th>
           <th style="text-align:center;width:60px;">%</th>
         </tr>
       </thead>
       <tbody id="ventasTbody">
-        <tr><td colspan="9" style="text-align:center;padding:28px;color:var(--muted2);">Hacé click en el tab para cargar las ventas</td></tr>
+        <tr><td colspan="10" style="text-align:center;padding:28px;color:var(--muted2);">Hacé click en el tab para cargar las ventas</td></tr>
       </tbody>
     </table>
   </div>
@@ -4924,7 +4929,7 @@ async function loadVentas() {
   if (!accessToken || !mlUserId) { showToast('Sin sesión ML', 'error'); return; }
 
   ventasData = [];
-  document.getElementById('ventasTbody').innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--muted);">Cargando…</td></tr>';
+  document.getElementById('ventasTbody').innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--muted);">Cargando…</td></tr>';
   document.getElementById('ventasLoadingMsg').style.display = 'block';
   document.getElementById('ventasLoadingText').textContent = 'Consultando órdenes…';
 
@@ -4983,20 +4988,31 @@ async function loadVentas() {
       };
     });
 
-    // Estimar envío seller: si NO FULL y precio >= umbral envío gratis
-    let envio = 0;
-    if (tipo !== 'FULL' && gross >= V.precioEnvioGratis) {
+    // ── Datos reales del payment de ML
+    // marketplace_fee = cargo por venta TOTAL (variable + fijo)
+    // taxes_amount    = impuestos (SIRTAC, IIBB, etc)
+    // shipping_cost   = lo que el seller realmente pagó de envío (0 si ML lo bonificó)
+    // coupon_amount   = descuento aplicado (positivo = ML lo paga, no afecta al seller)
+    const taxes   = payments.reduce((s, p) => s + (Number(p.taxes_amount) || 0), 0);
+    const shipReal = payments.reduce((s, p) => s + (Number(p.shipping_cost) || 0), 0);
+
+    // Envío: priorizar dato real; si vino 0 y es NO FULL con precio sobre umbral, estimar
+    let envio = shipReal;
+    let envioEstimado = false;
+    if (envio === 0 && tipo !== 'FULL' && gross >= V.precioEnvioGratis) {
       envio = V.costoEnvioGratis;
+      envioEstimado = true;
     }
 
-    const net = gross - comm - envio;
+    // Neto: gross - comisión - envío real - impuestos
+    const net = gross - comm - envio - taxes;
     const ganancia = net - costo;
     const ganPct = costo > 0 ? (ganancia / costo) * 100 : 0;
 
     return {
       id: o.id,
       date: o.date_created,
-      gross, comm, envio, net, costo, ganancia, ganPct, tipo,
+      gross, comm, envio, envioEstimado, taxes, net, costo, ganancia, ganPct, tipo,
       cart,
       itemCount: cart.length,
       totalQty:  cart.reduce((s, c) => s + c.qty, 0),
@@ -5018,15 +5034,17 @@ function renderVentas() {
     gross: a.gross + v.gross,
     comm:  a.comm  + v.comm,
     envio: a.envio + v.envio,
+    taxes: a.taxes + v.taxes,
     net:   a.net   + v.net,
     costo: a.costo + v.costo,
     ganancia: a.ganancia + v.ganancia
-  }), { gross:0, comm:0, envio:0, net:0, costo:0, ganancia:0 });
+  }), { gross:0, comm:0, envio:0, taxes:0, net:0, costo:0, ganancia:0 });
 
   document.getElementById('ventasTotalCount').textContent = ventasData.length;
   document.getElementById('ventasTotalGross').textContent = fmt(totals.gross);
   document.getElementById('ventasTotalComm').textContent  = fmt(totals.comm);
   document.getElementById('ventasTotalShip').textContent  = fmt(totals.envio);
+  document.getElementById('ventasTotalTaxes').textContent = fmt(totals.taxes);
   document.getElementById('ventasTotalNet').textContent   = fmt(totals.net);
   document.getElementById('ventasTotalCost').textContent  = fmt(totals.costo);
   document.getElementById('ventasTotalProfit').textContent = fmt(totals.ganancia);
@@ -5035,7 +5053,7 @@ function renderVentas() {
 
   const tbody = document.getElementById('ventasTbody');
   if (!ventasData.length) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:28px;color:var(--muted2);">Sin ventas en el rango seleccionado</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:28px;color:var(--muted2);">Sin ventas en el rango seleccionado</td></tr>';
     return;
   }
 
@@ -5075,7 +5093,8 @@ function renderVentas() {
       </td>
       <td style="text-align:right;color:var(--blue);font-weight:600;vertical-align:top;">${fmt(v.gross)}</td>
       <td style="text-align:right;color:var(--red);vertical-align:top;">-${fmt(v.comm)}</td>
-      <td style="text-align:right;color:var(--orange);vertical-align:top;">${v.envio > 0 ? '-' + fmt(v.envio) : '—'}</td>
+      <td style="text-align:right;color:var(--orange);vertical-align:top;" title="${v.envioEstimado ? 'Estimado por tabla' : 'Real desde ML'}">${v.envio > 0 ? '-' + fmt(v.envio) + (v.envioEstimado ? '<span style="color:var(--muted2);font-size:9px;">*</span>' : '') : '—'}</td>
+      <td style="text-align:right;color:var(--red);vertical-align:top;">${v.taxes > 0 ? '-' + fmt(v.taxes) : '—'}</td>
       <td style="text-align:right;font-weight:700;color:var(--text);vertical-align:top;">${fmt(v.net)}</td>
       <td style="text-align:right;color:var(--muted);vertical-align:top;">-${fmt(v.costo)}</td>
       <td style="text-align:right;font-weight:700;color:${semColor};vertical-align:top;">${fmt(v.ganancia)}</td>
@@ -5086,7 +5105,7 @@ function renderVentas() {
 
 function ventasExportCSV() {
   if (!ventasData.length) { showToast('No hay datos para exportar', 'error'); return; }
-  const headers = ['Fecha','Hora','Orden','Comprador','Items','Detalle','Bruto','Comisión','Envío','Neto','Costo','Ganancia','%','Status'];
+  const headers = ['Fecha','Hora','Orden','Comprador','Items','Detalle','Bruto','Comisión','Envío','Impuestos','Neto','Costo','Ganancia','%','Status'];
   const rows = ventasData.map(v => {
     const d = new Date(v.date);
     const detalle = v.cart.map(c => `${c.qty}x ${c.sku || c.mla} ${c.title}`).join(' | ');
@@ -5096,6 +5115,7 @@ function ventasExportCSV() {
       v.id, v.buyer, v.itemCount,
       `"${detalle.replace(/"/g,'""')}"`,
       v.gross.toFixed(2), v.comm.toFixed(2), v.envio.toFixed(2),
+      v.taxes.toFixed(2),
       v.net.toFixed(2), v.costo.toFixed(2), v.ganancia.toFixed(2),
       v.ganPct.toFixed(1), v.status
     ].join(',');
