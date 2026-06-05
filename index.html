@@ -677,7 +677,21 @@
       <div class="flex-sidebar">
         <div class="flex-header">
           <span class="flex-title">🗺️ Envíos del día</span>
-          <button class="ss-refresh" onclick="loadFlex(true)">↻ Actualizar</button>
+          <div style="display:flex;gap:6px;">
+            <button class="ss-refresh" onclick="armarRutaFlex()" title="Armar ruta para los envíos marcados como 'Yo'" style="background:var(--accent-light);color:var(--accent);border:1px solid var(--accent);">🚗 Armar ruta</button>
+            <button class="ss-refresh" onclick="loadFlex(true)">↻ Actualizar</button>
+          </div>
+        </div>
+        <div id="rutaPanel" style="display:none;padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="font-size:11px;font-weight:700;color:var(--accent);">🚗 Ruta sugerida (<span id="rutaCount">0</span>)</span>
+            <div style="display:flex;gap:4px;">
+              <button onclick="abrirRutaGoogleMaps()" style="background:var(--green);color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-weight:600;">📍 Abrir en Google Maps</button>
+              <button onclick="limpiarRuta()" style="background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;">✕</button>
+            </div>
+          </div>
+          <div id="rutaInfo" style="font-size:10px;color:var(--muted);margin-bottom:6px;"></div>
+          <ol id="rutaLista" style="margin:0;padding-left:22px;font-size:11px;color:var(--text);max-height:200px;overflow-y:auto;"></ol>
         </div>
         <div class="flex-stats">
           <div class="flex-stat"><div class="flex-stat-val" id="flexTotal">—</div><div class="flex-stat-label">Total Flex</div></div>
@@ -2636,6 +2650,113 @@ function renderFlexMap() {
   if (bounds.length > 0) {
     flexMap.fitBounds(bounds, { padding: [30, 30] });
   }
+}
+
+// ── RUTA FLEX ─────────────────────────────────────────
+const UMAMI_OFFICE = { lat: -34.6076, lng: -58.4035, label: 'UMAMI · Boulogne Sur Mer 828, Balvanera' };
+let rutaPolyline = null;
+let rutaActual = []; // array ordenado de { lat, lng, label, packId }
+
+function haversineKm(a, b) {
+  const R = 6371;
+  const toRad = (d) => d * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const x = Math.sin(dLat/2) ** 2 +
+            Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng/2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+
+function nearestNeighborRoute(origin, points) {
+  const remaining = [...points];
+  const ordered = [];
+  let current = origin;
+  let totalKm = 0;
+  while (remaining.length) {
+    let bestIdx = 0;
+    let bestDist = haversineKm(current, remaining[0]);
+    for (let i = 1; i < remaining.length; i++) {
+      const d = haversineKm(current, remaining[i]);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+    const next = remaining.splice(bestIdx, 1)[0];
+    ordered.push(next);
+    totalKm += bestDist;
+    current = next;
+  }
+  // Vuelta a oficina
+  totalKm += haversineKm(current, origin);
+  return { ordered, totalKm };
+}
+
+function armarRutaFlex() {
+  const mios = flexEnvios.filter(e => e.decision === 'yo' && e.coords);
+  if (!mios.length) {
+    showToast('⚠️ No hay envíos marcados como "Yo" con coordenadas', 'error');
+    return;
+  }
+  const points = mios.map(e => ({
+    lat: e.coords.lat, lng: e.coords.lng,
+    label: `${e.receiverName || e.buyer} — ${e.direccion}`,
+    packId: e.packId
+  }));
+  const { ordered, totalKm } = nearestNeighborRoute(UMAMI_OFFICE, points);
+  rutaActual = ordered;
+
+  // Dibujar polyline
+  if (rutaPolyline) flexMap.removeLayer(rutaPolyline);
+  const path = [
+    [UMAMI_OFFICE.lat, UMAMI_OFFICE.lng],
+    ...ordered.map(p => [p.lat, p.lng]),
+    [UMAMI_OFFICE.lat, UMAMI_OFFICE.lng] // vuelta
+  ];
+  rutaPolyline = L.polyline(path, {
+    color: '#6c63ff', weight: 4, opacity: .75, dashArray: '8, 6'
+  }).addTo(flexMap);
+  flexMap.fitBounds(rutaPolyline.getBounds(), { padding: [40, 40] });
+
+  // Marker oficina (lo agregamos a flexMarkers para que limpiarRuta lo borre con el resto)
+  const officeIcon = L.divIcon({
+    html: `<div style="background:#1a1b2e;color:#fff;border-radius:6px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,.4);border:2px solid #fff;">🏢</div>`,
+    iconSize: [34, 34], iconAnchor: [17, 17], className: ''
+  });
+  const officeMarker = L.marker([UMAMI_OFFICE.lat, UMAMI_OFFICE.lng], { icon: officeIcon })
+    .addTo(flexMap)
+    .bindPopup(`<b>🏢 ${UMAMI_OFFICE.label}</b><br><small>Punto de partida y regreso</small>`);
+  flexMarkers['__office__'] = officeMarker;
+
+  // Renderizar panel
+  document.getElementById('rutaPanel').style.display = 'block';
+  document.getElementById('rutaCount').textContent = ordered.length;
+  document.getElementById('rutaInfo').innerHTML = `📏 ~${totalKm.toFixed(1)} km en línea recta (ida + paradas + vuelta) · Algoritmo: vecino más cercano`;
+  document.getElementById('rutaLista').innerHTML = ordered.map((p, i) => `
+    <li style="margin-bottom:4px;cursor:pointer;" onclick="focusFlexMarker('${p.packId}')">
+      <span style="font-weight:600;color:var(--accent);">#${i+1}</span> ${p.label}
+    </li>`).join('') +
+    `<li style="margin-top:6px;color:var(--muted);font-style:italic;">↩️ Regreso a oficina</li>`;
+  showToast(`🚗 Ruta armada: ${ordered.length} paradas · ${totalKm.toFixed(1)} km aprox`, 'success');
+}
+
+function abrirRutaGoogleMaps() {
+  if (!rutaActual.length) return;
+  // Google Maps acepta máximo ~9-10 waypoints en URL
+  const MAX_WAYPOINTS = 9;
+  const origin = `${UMAMI_OFFICE.lat},${UMAMI_OFFICE.lng}`;
+  const dest   = origin; // vuelta a oficina
+  const pts = rutaActual.slice(0, MAX_WAYPOINTS);
+  const waypoints = pts.map(p => `${p.lat},${p.lng}`).join('|');
+  const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&waypoints=${encodeURIComponent(waypoints)}&travelmode=driving`;
+  if (rutaActual.length > MAX_WAYPOINTS) {
+    showToast(`⚠️ Google Maps soporta máx ${MAX_WAYPOINTS} paradas — abriendo las primeras ${MAX_WAYPOINTS} de ${rutaActual.length}`, 'info');
+  }
+  window.open(url, '_blank');
+}
+
+function limpiarRuta() {
+  if (rutaPolyline) { flexMap.removeLayer(rutaPolyline); rutaPolyline = null; }
+  if (flexMarkers['__office__']) { flexMap.removeLayer(flexMarkers['__office__']); delete flexMarkers['__office__']; }
+  rutaActual = [];
+  document.getElementById('rutaPanel').style.display = 'none';
 }
 
 async function revalidateFlexCache() {
