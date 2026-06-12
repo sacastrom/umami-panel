@@ -1480,11 +1480,7 @@ async function pushMayoristasFiltered() {
     };
     try {
       const { status, data } = await mlPost(`/items/${p.mla}/prices/standard/quantity`, body);
-      if (status >= 200 && status < 300) {
-        ok++;
-        sheetUpdateMayoristas(p.mla, p);
-        p.precio_x3_sheet = p.precio_x3; p.precio_x5_sheet = p.precio_x5; p.precio_x10_sheet = p.precio_x10;
-      }
+      if (status >= 200 && status < 300) ok++;
       else { err++; console.error('[mayorista]', p.mla, status, data); }
     } catch(e) { err++; console.error('[mayorista]', p.mla, e); }
     await new Promise(r => setTimeout(r, 80));
@@ -1512,8 +1508,6 @@ async function pushMayorista(id) {
     const { status, data } = await mlPost(`/items/${p.mla}/prices/standard/quantity`, body);
     console.log('[mayorista] response', status, data);
     if (status >= 200 && status < 300) {
-      sheetUpdateMayoristas(p.mla, p);
-      p.precio_x3_sheet = p.precio_x3; p.precio_x5_sheet = p.precio_x5; p.precio_x10_sheet = p.precio_x10;
       showToast(`✅ ${p.mla}: mayorista publicado (HTTP ${status}) — revisá la consola`, 'success');
     } else {
       const msg = data?.message || data?.error || JSON.stringify(data).slice(0,120);
@@ -1910,11 +1904,7 @@ async function updateDiffPrices() {
       };
       try {
         const { status, data } = await mlPost(`/items/${p.mla}/prices/standard/quantity`, body);
-        if (status >= 200 && status < 300) {
-          mayOk++;
-          sheetUpdateMayoristas(p.mla, p);
-          p.precio_x3_sheet = p.precio_x3; p.precio_x5_sheet = p.precio_x5; p.precio_x10_sheet = p.precio_x10;
-        }
+        if (status >= 200 && status < 300) mayOk++;
         else { mayErr++; console.error('[mayorista]', p.mla, status, data); }
       } catch(em) { mayErr++; console.error('[mayorista]', p.mla, em); }
     }
@@ -2139,18 +2129,6 @@ async function sheetUpdatePrecioAsia(mla, precio_asia) {
   const r = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ mla, precio_asia }) });
   const data = await r.json();
   if (!data.ok) throw new Error(data.error || 'Error en Apps Script');
-}
-
-// Best-effort: si el GAS sabe manejar { tipo:'mayoristas' } escribe Q/R/S de la fila.
-// No tira excepción si falla — la publicación a ML ya pasó.
-async function sheetUpdateMayoristas(mla, p) {
-  if (!GAS_URL) return;
-  try {
-    await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({
-      tipo: 'mayoristas', mla,
-      precio_x3: p.precio_x3, precio_x5: p.precio_x5, precio_x10: p.precio_x10
-    }) });
-  } catch(e) { console.warn('[sheet mayoristas]', mla, e); }
 }
 
 function hasDiffTN(p) {
