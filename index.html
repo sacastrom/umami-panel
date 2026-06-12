@@ -122,6 +122,8 @@
   .mayor-lbl{color:var(--muted2);}
   .mayor-val{color:var(--text);}
   .mayor-val.diff{color:var(--orange);}
+  .mayor-test-btn{margin-top:4px;font-size:9px;padding:2px 6px;border:1px solid var(--accent);background:transparent;color:var(--accent);border-radius:4px;cursor:pointer;font-family:var(--font-mono);}
+  .mayor-test-btn:hover{background:var(--accent);color:#fff;}
   .diff-arrow{font-size:10px;color:var(--accent);margin:0 3px;}
   .semaforo{font-size:13px;}
   .prod-thumb{width:44px;height:44px;border-radius:8px;object-fit:cover;background:var(--surface2);border:1px solid var(--border);display:block;cursor:zoom-in;transition:opacity .15s;}
@@ -1448,6 +1450,34 @@ function calcPrecioML(costo, margen, tipo) {
   return Math.round(p / 5) * 5;
 }
 
+async function pushMayorista(id) {
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  const body = {
+    prices: [
+      { id: '1' },
+      { amount: p.precio_x3,  currency_id: 'ARS', conditions: { context_restrictions: ['channel_marketplace','user_type_business'], min_purchase_unit: 3  } },
+      { amount: p.precio_x5,  currency_id: 'ARS', conditions: { context_restrictions: ['channel_marketplace','user_type_business'], min_purchase_unit: 5  } },
+      { amount: p.precio_x10, currency_id: 'ARS', conditions: { context_restrictions: ['channel_marketplace','user_type_business'], min_purchase_unit: 10 } },
+    ]
+  };
+  console.log('[mayorista] POST /items/' + p.mla + '/prices/standard/quantity', body);
+  showToast(`⏳ Probando mayorista en ${p.mla}…`, 'info');
+  try {
+    const { status, data } = await mlPost(`/items/${p.mla}/prices/standard/quantity`, body);
+    console.log('[mayorista] response', status, data);
+    if (status >= 200 && status < 300) {
+      showToast(`✅ ${p.mla}: mayorista publicado (HTTP ${status}) — revisá la consola`, 'success');
+    } else {
+      const msg = data?.message || data?.error || JSON.stringify(data).slice(0,120);
+      showToast(`❌ ${p.mla}: ${status} — ${msg}`, 'error');
+    }
+  } catch (e) {
+    console.error('[mayorista] error', e);
+    showToast(`❌ ${p.mla}: ${e.message}`, 'error');
+  }
+}
+
 function calcMayoristas(precio_ml_calc) {
   const round = p => Math.round(p / 5) * 5;
   return {
@@ -1565,6 +1595,15 @@ async function mlPut(path, body) {
   });
   if (r.status === 401) { logout(); throw new Error('Sesión expirada'); }
   return r.json();
+}
+async function mlPost(path, body) {
+  const r = await fetch(`/api/ml?path=${encodeURIComponent(path)}`, {
+    method: 'POST', headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (r.status === 401) { logout(); throw new Error('Sesión expirada'); }
+  const data = await r.json();
+  return { status: r.status, data };
 }
 
 async function fetchMLData(rows) {
@@ -1927,10 +1966,11 @@ function renderTable() {
       <td>${priceCell}</td>
       <td>${(() => {
         const tiers = [['x3',p.precio_x3,p.precio_x3_sheet],['x5',p.precio_x5,p.precio_x5_sheet],['x10',p.precio_x10,p.precio_x10_sheet]];
-        return `<div class="mayor-cell">` + tiers.map(([lbl,calc,sheet]) => {
+        const rows = tiers.map(([lbl,calc,sheet]) => {
           const diff = sheet > 0 && Math.abs(calc - sheet) >= DIFF_THRESHOLD;
           return `<div class="mayor-row"><span class="mayor-lbl">${lbl}</span><span class="mayor-val ${diff?'diff':''}" title="${diff?'Sheet: '+fmt(sheet):''}">${fmt(calc)}</span></div>`;
-        }).join('') + `</div>`;
+        }).join('');
+        return `<div class="mayor-cell">${rows}<button class="mayor-test-btn" onclick="pushMayorista(${p.id})" title="Probar publicar mayorista en ML (test)">🚀 test</button></div>`;
       })()}</td>
       <td><span style="font-size:11px;color:var(--green)">${fmt(p.gan_pesos)}</span></td>
       <td><span style="font-size:11px;color:var(--green)">${fmtP(p.gan_pct)}</span></td>
