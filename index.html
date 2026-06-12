@@ -117,6 +117,11 @@
   .price-calc{font-family:var(--font-mono);font-size:12px;color:var(--accent);font-weight:600;}
   .price-real{font-family:var(--font-mono);font-size:11px;color:var(--muted);}
   .price-real.diff{color:var(--orange);text-decoration:line-through;}
+  .mayor-cell{display:flex;flex-direction:column;gap:1px;font-family:var(--font-mono);font-size:10px;line-height:1.25;}
+  .mayor-row{display:flex;justify-content:space-between;gap:6px;}
+  .mayor-lbl{color:var(--muted2);}
+  .mayor-val{color:var(--text);}
+  .mayor-val.diff{color:var(--orange);}
   .diff-arrow{font-size:10px;color:var(--accent);margin:0 3px;}
   .semaforo{font-size:13px;}
   .prod-thumb{width:44px;height:44px;border-radius:8px;object-fit:cover;background:var(--surface2);border:1px solid var(--border);display:block;cursor:zoom-in;transition:opacity .15s;}
@@ -636,7 +641,7 @@
         <thead><tr>
           <th>Foto</th><th>Código ML</th><th>SKU</th><th>Producto</th><th>Estado</th><th>Stock ✏️</th>
           <th>Desc.</th><th>Tipo</th><th>Góndola</th><th>Precio ASIA ✏️</th><th>Costo</th>
-          <th>% Gan.</th><th>Precio calc. / publicado ML</th><th>Gan. $</th><th>Gan. %</th><th>🚦</th>
+          <th>% Gan.</th><th>Precio calc. / publicado ML</th><th>Mayoristas</th><th>Gan. $</th><th>Gan. %</th><th>🚦</th>
           <th>Precio TN sheet</th><th>Precio TN pub.</th><th>Stock TN</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
@@ -1331,6 +1336,25 @@
       </div>
 
       <div class="cfg-section">
+        <div class="cfg-section-title">Descuentos mayoristas (sobre precio ML calc.)</div>
+        <div class="cfg-row">
+          <span class="cfg-label">x3 unidades</span>
+          <input class="cfg-input" id="cfgMayoristaX3" type="number" step="1" min="0" max="100">
+          <span class="cfg-unit">%</span>
+        </div>
+        <div class="cfg-row">
+          <span class="cfg-label">x5 unidades</span>
+          <input class="cfg-input" id="cfgMayoristaX5" type="number" step="1" min="0" max="100">
+          <span class="cfg-unit">%</span>
+        </div>
+        <div class="cfg-row">
+          <span class="cfg-label">x10 unidades</span>
+          <input class="cfg-input" id="cfgMayoristaX10" type="number" step="1" min="0" max="100">
+          <span class="cfg-unit">%</span>
+        </div>
+      </div>
+
+      <div class="cfg-section">
         <div class="cfg-section-title">Tramos de costo fijo — NO FULL</div>
         <table class="cfg-tramo-table">
           <thead><tr><th>Rango</th><th>Costo fijo $</th></tr></thead>
@@ -1382,6 +1406,7 @@ const V = {
   precioEnvioGratis: 33000,
   costoEnvioGratis: 9800,
   descuentos: { I: 0.25, N: 0.20, F: 0.0 },
+  mayorista: { x3: 0.05, x5: 0.10, x10: 0.15 },
   nf: [
     { hasta: 15999, cf: 1275 },
     { hasta: 23999, cf: 2500 },
@@ -1421,6 +1446,15 @@ function calcPrecioML(costo, margen, tipo) {
   let p = (base + cf) / (1 - com);
   if (p >= V.precioEnvioGratis) p += V.costoEnvioGratis / (1 - com);
   return Math.round(p / 5) * 5;
+}
+
+function calcMayoristas(precio_ml_calc) {
+  const round = p => Math.round(p / 5) * 5;
+  return {
+    precio_x3:  round(precio_ml_calc * (1 - (V.mayorista.x3  || 0))),
+    precio_x5:  round(precio_ml_calc * (1 - (V.mayorista.x5  || 0))),
+    precio_x10: round(precio_ml_calc * (1 - (V.mayorista.x10 || 0))),
+  };
 }
 
 function calcGanReal(precio_ml, costo, tipo) {
@@ -1512,6 +1546,9 @@ async function loadFromSheets() {
         }
         return String(v);
       })(),
+      precio_x3_sheet:  typeof get(16) === 'number' ? get(16) : 0,
+      precio_x5_sheet:  typeof get(17) === 'number' ? get(17) : 0,
+      precio_x10_sheet: typeof get(18) === 'number' ? get(18) : 0,
     };
   }).filter(Boolean);
 }
@@ -1555,6 +1592,7 @@ function buildProducts(rows, mlMap) {
     const precio_ml_calc = row.precio_sheets > 0 ? row.precio_sheets : calcPrecioML(costo, row.margen, row.tipo);
     const gan_pesos = precio_ml_real > 0 ? calcGanReal(precio_ml_real, costo, row.tipo) : calcGanReal(precio_ml_calc, costo, row.tipo);
     const gan_pct = costo > 0 ? Math.round((gan_pesos / costo) * 1000) / 10 : 0;
+    const may = calcMayoristas(precio_ml_calc);
     // TN
     const tn = tnBySku[row.sku] || null;
     return {
@@ -1562,6 +1600,10 @@ function buildProducts(rows, mlMap) {
       status, stock, tipo: row.tipo, descuento: row.descuento,
       precio_asia: row.precio_asia, margen: row.margen, costo, thumbnail,
       precio_ml_calc, precio_ml_real, gan_pesos, gan_pct,
+      precio_x3: may.precio_x3, precio_x5: may.precio_x5, precio_x10: may.precio_x10,
+      precio_x3_sheet: row.precio_x3_sheet || 0,
+      precio_x5_sheet: row.precio_x5_sheet || 0,
+      precio_x10_sheet: row.precio_x10_sheet || 0,
       gondola: row.gondola || '',
       precio_tn_sheet: row.precio_tn_sheet || 0,
       stock_oficina: row.stock_oficina || 0,
@@ -1883,6 +1925,13 @@ function renderTable() {
       <td><span style="font-size:11px;color:var(--muted)">${fmt(p.costo || 0)}</span></td>
       <td><span style="font-size:11px;color:var(--blue)">${fmtP(p.margen * 100)}</span></td>
       <td>${priceCell}</td>
+      <td>${(() => {
+        const tiers = [['x3',p.precio_x3,p.precio_x3_sheet],['x5',p.precio_x5,p.precio_x5_sheet],['x10',p.precio_x10,p.precio_x10_sheet]];
+        return `<div class="mayor-cell">` + tiers.map(([lbl,calc,sheet]) => {
+          const diff = sheet > 0 && Math.abs(calc - sheet) >= DIFF_THRESHOLD;
+          return `<div class="mayor-row"><span class="mayor-lbl">${lbl}</span><span class="mayor-val ${diff?'diff':''}" title="${diff?'Sheet: '+fmt(sheet):''}">${fmt(calc)}</span></div>`;
+        }).join('') + `</div>`;
+      })()}</td>
       <td><span style="font-size:11px;color:var(--green)">${fmt(p.gan_pesos)}</span></td>
       <td><span style="font-size:11px;color:var(--green)">${fmtP(p.gan_pct)}</span></td>
       <td><span class="semaforo">${p.semaforo}</span></td>
@@ -1967,6 +2016,7 @@ async function saveAsia(id) {
     p.gan_pesos = calcGanReal(pr, p.costo, p.tipo);
     p.gan_pct   = calcGanPct(pr, p.costo, p.tipo);
     p.semaforo  = p.gan_pct >= 30 ? '🟢' : p.gan_pct >= 15 ? '🟡' : '🔴';
+    Object.assign(p, calcMayoristas(p.precio_ml_calc));
     v.textContent = fmt(newVal);
     showToast(`✅ Precio Asia actualizado en la Sheet — ${p.sku}`, 'success');
     doFilter();
@@ -3043,6 +3093,7 @@ async function invSaveAsia(id) {
     p.gan_pesos = calcGanReal(pr, p.costo, p.tipo);
     p.gan_pct   = calcGanPct(pr, p.costo, p.tipo);
     p.semaforo  = p.gan_pct >= 30 ? '🟢' : p.gan_pct >= 15 ? '🟡' : '🔴';
+    Object.assign(p, calcMayoristas(p.precio_ml_calc));
     v.textContent = fmt(newVal);
     showToast(`✅ Precio Asia actualizado — ${p.sku}`, 'success');
     if (typeof doFilter === 'function') doFilter();
@@ -5323,6 +5374,9 @@ async function loadVariablesFromSheet() {
     if (g('F')                   != null) V.descuentos.F      = g('F');
     if (g('I')                   != null) V.descuentos.I      = g('I');
     if (g('N')                   != null) V.descuentos.N      = g('N');
+    if (g('MAYORISTA X3')        != null) V.mayorista.x3      = g('MAYORISTA X3');
+    if (g('MAYORISTA X5')        != null) V.mayorista.x5      = g('MAYORISTA X5');
+    if (g('MAYORISTA X10')       != null) V.mayorista.x10     = g('MAYORISTA X10');
 
     // ── Fetch 2: strings en A27:B28 (URL + GONDOLAS)
     // Con range limitado a filas de texto, gviz detecta col B como string.
@@ -5341,6 +5395,7 @@ async function loadVariablesFromSheet() {
 const CFG_DEF = {
   comision: 0.135, precioEnvioGratis: 33000, costoEnvioGratis: 11500,
   descuentos: { I: 0.25, N: 0.20, F: 0.0 },
+  mayorista: { x3: 0.05, x5: 0.10, x10: 0.15 },
   nf:   [{ hasta:15999,cf:1275},{hasta:23999,cf:2500},{hasta:32999,cf:3030},{hasta:Infinity,cf:0}],
   full: [{ hasta:3499,cf:290},{hasta:4999,cf:550},{hasta:7999,cf:750},{hasta:15999,cf:1000},{hasta:32999,cf:1750},{hasta:Infinity,cf:0}],
   gondolas: ['BAZAR','BEBIDAS','CONDIMENTOS ORIENTALES','COREANO','EXLIN','FIDEOS','FRESCO','GOLOSINAS','ICHIBAN','NACIONAL','ONCE','PICKLES','SALSAS','SNACKS','SOJU','TE','VALLE IMPERIAL','VALLE IMPERIAL CONDIMENTOS','CASA CHINA'],
@@ -5365,6 +5420,9 @@ function cfgRenderUI() {
   document.getElementById('cfgDescI').value = +(V.descuentos.I * 100).toFixed(0);
   document.getElementById('cfgDescN').value = +(V.descuentos.N * 100).toFixed(0);
   document.getElementById('cfgDescF').value = +(V.descuentos.F * 100).toFixed(0);
+  document.getElementById('cfgMayoristaX3').value  = +(V.mayorista.x3  * 100).toFixed(0);
+  document.getElementById('cfgMayoristaX5').value  = +(V.mayorista.x5  * 100).toFixed(0);
+  document.getElementById('cfgMayoristaX10').value = +(V.mayorista.x10 * 100).toFixed(0);
   cfgRenderTramos('nf',   V.nf);
   cfgRenderTramos('full', V.full);
   document.getElementById('cfgGondolas').value = GONDOLAS.join('\n');
@@ -5399,12 +5457,15 @@ async function cfgSave() {
   const descI = parseFloat(document.getElementById('cfgDescI').value) / 100;
   const descN = parseFloat(document.getElementById('cfgDescN').value) / 100;
   const descF = parseFloat(document.getElementById('cfgDescF').value) / 100;
+  const mayX3  = parseFloat(document.getElementById('cfgMayoristaX3').value)  / 100;
+  const mayX5  = parseFloat(document.getElementById('cfgMayoristaX5').value)  / 100;
+  const mayX10 = parseFloat(document.getElementById('cfgMayoristaX10').value) / 100;
   const nfCfs   = cfgGetTramoCfs('nf');
   const fullCfs = cfgGetTramoCfs('full');
   const gondolas = document.getElementById('cfgGondolas').value
     .split('\n').map(s => s.trim().toUpperCase()).filter(Boolean);
 
-  if ([comision, precioEnvioGratis, costoEnvioGratis, descI, descN, descF].some(isNaN)) {
+  if ([comision, precioEnvioGratis, costoEnvioGratis, descI, descN, descF, mayX3, mayX5, mayX10].some(isNaN)) {
     showToast('❌ Hay valores inválidos', 'error'); return;
   }
   if (!gondolas.length) { showToast('❌ Ingresá al menos una góndola', 'error'); return; }
@@ -5412,6 +5473,7 @@ async function cfgSave() {
   // Aplicar en runtime
   V.comision = comision; V.precioEnvioGratis = precioEnvioGratis; V.costoEnvioGratis = costoEnvioGratis;
   Object.assign(V.descuentos, { I: descI, N: descN, F: descF });
+  Object.assign(V.mayorista, { x3: mayX3, x5: mayX5, x10: mayX10 });
   [0,1,2].forEach(i => { if (nfCfs[i]   != null) V.nf[i].cf   = nfCfs[i];   });
   [0,1,2,3,4].forEach(i => { if (fullCfs[i] != null) V.full[i].cf = fullCfs[i]; });
   GONDOLAS = gondolas;
@@ -5427,6 +5489,8 @@ async function cfgSave() {
       { row: 17, value: V.full[4].cf },      { row: 21, value: descF },
       { row: 22, value: descI },             { row: 23, value: descN },
       { row: 28, value: gondolas.join(', ') },
+      { row: 30, value: mayX3 },             { row: 31, value: mayX5 },
+      { row: 32, value: mayX10 },
     ];
     const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ tipo: 'variables', updates }) });
     const data = await res.json();
@@ -5445,6 +5509,7 @@ function cfgResetDefaults() {
   V.comision = CFG_DEF.comision; V.precioEnvioGratis = CFG_DEF.precioEnvioGratis;
   V.costoEnvioGratis = CFG_DEF.costoEnvioGratis;
   Object.assign(V.descuentos, CFG_DEF.descuentos);
+  Object.assign(V.mayorista, CFG_DEF.mayorista);
   V.nf   = CFG_DEF.nf.map(t => ({...t}));
   V.full = CFG_DEF.full.map(t => ({...t}));
   GONDOLAS = [...CFG_DEF.gondolas];
@@ -5462,6 +5527,7 @@ function cfgRecalcProducts() {
     p.gan_pesos = calcGanReal(pr, p.costo, p.tipo);
     p.gan_pct   = calcGanPct(pr, p.costo, p.tipo);
     p.semaforo  = p.gan_pct >= 30 ? '🟢' : p.gan_pct >= 15 ? '🟡' : '🔴';
+    Object.assign(p, calcMayoristas(p.precio_ml_calc));
   });
   doFilter();
 }
