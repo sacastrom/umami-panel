@@ -2031,7 +2031,7 @@ function renderTable() {
           const diff = sheet > 0 && Math.abs(calc - sheet) >= DIFF_THRESHOLD;
           return `<div class="mayor-row"><span class="mayor-lbl">${lbl}</span><span class="mayor-val ${diff?'diff':''}" title="${diff?'Sheet: '+fmt(sheet):''}">${fmt(calc)}</span></div>`;
         }).join('');
-        return `<div class="mayor-cell">${rows}<button class="mayor-test-btn" onclick="pushMayorista(${p.id})" title="Probar publicar mayorista en ML (test)">🚀 test</button></div>`;
+        return `<div class="mayor-cell">${rows}<button class="mayor-test-btn" onclick="pushMayorista(${p.id})" title="Publicar precios mayoristas x3/x5/x10 en esta publicación de ML">📦 Publicar</button></div>`;
       })()}</td>
       <td><span style="font-size:11px;color:var(--green)">${fmt(p.gan_pesos)}</span></td>
       <td><span style="font-size:11px;color:var(--green)">${fmtP(p.gan_pct)}</span></td>
