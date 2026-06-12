@@ -582,6 +582,9 @@
       <button class="btn-update" id="btnSyncStockTN" onclick="syncStockToTN()" disabled style="background:var(--blue);box-shadow:0 2px 8px rgba(37,99,235,.25);">
         <span class="sync-icon">📦</span> Stock → TN
       </button>
+      <button class="btn-update" id="btnPushMayoristas" onclick="pushMayoristasFiltered()" style="background:var(--green,#16a34a);box-shadow:0 2px 8px rgba(22,163,74,.25);" title="Publica precios mayoristas x3/x5/x10 en los productos que ves filtrados en pantalla">
+        <span class="sync-icon">📦</span> Mayoristas filtrados
+      </button>
     </div>
   </div>
 
@@ -1448,6 +1451,44 @@ function calcPrecioML(costo, margen, tipo) {
   let p = (base + cf) / (1 - com);
   if (p >= V.precioEnvioGratis) p += V.costoEnvioGratis / (1 - com);
   return Math.round(p / 5) * 5;
+}
+
+async function pushMayoristasFiltered() {
+  const list = (filtered && filtered.length ? filtered : products).slice();
+  if (!list.length) { showToast('No hay productos para procesar', 'error'); return; }
+  if (!confirm(`¿Publicar precios mayoristas (x3/x5/x10) en ${list.length} producto${list.length===1?'':'s'} filtrados?`)) return;
+  const modal = document.getElementById('updateModal');
+  const title = document.querySelector('#updateModal .modal-title');
+  const prevTitle = title ? title.textContent : '';
+  if (title) title.textContent = '📦 Publicando precios mayoristas';
+  modal.classList.add('show');
+  let ok = 0, err = 0;
+  for (let i = 0; i < list.length; i++) {
+    const p = list[i];
+    const pct = ((i + 1) / list.length) * 100;
+    document.getElementById('modalBar').style.width = pct + '%';
+    document.getElementById('modalSub').textContent = `${p.mla} — ${p.name.slice(0, 40)}...`;
+    document.getElementById('modalCount').textContent = `${i + 1} / ${list.length}`;
+    Object.assign(p, calcMayoristas(p.precio_ml_calc));
+    const body = {
+      prices: [
+        { id: '1' },
+        { amount: p.precio_x3,  currency_id: 'ARS', conditions: { context_restrictions: ['channel_marketplace','user_type_business'], min_purchase_unit: 3  } },
+        { amount: p.precio_x5,  currency_id: 'ARS', conditions: { context_restrictions: ['channel_marketplace','user_type_business'], min_purchase_unit: 5  } },
+        { amount: p.precio_x10, currency_id: 'ARS', conditions: { context_restrictions: ['channel_marketplace','user_type_business'], min_purchase_unit: 10 } },
+      ]
+    };
+    try {
+      const { status, data } = await mlPost(`/items/${p.mla}/prices/standard/quantity`, body);
+      if (status >= 200 && status < 300) ok++;
+      else { err++; console.error('[mayorista]', p.mla, status, data); }
+    } catch(e) { err++; console.error('[mayorista]', p.mla, e); }
+    await new Promise(r => setTimeout(r, 80));
+  }
+  modal.classList.remove('show');
+  if (title && prevTitle) title.textContent = prevTitle;
+  if (err === 0) showToast(`✅ ${ok} mayoristas publicados en ML`, 'success');
+  else showToast(`⚠️ ${ok} OK · ${err} errores — ver consola`, 'error');
 }
 
 async function pushMayorista(id) {
