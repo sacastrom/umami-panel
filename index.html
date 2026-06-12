@@ -1840,22 +1840,42 @@ async function updateDiffPrices() {
   modal.classList.add('show');
   const btn = document.getElementById('btnUpdate');
   btn.disabled = true; btn.classList.add('loading');
-  let ok = 0, errors = 0;
+  let ok = 0, errors = 0, mayOk = 0, mayErr = 0;
   for (let i = 0; i < toUpdate.length; i++) {
     const p = toUpdate[i];
     const pct = ((i + 1) / toUpdate.length) * 100;
     document.getElementById('modalBar').style.width = pct + '%';
     document.getElementById('modalSub').textContent = `Actualizando: ${p.name.slice(0, 40)}...`;
     document.getElementById('modalCount').textContent = `${i + 1} / ${toUpdate.length}`;
-    try { await mlPut(`/items/${p.mla}`, { price: p.precio_ml_calc }); p.precio_ml_real = p.precio_ml_calc; ok++; }
+    try {
+      await mlPut(`/items/${p.mla}`, { price: p.precio_ml_calc });
+      p.precio_ml_real = p.precio_ml_calc;
+      ok++;
+      // recalcular y publicar mayoristas con el precio nuevo
+      Object.assign(p, calcMayoristas(p.precio_ml_calc));
+      const body = {
+        prices: [
+          { id: '1' },
+          { amount: p.precio_x3,  currency_id: 'ARS', conditions: { context_restrictions: ['channel_marketplace','user_type_business'], min_purchase_unit: 3  } },
+          { amount: p.precio_x5,  currency_id: 'ARS', conditions: { context_restrictions: ['channel_marketplace','user_type_business'], min_purchase_unit: 5  } },
+          { amount: p.precio_x10, currency_id: 'ARS', conditions: { context_restrictions: ['channel_marketplace','user_type_business'], min_purchase_unit: 10 } },
+        ]
+      };
+      try {
+        const { status, data } = await mlPost(`/items/${p.mla}/prices/standard/quantity`, body);
+        if (status >= 200 && status < 300) mayOk++;
+        else { mayErr++; console.error('[mayorista]', p.mla, status, data); }
+      } catch(em) { mayErr++; console.error('[mayorista]', p.mla, em); }
+    }
     catch(e) { errors++; console.error(p.mla, e); }
     await new Promise(r => setTimeout(r, 80));
   }
   modal.classList.remove('show');
   btn.classList.remove('loading');
   doFilter();
-  if (errors === 0) showToast(`✅ ${ok} precios actualizados en ML`, 'success');
-  else showToast(`⚠️ ${ok} OK · ${errors} errores`, 'error');
+  const mayStr = ` · mayoristas: ${mayOk} OK${mayErr ? ' · ' + mayErr + ' err' : ''}`;
+  if (errors === 0 && mayErr === 0) showToast(`✅ ${ok} precios actualizados en ML${mayStr}`, 'success');
+  else showToast(`⚠️ precio: ${ok} OK · ${errors} err${mayStr}`, 'error');
   btn.disabled = products.filter(p => hasDiff(p)).length === 0;
 }
 
