@@ -460,6 +460,14 @@
   .cfg-btn-save{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:9px 20px;font-family:var(--font-head);font-weight:700;font-size:13px;cursor:pointer;}
   .cfg-btn-save:hover{opacity:.88;}
   .cfg-btn-reset{background:none;border:1px solid var(--border);border-radius:10px;padding:9px 14px;font-family:var(--font-mono);font-size:11px;color:var(--muted);cursor:pointer;}
+  .cfg-btn-add{background:none;border:1px dashed var(--accent);border-radius:8px;padding:6px 12px;font-family:var(--font-mono);font-size:11px;color:var(--accent);cursor:pointer;margin-top:6px;}
+  .cfg-btn-add:hover{background:rgba(108,99,255,.08);}
+  .cfg-btn-add:disabled{opacity:.4;cursor:not-allowed;}
+  .cfg-mayor-row{display:flex;align-items:center;gap:6px;margin-bottom:6px;}
+  .cfg-mayor-row .cfg-input{width:80px;}
+  .cfg-mayor-row .cfg-label-mini{font-size:10px;color:var(--muted);font-family:var(--font-mono);}
+  .cfg-btn-rm{background:none;border:1px solid var(--border);border-radius:6px;width:24px;height:24px;color:var(--muted);cursor:pointer;font-size:12px;line-height:1;}
+  .cfg-btn-rm:hover{border-color:var(--red);color:var(--red);}
   .cfg-btn-reset:hover{border-color:var(--red);color:var(--red);}
   .cfg-close{background:none;border:none;cursor:pointer;font-size:18px;color:var(--muted);padding:4px 8px;line-height:1;}
   .cfg-close:hover{color:var(--text);}
@@ -1341,22 +1349,9 @@
       </div>
 
       <div class="cfg-section">
-        <div class="cfg-section-title">Descuentos mayoristas (sobre precio ML calc.)</div>
-        <div class="cfg-row">
-          <span class="cfg-label">x3 unidades</span>
-          <input class="cfg-input" id="cfgMayoristaX3" type="number" step="1" min="0" max="100">
-          <span class="cfg-unit">%</span>
-        </div>
-        <div class="cfg-row">
-          <span class="cfg-label">x5 unidades</span>
-          <input class="cfg-input" id="cfgMayoristaX5" type="number" step="1" min="0" max="100">
-          <span class="cfg-unit">%</span>
-        </div>
-        <div class="cfg-row">
-          <span class="cfg-label">x10 unidades</span>
-          <input class="cfg-input" id="cfgMayoristaX10" type="number" step="1" min="0" max="100">
-          <span class="cfg-unit">%</span>
-        </div>
+        <div class="cfg-section-title">Descuentos mayoristas (sobre precio ML calc.) — máx 5 tramos</div>
+        <div id="cfgMayoristaList"></div>
+        <button type="button" class="cfg-btn-add" id="cfgMayoristaAddBtn" onclick="cfgMayoristaAdd()">+ Agregar tramo</button>
       </div>
 
       <div class="cfg-section">
@@ -1411,7 +1406,11 @@ const V = {
   precioEnvioGratis: 33000,
   costoEnvioGratis: 9800,
   descuentos: { I: 0.25, N: 0.20, F: 0.0 },
-  mayorista: { x3: 0.05, x5: 0.10, x10: 0.15 },
+  mayorista: [
+    { qty: 5,  pct: 0.05 },
+    { qty: 10, pct: 0.10 },
+    { qty: 15, pct: 0.15 },
+  ],
   nf: [
     { hasta: 15999, cf: 1275 },
     { hasta: 23999, cf: 2500 },
@@ -1469,15 +1468,8 @@ async function pushMayoristasFiltered() {
     document.getElementById('modalBar').style.width = pct + '%';
     document.getElementById('modalSub').textContent = `${p.mla} — ${p.name.slice(0, 40)}...`;
     document.getElementById('modalCount').textContent = `${i + 1} / ${list.length}`;
-    Object.assign(p, calcMayoristas(p.precio_ml_calc));
-    const body = {
-      prices: [
-        { id: '1' },
-        { amount: p.precio_x3,  currency_id: 'ARS', conditions: { context_restrictions: ['channel_marketplace','user_type_business'], min_purchase_unit: 3  } },
-        { amount: p.precio_x5,  currency_id: 'ARS', conditions: { context_restrictions: ['channel_marketplace','user_type_business'], min_purchase_unit: 5  } },
-        { amount: p.precio_x10, currency_id: 'ARS', conditions: { context_restrictions: ['channel_marketplace','user_type_business'], min_purchase_unit: 10 } },
-      ]
-    };
+    p.mayoristas = calcMayoristas(p.precio_ml_calc);
+    const body = buildMayoristaBody(p);
     try {
       const { status, data } = await mlPost(`/items/${p.mla}/prices/standard/quantity`, body);
       if (status >= 200 && status < 300) ok++;
@@ -1491,17 +1483,25 @@ async function pushMayoristasFiltered() {
   else showToast(`⚠️ ${ok} OK · ${err} errores — ver consola`, 'error');
 }
 
+function buildMayoristaBody(p) {
+  const tiers = (p.mayoristas || []).filter(t => t.qty > 1 && t.amount > 0);
+  return {
+    prices: [
+      { id: '1' },
+      ...tiers.map(t => ({
+        amount: t.amount,
+        currency_id: 'ARS',
+        conditions: { context_restrictions: ['channel_marketplace','user_type_business'], min_purchase_unit: t.qty },
+      })),
+    ]
+  };
+}
+
 async function pushMayorista(id) {
   const p = products.find(x => x.id === id);
   if (!p) return;
-  const body = {
-    prices: [
-      { id: '1' },
-      { amount: p.precio_x3,  currency_id: 'ARS', conditions: { context_restrictions: ['channel_marketplace','user_type_business'], min_purchase_unit: 3  } },
-      { amount: p.precio_x5,  currency_id: 'ARS', conditions: { context_restrictions: ['channel_marketplace','user_type_business'], min_purchase_unit: 5  } },
-      { amount: p.precio_x10, currency_id: 'ARS', conditions: { context_restrictions: ['channel_marketplace','user_type_business'], min_purchase_unit: 10 } },
-    ]
-  };
+  if (!p.mayoristas || !p.mayoristas.length) { showToast('No hay tramos mayoristas configurados', 'error'); return; }
+  const body = buildMayoristaBody(p);
   console.log('[mayorista] POST /items/' + p.mla + '/prices/standard/quantity', body);
   showToast(`⏳ Probando mayorista en ${p.mla}…`, 'info');
   try {
@@ -1521,11 +1521,11 @@ async function pushMayorista(id) {
 
 function calcMayoristas(precio_ml_calc) {
   const round = p => Math.round(p / 5) * 5;
-  return {
-    precio_x3:  round(precio_ml_calc * (1 - (V.mayorista.x3  || 0))),
-    precio_x5:  round(precio_ml_calc * (1 - (V.mayorista.x5  || 0))),
-    precio_x10: round(precio_ml_calc * (1 - (V.mayorista.x10 || 0))),
-  };
+  return (V.mayorista || []).map(t => ({
+    qty: t.qty,
+    pct: t.pct,
+    amount: round(precio_ml_calc * (1 - (t.pct || 0))),
+  }));
 }
 
 function calcGanReal(precio_ml, costo, tipo) {
@@ -1617,9 +1617,6 @@ async function loadFromSheets() {
         }
         return String(v);
       })(),
-      precio_x3_sheet:  typeof get(16) === 'number' ? get(16) : 0,
-      precio_x5_sheet:  typeof get(17) === 'number' ? get(17) : 0,
-      precio_x10_sheet: typeof get(18) === 'number' ? get(18) : 0,
     };
   }).filter(Boolean);
 }
@@ -1672,7 +1669,6 @@ function buildProducts(rows, mlMap) {
     const precio_ml_calc = row.precio_sheets > 0 ? row.precio_sheets : calcPrecioML(costo, row.margen, row.tipo);
     const gan_pesos = precio_ml_real > 0 ? calcGanReal(precio_ml_real, costo, row.tipo) : calcGanReal(precio_ml_calc, costo, row.tipo);
     const gan_pct = costo > 0 ? Math.round((gan_pesos / costo) * 1000) / 10 : 0;
-    const may = calcMayoristas(precio_ml_calc);
     // TN
     const tn = tnBySku[row.sku] || null;
     return {
@@ -1680,10 +1676,7 @@ function buildProducts(rows, mlMap) {
       status, stock, tipo: row.tipo, descuento: row.descuento,
       precio_asia: row.precio_asia, margen: row.margen, costo, thumbnail,
       precio_ml_calc, precio_ml_real, gan_pesos, gan_pct,
-      precio_x3: may.precio_x3, precio_x5: may.precio_x5, precio_x10: may.precio_x10,
-      precio_x3_sheet: row.precio_x3_sheet || 0,
-      precio_x5_sheet: row.precio_x5_sheet || 0,
-      precio_x10_sheet: row.precio_x10_sheet || 0,
+      mayoristas: calcMayoristas(precio_ml_calc),
       gondola: row.gondola || '',
       precio_tn_sheet: row.precio_tn_sheet || 0,
       stock_oficina: row.stock_oficina || 0,
@@ -1893,15 +1886,8 @@ async function updateDiffPrices() {
       p.precio_ml_real = p.precio_ml_calc;
       ok++;
       // recalcular y publicar mayoristas con el precio nuevo
-      Object.assign(p, calcMayoristas(p.precio_ml_calc));
-      const body = {
-        prices: [
-          { id: '1' },
-          { amount: p.precio_x3,  currency_id: 'ARS', conditions: { context_restrictions: ['channel_marketplace','user_type_business'], min_purchase_unit: 3  } },
-          { amount: p.precio_x5,  currency_id: 'ARS', conditions: { context_restrictions: ['channel_marketplace','user_type_business'], min_purchase_unit: 5  } },
-          { amount: p.precio_x10, currency_id: 'ARS', conditions: { context_restrictions: ['channel_marketplace','user_type_business'], min_purchase_unit: 10 } },
-        ]
-      };
+      p.mayoristas = calcMayoristas(p.precio_ml_calc);
+      const body = buildMayoristaBody(p);
       try {
         const { status, data } = await mlPost(`/items/${p.mla}/prices/standard/quantity`, body);
         if (status >= 200 && status < 300) mayOk++;
@@ -2026,12 +2012,14 @@ function renderTable() {
       <td><span style="font-size:11px;color:var(--blue)">${fmtP(p.margen * 100)}</span></td>
       <td>${priceCell}</td>
       <td>${(() => {
-        const tiers = [['x3',p.precio_x3,p.precio_x3_sheet],['x5',p.precio_x5,p.precio_x5_sheet],['x10',p.precio_x10,p.precio_x10_sheet]];
-        const rows = tiers.map(([lbl,calc,sheet]) => {
-          const diff = sheet > 0 && Math.abs(calc - sheet) >= DIFF_THRESHOLD;
-          return `<div class="mayor-row"><span class="mayor-lbl">${lbl}</span><span class="mayor-val ${diff?'diff':''}" title="${diff?'Sheet: '+fmt(sheet):''}">${fmt(calc)}</span></div>`;
-        }).join('');
-        return `<div class="mayor-cell">${rows}<button class="mayor-test-btn" onclick="pushMayorista(${p.id})" title="Publicar precios mayoristas x3/x5/x10 en esta publicación de ML">📦 Publicar</button></div>`;
+        const tiers = p.mayoristas || [];
+        const rows = tiers.map(t =>
+          `<div class="mayor-row"><span class="mayor-lbl">x${t.qty}</span><span class="mayor-val">${fmt(t.amount)}</span></div>`
+        ).join('');
+        const btn = tiers.length
+          ? `<button class="mayor-test-btn" onclick="pushMayorista(${p.id})" title="Publicar precios mayoristas en esta publicación de ML">📦 Publicar</button>`
+          : `<span class="mayor-lbl">—</span>`;
+        return `<div class="mayor-cell">${rows}${btn}</div>`;
       })()}</td>
       <td><span style="font-size:11px;color:var(--green)">${fmt(p.gan_pesos)}</span></td>
       <td><span style="font-size:11px;color:var(--green)">${fmtP(p.gan_pct)}</span></td>
@@ -2117,7 +2105,7 @@ async function saveAsia(id) {
     p.gan_pesos = calcGanReal(pr, p.costo, p.tipo);
     p.gan_pct   = calcGanPct(pr, p.costo, p.tipo);
     p.semaforo  = p.gan_pct >= 30 ? '🟢' : p.gan_pct >= 15 ? '🟡' : '🔴';
-    Object.assign(p, calcMayoristas(p.precio_ml_calc));
+    p.mayoristas = calcMayoristas(p.precio_ml_calc);
     v.textContent = fmt(newVal);
     showToast(`✅ Precio Asia actualizado en la Sheet — ${p.sku}`, 'success');
     doFilter();
@@ -3194,7 +3182,7 @@ async function invSaveAsia(id) {
     p.gan_pesos = calcGanReal(pr, p.costo, p.tipo);
     p.gan_pct   = calcGanPct(pr, p.costo, p.tipo);
     p.semaforo  = p.gan_pct >= 30 ? '🟢' : p.gan_pct >= 15 ? '🟡' : '🔴';
-    Object.assign(p, calcMayoristas(p.precio_ml_calc));
+    p.mayoristas = calcMayoristas(p.precio_ml_calc);
     v.textContent = fmt(newVal);
     showToast(`✅ Precio Asia actualizado — ${p.sku}`, 'success');
     if (typeof doFilter === 'function') doFilter();
@@ -5475,18 +5463,23 @@ async function loadVariablesFromSheet() {
     if (g('F')                   != null) V.descuentos.F      = g('F');
     if (g('I')                   != null) V.descuentos.I      = g('I');
     if (g('N')                   != null) V.descuentos.N      = g('N');
-    if (g('MAYORISTA X3')        != null) V.mayorista.x3      = g('MAYORISTA X3');
-    if (g('MAYORISTA X5')        != null) V.mayorista.x5      = g('MAYORISTA X5');
-    if (g('MAYORISTA X10')       != null) V.mayorista.x10     = g('MAYORISTA X10');
-
-    // ── Fetch 2: strings en A27:B28 (URL + GONDOLAS)
+    // ── Fetch 2: strings en A27:B30 (URL + GONDOLAS + MAYORISTAS_JSON)
     // Con range limitado a filas de texto, gviz detecta col B como string.
-    // rows[0] = fila 27 (URL), rows[1] = fila 28 (GONDOLAS)
-    const json2 = parse(await (await fetch(`${base}&range=A27:B28`)).text());
+    // rows[0] = fila 27 (URL), rows[1] = fila 28 (GONDOLAS), rows[3] = fila 30 (MAYORISTAS JSON)
+    const json2 = parse(await (await fetch(`${base}&range=A27:B30`)).text());
     const gasUrl = cellVal(json2.table.rows?.[0]?.c?.[1]);
     if (gasUrl && String(gasUrl).trim().startsWith('http')) GAS_URL = String(gasUrl).trim();
     const gondolasRaw = cellVal(json2.table.rows?.[1]?.c?.[1]);
     if (gondolasRaw) GONDOLAS = String(gondolasRaw).split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+    const mayoristaRaw = cellVal(json2.table.rows?.[3]?.c?.[1]);
+    if (mayoristaRaw) {
+      try {
+        const parsed = JSON.parse(String(mayoristaRaw));
+        if (Array.isArray(parsed) && parsed.every(t => Number.isFinite(t.qty) && Number.isFinite(t.pct))) {
+          V.mayorista = parsed.slice(0, 5).map(t => ({ qty: t.qty, pct: t.pct }));
+        }
+      } catch(e) { console.warn('MAYORISTAS JSON inválido en B30:', e.message); }
+    }
   } catch(e) {
     console.warn('No se pudo leer VARIABLES de la Sheet:', e.message);
   }
@@ -5496,7 +5489,11 @@ async function loadVariablesFromSheet() {
 const CFG_DEF = {
   comision: 0.135, precioEnvioGratis: 33000, costoEnvioGratis: 11500,
   descuentos: { I: 0.25, N: 0.20, F: 0.0 },
-  mayorista: { x3: 0.05, x5: 0.10, x10: 0.15 },
+  mayorista: [
+    { qty: 5,  pct: 0.05 },
+    { qty: 10, pct: 0.10 },
+    { qty: 15, pct: 0.15 },
+  ],
   nf:   [{ hasta:15999,cf:1275},{hasta:23999,cf:2500},{hasta:32999,cf:3030},{hasta:Infinity,cf:0}],
   full: [{ hasta:3499,cf:290},{hasta:4999,cf:550},{hasta:7999,cf:750},{hasta:15999,cf:1000},{hasta:32999,cf:1750},{hasta:Infinity,cf:0}],
   gondolas: ['BAZAR','BEBIDAS','CONDIMENTOS ORIENTALES','COREANO','EXLIN','FIDEOS','FRESCO','GOLOSINAS','ICHIBAN','NACIONAL','ONCE','PICKLES','SALSAS','SNACKS','SOJU','TE','VALLE IMPERIAL','VALLE IMPERIAL CONDIMENTOS','CASA CHINA'],
@@ -5521,9 +5518,7 @@ function cfgRenderUI() {
   document.getElementById('cfgDescI').value = +(V.descuentos.I * 100).toFixed(0);
   document.getElementById('cfgDescN').value = +(V.descuentos.N * 100).toFixed(0);
   document.getElementById('cfgDescF').value = +(V.descuentos.F * 100).toFixed(0);
-  document.getElementById('cfgMayoristaX3').value  = +(V.mayorista.x3  * 100).toFixed(0);
-  document.getElementById('cfgMayoristaX5').value  = +(V.mayorista.x5  * 100).toFixed(0);
-  document.getElementById('cfgMayoristaX10').value = +(V.mayorista.x10 * 100).toFixed(0);
+  cfgMayoristaRender();
   cfgRenderTramos('nf',   V.nf);
   cfgRenderTramos('full', V.full);
   document.getElementById('cfgGondolas').value = GONDOLAS.join('\n');
@@ -5543,6 +5538,55 @@ function cfgRenderTramos(tipo, tramos) {
   }).join('');
 }
 
+const MAYORISTA_MAX = 5;
+let cfgMayoristaDraft = [];
+
+function cfgMayoristaRender() {
+  cfgMayoristaDraft = (V.mayorista || []).map(t => ({ qty: t.qty, pct: t.pct }));
+  cfgMayoristaPaint();
+}
+function cfgMayoristaPaint() {
+  const cont = document.getElementById('cfgMayoristaList');
+  cont.innerHTML = cfgMayoristaDraft.map((t, i) => `
+    <div class="cfg-mayor-row">
+      <span class="cfg-label-mini">cant.</span>
+      <input class="cfg-input" type="number" min="2" step="1" value="${t.qty}" oninput="cfgMayoristaSet(${i},'qty',this.value)">
+      <span class="cfg-label-mini">desc.</span>
+      <input class="cfg-input" type="number" min="0" max="100" step="1" value="${+(t.pct*100).toFixed(2)}" oninput="cfgMayoristaSet(${i},'pct',this.value)">
+      <span class="cfg-label-mini">%</span>
+      <button type="button" class="cfg-btn-rm" onclick="cfgMayoristaRemove(${i})" title="Quitar tramo">✕</button>
+    </div>
+  `).join('');
+  document.getElementById('cfgMayoristaAddBtn').disabled = cfgMayoristaDraft.length >= MAYORISTA_MAX;
+}
+function cfgMayoristaSet(i, field, val) {
+  const n = parseFloat(val);
+  if (isNaN(n)) return;
+  cfgMayoristaDraft[i][field] = field === 'pct' ? n / 100 : Math.round(n);
+}
+function cfgMayoristaAdd() {
+  if (cfgMayoristaDraft.length >= MAYORISTA_MAX) return;
+  const last = cfgMayoristaDraft[cfgMayoristaDraft.length - 1] || { qty: 1, pct: 0 };
+  cfgMayoristaDraft.push({ qty: (last.qty || 1) + 5, pct: Math.min((last.pct || 0) + 0.05, 0.95) });
+  cfgMayoristaPaint();
+}
+function cfgMayoristaRemove(i) {
+  cfgMayoristaDraft.splice(i, 1);
+  cfgMayoristaPaint();
+}
+function cfgMayoristaValidate() {
+  const arr = cfgMayoristaDraft;
+  for (const t of arr) {
+    if (!Number.isFinite(t.qty) || t.qty < 2) return 'Cantidad mínima debe ser ≥ 2';
+    if (!Number.isFinite(t.pct) || t.pct < 0 || t.pct >= 1) return '% debe estar entre 0 y 100';
+  }
+  for (let i = 1; i < arr.length; i++) {
+    if (arr[i].qty <= arr[i-1].qty) return 'Las cantidades deben ser estrictamente crecientes';
+    if (arr[i].pct < arr[i-1].pct) return 'El % de descuento no puede disminuir al subir la cantidad';
+  }
+  return null;
+}
+
 function cfgGetTramoCfs(tipo) {
   const tbody = document.getElementById(tipo === 'nf' ? 'cfgBodyNF' : 'cfgBodyFull');
   return Array.from(tbody.querySelectorAll('input')).map(inp => Number(inp.value) || 0);
@@ -5558,15 +5602,15 @@ async function cfgSave() {
   const descI = parseFloat(document.getElementById('cfgDescI').value) / 100;
   const descN = parseFloat(document.getElementById('cfgDescN').value) / 100;
   const descF = parseFloat(document.getElementById('cfgDescF').value) / 100;
-  const mayX3  = parseFloat(document.getElementById('cfgMayoristaX3').value)  / 100;
-  const mayX5  = parseFloat(document.getElementById('cfgMayoristaX5').value)  / 100;
-  const mayX10 = parseFloat(document.getElementById('cfgMayoristaX10').value) / 100;
+  const mayoristaErr = cfgMayoristaValidate();
+  if (mayoristaErr) { showToast('❌ Mayoristas: ' + mayoristaErr, 'error'); return; }
+  const mayorista = cfgMayoristaDraft.map(t => ({ qty: t.qty, pct: t.pct }));
   const nfCfs   = cfgGetTramoCfs('nf');
   const fullCfs = cfgGetTramoCfs('full');
   const gondolas = document.getElementById('cfgGondolas').value
     .split('\n').map(s => s.trim().toUpperCase()).filter(Boolean);
 
-  if ([comision, precioEnvioGratis, costoEnvioGratis, descI, descN, descF, mayX3, mayX5, mayX10].some(isNaN)) {
+  if ([comision, precioEnvioGratis, costoEnvioGratis, descI, descN, descF].some(isNaN)) {
     showToast('❌ Hay valores inválidos', 'error'); return;
   }
   if (!gondolas.length) { showToast('❌ Ingresá al menos una góndola', 'error'); return; }
@@ -5574,7 +5618,7 @@ async function cfgSave() {
   // Aplicar en runtime
   V.comision = comision; V.precioEnvioGratis = precioEnvioGratis; V.costoEnvioGratis = costoEnvioGratis;
   Object.assign(V.descuentos, { I: descI, N: descN, F: descF });
-  Object.assign(V.mayorista, { x3: mayX3, x5: mayX5, x10: mayX10 });
+  V.mayorista = mayorista;
   [0,1,2].forEach(i => { if (nfCfs[i]   != null) V.nf[i].cf   = nfCfs[i];   });
   [0,1,2,3,4].forEach(i => { if (fullCfs[i] != null) V.full[i].cf = fullCfs[i]; });
   GONDOLAS = gondolas;
@@ -5590,8 +5634,7 @@ async function cfgSave() {
       { row: 17, value: V.full[4].cf },      { row: 21, value: descF },
       { row: 22, value: descI },             { row: 23, value: descN },
       { row: 28, value: gondolas.join(', ') },
-      { row: 30, value: mayX3 },             { row: 31, value: mayX5 },
-      { row: 32, value: mayX10 },
+      { row: 30, value: JSON.stringify(mayorista) },
     ];
     const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ tipo: 'variables', updates }) });
     const data = await res.json();
@@ -5610,7 +5653,7 @@ function cfgResetDefaults() {
   V.comision = CFG_DEF.comision; V.precioEnvioGratis = CFG_DEF.precioEnvioGratis;
   V.costoEnvioGratis = CFG_DEF.costoEnvioGratis;
   Object.assign(V.descuentos, CFG_DEF.descuentos);
-  Object.assign(V.mayorista, CFG_DEF.mayorista);
+  V.mayorista = CFG_DEF.mayorista.map(t => ({ qty: t.qty, pct: t.pct }));
   V.nf   = CFG_DEF.nf.map(t => ({...t}));
   V.full = CFG_DEF.full.map(t => ({...t}));
   GONDOLAS = [...CFG_DEF.gondolas];
@@ -5628,7 +5671,7 @@ function cfgRecalcProducts() {
     p.gan_pesos = calcGanReal(pr, p.costo, p.tipo);
     p.gan_pct   = calcGanPct(pr, p.costo, p.tipo);
     p.semaforo  = p.gan_pct >= 30 ? '🟢' : p.gan_pct >= 15 ? '🟡' : '🔴';
-    Object.assign(p, calcMayoristas(p.precio_ml_calc));
+    p.mayoristas = calcMayoristas(p.precio_ml_calc);
   });
   doFilter();
 }
