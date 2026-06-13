@@ -5463,25 +5463,31 @@ async function loadVariablesFromSheet() {
     if (g('F')                   != null) V.descuentos.F      = g('F');
     if (g('I')                   != null) V.descuentos.I      = g('I');
     if (g('N')                   != null) V.descuentos.N      = g('N');
-    // ── Fetch 2: strings en A27:B28 (URL + GONDOLAS)
+    // ── Fetch 2: strings en A27:B30 (URL + GONDOLAS + MAYORISTAS JSON)
     // Con range limitado a filas de texto, gviz detecta col B como string.
-    // rows[0] = fila 27 (URL), rows[1] = fila 28 (GONDOLAS)
-    const json2 = parse(await (await fetch(`${base}&range=A27:B28`)).text());
+    // rows[0]=27 (URL), rows[1]=28 (GONDOLAS), rows[3]=30 (MAYORISTAS JSON)
+    const json2 = parse(await (await fetch(`${base}&range=A27:B30`)).text());
     const gasUrl = cellVal(json2.table.rows?.[0]?.c?.[1]);
     if (gasUrl && String(gasUrl).trim().startsWith('http')) GAS_URL = String(gasUrl).trim();
     const gondolasRaw = cellVal(json2.table.rows?.[1]?.c?.[1]);
     if (gondolasRaw) GONDOLAS = String(gondolasRaw).split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
 
-    // Mayoristas: 100% local, no se persiste en la Sheet. Override desde localStorage.
-    try {
-      const ls = localStorage.getItem('mayorista_tiers');
-      if (ls) {
-        const parsed = JSON.parse(ls);
+    // Mayoristas: prioridad sheet (B30 JSON) > localStorage > defaults
+    const tryApplyMayorista = raw => {
+      try {
+        const parsed = JSON.parse(String(raw));
         if (Array.isArray(parsed) && parsed.every(t => Number.isFinite(t.qty) && Number.isFinite(t.pct))) {
           V.mayorista = parsed.slice(0, 5).map(t => ({ qty: t.qty, pct: t.pct }));
+          return true;
         }
-      }
-    } catch(e) { console.warn('mayorista_tiers localStorage inválido:', e.message); }
+      } catch(_) {}
+      return false;
+    };
+    const mayoristaSheet = cellVal(json2.table.rows?.[3]?.c?.[1]);
+    if (!(mayoristaSheet && tryApplyMayorista(mayoristaSheet))) {
+      const ls = localStorage.getItem('mayorista_tiers');
+      if (ls) tryApplyMayorista(ls);
+    }
   } catch(e) {
     console.warn('No se pudo leer VARIABLES de la Sheet:', e.message);
   }
@@ -5641,6 +5647,7 @@ async function cfgSave() {
       { row: 17, value: V.full[4].cf },      { row: 21, value: descF },
       { row: 22, value: descI },             { row: 23, value: descN },
       { row: 28, value: gondolas.join(', ') },
+      { row: 30, value: JSON.stringify(V.mayorista) },
     ];
     const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ tipo: 'variables', updates }) });
     const data = await res.json();
