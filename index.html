@@ -5463,23 +5463,25 @@ async function loadVariablesFromSheet() {
     if (g('F')                   != null) V.descuentos.F      = g('F');
     if (g('I')                   != null) V.descuentos.I      = g('I');
     if (g('N')                   != null) V.descuentos.N      = g('N');
-    // ── Fetch 2: strings en A27:B30 (URL + GONDOLAS + MAYORISTAS_JSON)
+    // ── Fetch 2: strings en A27:B28 (URL + GONDOLAS)
     // Con range limitado a filas de texto, gviz detecta col B como string.
-    // rows[0] = fila 27 (URL), rows[1] = fila 28 (GONDOLAS), rows[3] = fila 30 (MAYORISTAS JSON)
-    const json2 = parse(await (await fetch(`${base}&range=A27:B30`)).text());
+    // rows[0] = fila 27 (URL), rows[1] = fila 28 (GONDOLAS)
+    const json2 = parse(await (await fetch(`${base}&range=A27:B28`)).text());
     const gasUrl = cellVal(json2.table.rows?.[0]?.c?.[1]);
     if (gasUrl && String(gasUrl).trim().startsWith('http')) GAS_URL = String(gasUrl).trim();
     const gondolasRaw = cellVal(json2.table.rows?.[1]?.c?.[1]);
     if (gondolasRaw) GONDOLAS = String(gondolasRaw).split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-    const mayoristaRaw = cellVal(json2.table.rows?.[3]?.c?.[1]);
-    if (mayoristaRaw) {
-      try {
-        const parsed = JSON.parse(String(mayoristaRaw));
+
+    // Mayoristas: 100% local, no se persiste en la Sheet. Override desde localStorage.
+    try {
+      const ls = localStorage.getItem('mayorista_tiers');
+      if (ls) {
+        const parsed = JSON.parse(ls);
         if (Array.isArray(parsed) && parsed.every(t => Number.isFinite(t.qty) && Number.isFinite(t.pct))) {
           V.mayorista = parsed.slice(0, 5).map(t => ({ qty: t.qty, pct: t.pct }));
         }
-      } catch(e) { console.warn('MAYORISTAS JSON inválido en B30:', e.message); }
-    }
+      }
+    } catch(e) { console.warn('mayorista_tiers localStorage inválido:', e.message); }
   } catch(e) {
     console.warn('No se pudo leer VARIABLES de la Sheet:', e.message);
   }
@@ -5593,8 +5595,17 @@ function cfgGetTramoCfs(tipo) {
 }
 
 async function cfgSave() {
+  // Mayoristas se guardan SIEMPRE localmente, incluso sin GAS_URL (no tocan la Sheet)
+  const mayoristaErrEarly = cfgMayoristaValidate();
+  if (mayoristaErrEarly) { showToast('❌ Mayoristas: ' + mayoristaErrEarly, 'error'); return; }
+  V.mayorista = cfgMayoristaDraft.map(t => ({ qty: t.qty, pct: t.pct }));
+  try { localStorage.setItem('mayorista_tiers', JSON.stringify(V.mayorista)); } catch(_) {}
+  cfgRecalcProducts();
+
   if (!GAS_URL) {
-    showToast('❌ Falta la URL del Apps Script — verificá VARIABLES!B27', 'error'); return;
+    closeConfig();
+    showToast('✅ Mayoristas guardados (sin GAS — el resto no se persiste)', 'success');
+    return;
   }
   const comision          = parseFloat(document.getElementById('cfgComision').value) / 100;
   const precioEnvioGratis = Number(document.getElementById('cfgEnvioGratisUmbral').value);
@@ -5602,9 +5613,6 @@ async function cfgSave() {
   const descI = parseFloat(document.getElementById('cfgDescI').value) / 100;
   const descN = parseFloat(document.getElementById('cfgDescN').value) / 100;
   const descF = parseFloat(document.getElementById('cfgDescF').value) / 100;
-  const mayoristaErr = cfgMayoristaValidate();
-  if (mayoristaErr) { showToast('❌ Mayoristas: ' + mayoristaErr, 'error'); return; }
-  const mayorista = cfgMayoristaDraft.map(t => ({ qty: t.qty, pct: t.pct }));
   const nfCfs   = cfgGetTramoCfs('nf');
   const fullCfs = cfgGetTramoCfs('full');
   const gondolas = document.getElementById('cfgGondolas').value
@@ -5618,7 +5626,6 @@ async function cfgSave() {
   // Aplicar en runtime
   V.comision = comision; V.precioEnvioGratis = precioEnvioGratis; V.costoEnvioGratis = costoEnvioGratis;
   Object.assign(V.descuentos, { I: descI, N: descN, F: descF });
-  V.mayorista = mayorista;
   [0,1,2].forEach(i => { if (nfCfs[i]   != null) V.nf[i].cf   = nfCfs[i];   });
   [0,1,2,3,4].forEach(i => { if (fullCfs[i] != null) V.full[i].cf = fullCfs[i]; });
   GONDOLAS = gondolas;
@@ -5634,7 +5641,6 @@ async function cfgSave() {
       { row: 17, value: V.full[4].cf },      { row: 21, value: descF },
       { row: 22, value: descI },             { row: 23, value: descN },
       { row: 28, value: gondolas.join(', ') },
-      { row: 30, value: JSON.stringify(mayorista) },
     ];
     const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ tipo: 'variables', updates }) });
     const data = await res.json();
