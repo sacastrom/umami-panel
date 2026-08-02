@@ -1,23 +1,64 @@
-import { getSupabaseAdmin, setCors } from '../_lib/supabaseAdmin.js';
-import { mlGetItemsByIds, mapLogisticType, parseItemId } from '../_lib/mercadolibre.js';
+import { getSupabaseAdmin, setCors } from './_lib/supabaseAdmin.js';
+import { mlGetItemsByIds, mapLogisticType, parseItemId } from './_lib/mercadolibre.js';
 
-// Consolida items / [id] (DELETE) / [id]/items (POST) / [id]/sync (POST) en una
-// sola funcion. Vercel Hobby limita a 12 Serverless Functions por deployment.
-
+// Un solo archivo fisico para toda la feature de competidores: los catch-all
+// tipo [...rest].js son una feature de Next.js, NO de los proyectos Vercel
+// "planos" (zero-config functions) como este - solo soportan UN segmento
+// dinamico por archivo. Para rutas anidadas usamos vercel.json "rewrites"
+// que apuntan todas a este mismo archivo con un query param ?route=.
 export default async function handler(req, res) {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const rest = Array.isArray(req.query.rest) ? req.query.rest : [];
+  const { route, id } = req.query;
 
-  if (rest.length === 1 && rest[0] === 'items') return handleItems(req, res);
-  if (rest.length === 1) return handleDelete(req, res, rest[0]);
-  if (rest.length === 2 && rest[1] === 'sync') return handleSync(req, res, rest[0]);
-  if (rest.length === 2 && rest[1] === 'items') return handleAddItem(req, res, rest[0]);
+  if (!route) return handleListCreate(req, res);
+  if (route === 'items') return handleItems(req, res);
+  if (route === 'delete') return handleDelete(req, res, id);
+  if (route === 'sync') return handleSync(req, res, id);
+  if (route === 'additem') return handleAddItem(req, res, id);
 
   return res.status(404).json({ error: 'Ruta no encontrada' });
 }
 
+// GET/POST /api/competidores
+async function handleListCreate(req, res) {
+  const supa = getSupabaseAdmin();
+
+  if (req.method === 'GET') {
+    const { data, error } = await supa
+      .from('competidores')
+      .select('*')
+      .order('fecha_alta', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    return res.status(200).json(data);
+  }
+
+  if (req.method === 'POST') {
+    const nickname = String(req.body?.nickname || '').trim();
+    if (!nickname) return res.status(400).json({ error: 'Falta nickname' });
+
+    const { data: existente } = await supa
+      .from('competidores')
+      .select('id')
+      .eq('nickname', nickname)
+      .maybeSingle();
+    if (existente) return res.status(409).json({ error: 'Ese competidor ya esta cargado' });
+
+    const { data, error } = await supa
+      .from('competidores')
+      .insert({ nickname, seller_id: null })
+      .select()
+      .single();
+    if (error) return res.status(500).json({ error: error.message });
+    return res.status(201).json(data);
+  }
+
+  res.setHeader('Allow', 'GET, POST, OPTIONS');
+  return res.status(405).json({ error: 'Metodo no permitido' });
+}
+
+// GET /api/competidores/items?ids=... (rewrite -> ?route=items&ids=...)
 async function handleItems(req, res) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET, OPTIONS');
@@ -53,11 +94,13 @@ async function handleItems(req, res) {
   return res.status(200).json(out);
 }
 
+// DELETE /api/competidores/:id (rewrite -> ?route=delete&id=:id)
 async function handleDelete(req, res, id) {
   if (req.method !== 'DELETE') {
     res.setHeader('Allow', 'DELETE, OPTIONS');
     return res.status(405).json({ error: 'Metodo no permitido' });
   }
+  if (!id) return res.status(400).json({ error: 'Falta id' });
   const supa = getSupabaseAdmin();
   // competidor_items y matches_manuales se borran por ON DELETE CASCADE
   const { error } = await supa.from('competidores').delete().eq('id', id);
@@ -65,12 +108,14 @@ async function handleDelete(req, res, id) {
   return res.status(200).json({ ok: true });
 }
 
+// POST /api/competidores/:id/items (rewrite -> ?route=additem&id=:id)
 // Trackea una publicacion puntual del competidor (link o codigo MLA...).
 async function handleAddItem(req, res, competidorId) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST, OPTIONS');
     return res.status(405).json({ error: 'Metodo no permitido' });
   }
+  if (!competidorId) return res.status(400).json({ error: 'Falta id' });
   const token = (req.headers.authorization || '').replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'No token' });
 
@@ -123,6 +168,7 @@ async function handleAddItem(req, res, competidorId) {
   return res.status(201).json(row);
 }
 
+// POST /api/competidores/:id/sync (rewrite -> ?route=sync&id=:id)
 // Refresca el snapshot de HOY para todas las publicaciones ya trackeadas de
 // este competidor (no descubre publicaciones nuevas: eso se hace a mano con
 // handleAddItem, porque la busqueda por seller_id esta bloqueada por ML).
@@ -131,6 +177,7 @@ async function handleSync(req, res, competidorId) {
     res.setHeader('Allow', 'POST, OPTIONS');
     return res.status(405).json({ error: 'Metodo no permitido' });
   }
+  if (!competidorId) return res.status(400).json({ error: 'Falta id' });
   const token = (req.headers.authorization || '').replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'No token' });
 
