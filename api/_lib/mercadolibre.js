@@ -20,7 +20,10 @@ function authHeaders(token) {
 export async function mlResolveSellerIdByNickname(nickname, token) {
   const url = `${ML_BASE}/sites/MLA/search?nickname=${encodeURIComponent(nickname)}`;
   const r = await fetch(url, { headers: authHeaders(token) });
-  if (!r.ok) throw new Error(`ML search fallo (${r.status})`);
+  if (!r.ok) {
+    const body = await r.text().catch(() => '');
+    throw new Error(`ML search fallo (${r.status}): ${body.slice(0, 300)}`);
+  }
   const data = await r.json();
   const first = data.results?.[0];
   if (!first?.seller?.id) return null;
@@ -30,6 +33,9 @@ export async function mlResolveSellerIdByNickname(nickname, token) {
 export async function mlSearchSellerPage(sellerId, offset, limit = 50, token) {
   const url = `${ML_BASE}/sites/MLA/search?seller_id=${encodeURIComponent(sellerId)}&offset=${offset}&limit=${limit}`;
   const r = await fetch(url, { headers: authHeaders(token) });
-  if (!r.ok) throw new Error(`ML search fallo (${r.status})`);
+  if (!r.ok) {
+    const body = await r.text().catch(() => '');
+    throw new Error(`ML search fallo (${r.status}): ${body.slice(0, 300)}`);
+  }
   return r.json(); // { results: [...], paging: { total, offset, limit } }
 }
