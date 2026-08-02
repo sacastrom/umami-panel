@@ -5841,7 +5841,8 @@ function compRenderChips() {
     const nick = c.nickname.replace(/'/g, "\\'");
     return `<span class="comp-chip ${active ? 'active' : ''}" onclick="compToggleCompetidor('${c.id}')">
       ${c.nickname}
-      <button class="comp-chip-sync" onclick="event.stopPropagation();compSyncCompetidor('${c.id}')" title="Sincronizar ahora">↺</button>
+      <button class="comp-chip-sync" onclick="event.stopPropagation();compAddItemPrompt('${c.id}','${nick}')" title="Trackear una publicación puntual">📎</button>
+      <button class="comp-chip-sync" onclick="event.stopPropagation();compSyncCompetidor('${c.id}')" title="Actualizar precios de las publicaciones ya trackeadas">↺</button>
       <button class="comp-chip-del" onclick="event.stopPropagation();compDeleteCompetidor('${c.id}','${nick}')" title="Eliminar">✕</button>
     </span>`;
   }).join('');
@@ -5867,11 +5868,11 @@ async function compAddCompetidor() {
   const statusEl = document.getElementById('compAddStatus');
   const nickname = input.value.trim();
   if (!nickname) return;
-  statusEl.textContent = 'Buscando...';
+  statusEl.textContent = 'Agregando...';
   try {
     const r = await fetch('/api/competidores', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + accessToken },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nickname })
     });
     const data = await r.json();
@@ -5880,12 +5881,30 @@ async function compAddCompetidor() {
     compSelectedIds.push(data.id);
     localStorage.setItem('comp_selected_ids', JSON.stringify(compSelectedIds));
     input.value = '';
-    statusEl.textContent = '✅ agregado, sincronizando…';
+    statusEl.textContent = '✅ agregado — usá el 📎 para trackear su primera publicación';
+    setTimeout(() => { statusEl.textContent = ''; }, 5000);
     compRenderChips();
-    await compSyncCompetidor(data.id);
-    statusEl.textContent = '';
+    await compRefreshCurrentTab();
   } catch (e) {
     statusEl.textContent = '❌ ' + e.message;
+  }
+}
+
+async function compAddItemPrompt(competidorId, nickname) {
+  const input = window.prompt(`Pegá el link o código (ej: MLA123456789) de una publicación de "${nickname}" para trackear:`);
+  if (!input || !input.trim()) return;
+  try {
+    const r = await fetch(`/api/competidores/${competidorId}/items`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + accessToken },
+      body: JSON.stringify({ input: input.trim() })
+    });
+    const data = await r.json();
+    if (!r.ok) { showToast('❌ ' + (data.error || 'Error'), 'error'); return; }
+    showToast(`✅ "${data.titulo}" trackeado ($${Math.round(data.precio || 0).toLocaleString('es-AR')})`, 'success');
+    await compRefreshCurrentTab();
+  } catch (e) {
+    showToast('❌ ' + e.message, 'error');
   }
 }
 

@@ -1,5 +1,9 @@
 import { getSupabaseAdmin, setCors } from '../_lib/supabaseAdmin.js';
-import { mlResolveSellerIdByNickname } from '../_lib/mercadolibre.js';
+
+// El nickname ya no se valida contra ML al crear el competidor (el endpoint de
+// busqueda por nickname esta bloqueado - ver api/_lib/mercadolibre.js). El
+// seller_id se completa solo cuando se trackea la primera publicacion
+// (ver [...rest].js -> handleAddItem).
 
 export default async function handler(req, res) {
   setCors(res);
@@ -17,9 +21,6 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    const token = (req.headers.authorization || '').replace('Bearer ', '');
-    if (!token) return res.status(401).json({ error: 'No token' });
-
     const nickname = String(req.body?.nickname || '').trim();
     if (!nickname) return res.status(400).json({ error: 'Falta nickname' });
 
@@ -30,19 +31,9 @@ export default async function handler(req, res) {
       .maybeSingle();
     if (existente) return res.status(409).json({ error: 'Ese competidor ya esta cargado' });
 
-    let resuelto;
-    try {
-      resuelto = await mlResolveSellerIdByNickname(nickname, token);
-    } catch (e) {
-      return res.status(502).json({ error: 'Error consultando Mercado Libre: ' + e.message });
-    }
-    if (!resuelto) {
-      return res.status(422).json({ error: 'No se pudo resolver seller_id para ese nickname (sin publicaciones activas indexadas)' });
-    }
-
     const { data, error } = await supa
       .from('competidores')
-      .insert({ nickname: resuelto.nickname, seller_id: resuelto.sellerId })
+      .insert({ nickname, seller_id: null })
       .select()
       .single();
     if (error) return res.status(500).json({ error: error.message });
