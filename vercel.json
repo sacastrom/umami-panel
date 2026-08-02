@@ -2,11 +2,5 @@
   "functions": {
     "api/publish-item.js": { "maxDuration": 60 },
     "api/drive.js":        { "maxDuration": 30 }
-  },
-  "rewrites": [
-    { "source": "/api/competidores/items",     "destination": "/api/competidores?route=items" },
-    { "source": "/api/competidores/:id/sync",  "destination": "/api/competidores?route=sync&id=:id" },
-    { "source": "/api/competidores/:id/items", "destination": "/api/competidores?route=additem&id=:id" },
-    { "source": "/api/competidores/:id",       "destination": "/api/competidores?route=delete&id=:id" }
-  ]
+  }
 }
