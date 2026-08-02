@@ -17,6 +17,9 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
+    const token = (req.headers.authorization || '').replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'No token' });
+
     const nickname = String(req.body?.nickname || '').trim();
     if (!nickname) return res.status(400).json({ error: 'Falta nickname' });
 
@@ -29,7 +32,7 @@ export default async function handler(req, res) {
 
     let resuelto;
     try {
-      resuelto = await mlResolveSellerIdByNickname(nickname);
+      resuelto = await mlResolveSellerIdByNickname(nickname, token);
     } catch (e) {
       return res.status(502).json({ error: 'Error consultando Mercado Libre: ' + e.message });
     }

@@ -5870,7 +5870,9 @@ async function compAddCompetidor() {
   statusEl.textContent = 'Buscando...';
   try {
     const r = await fetch('/api/competidores', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nickname })
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + accessToken },
+      body: JSON.stringify({ nickname })
     });
     const data = await r.json();
     if (!r.ok) { statusEl.textContent = '❌ ' + (data.error || 'Error'); return; }
@@ -5899,7 +5901,9 @@ async function compDeleteCompetidor(id, nickname) {
 
 async function compSyncCompetidor(id) {
   try {
-    const r = await fetch(`/api/competidores/${id}/sync`, { method: 'POST' });
+    const r = await fetch(`/api/competidores/${id}/sync`, {
+      method: 'POST', headers: { 'Authorization': 'Bearer ' + accessToken }
+    });
     const data = await r.json();
     if (!r.ok) { showToast('❌ Error al sincronizar: ' + (data.error || ''), 'error'); return; }
     showToast(`✅ ${data.competidor}: ${data.items} publicaciones sincronizadas`, 'success');

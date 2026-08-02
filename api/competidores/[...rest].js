@@ -74,6 +74,9 @@ async function handleSync(req, res, id) {
     return res.status(405).json({ error: 'Metodo no permitido' });
   }
 
+  const token = (req.headers.authorization || '').replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'No token' });
+
   const supa = getSupabaseAdmin();
   const { data: competidor, error: errCompetidor } = await supa
     .from('competidores')
@@ -90,7 +93,7 @@ async function handleSync(req, res, id) {
 
   try {
     while (offset < total && offset < HARD_CAP_OFFSET) {
-      const page = await mlSearchSellerPage(competidor.seller_id, offset, PAGE_LIMIT);
+      const page = await mlSearchSellerPage(competidor.seller_id, offset, PAGE_LIMIT, token);
       total = page.paging?.total ?? 0;
       for (const item of page.results || []) {
         rows.push({

@@ -11,10 +11,15 @@ export function mapLogisticType(logisticType) {
   }
 }
 
-// Endpoint publico de busqueda, sin token de aplicacion.
-export async function mlResolveSellerIdByNickname(nickname) {
+// ML bloquea (403) las llamadas no autenticadas a /search desde IPs de datacenter,
+// asi que estas funciones necesitan el token del usuario logueado (mismo patron que api/ml.js).
+function authHeaders(token) {
+  return token ? { Authorization: 'Bearer ' + token } : {};
+}
+
+export async function mlResolveSellerIdByNickname(nickname, token) {
   const url = `${ML_BASE}/sites/MLA/search?nickname=${encodeURIComponent(nickname)}`;
-  const r = await fetch(url);
+  const r = await fetch(url, { headers: authHeaders(token) });
   if (!r.ok) throw new Error(`ML search fallo (${r.status})`);
   const data = await r.json();
   const first = data.results?.[0];
@@ -22,9 +27,9 @@ export async function mlResolveSellerIdByNickname(nickname) {
   return { sellerId: String(first.seller.id), nickname: first.seller.nickname || nickname };
 }
 
-export async function mlSearchSellerPage(sellerId, offset, limit = 50) {
+export async function mlSearchSellerPage(sellerId, offset, limit = 50, token) {
   const url = `${ML_BASE}/sites/MLA/search?seller_id=${encodeURIComponent(sellerId)}&offset=${offset}&limit=${limit}`;
-  const r = await fetch(url);
+  const r = await fetch(url, { headers: authHeaders(token) });
   if (!r.ok) throw new Error(`ML search fallo (${r.status})`);
   return r.json(); // { results: [...], paging: { total, offset, limit } }
 }
