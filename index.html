@@ -492,6 +492,18 @@
   .pub-btn-primary:hover{opacity:.88;}
   .pub-btn-primary:disabled{opacity:.4;cursor:default;}
   .pub-radio{display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;}
+  .comp-chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:4px 6px 4px 12px;font-size:11px;color:var(--muted);cursor:pointer;transition:all .15s;}
+  .comp-chip:hover{border-color:var(--accent);}
+  .comp-chip.active{background:var(--accent-light);border-color:var(--accent);color:var(--accent);font-weight:600;}
+  .comp-chip-del,.comp-chip-sync{background:none;border:none;color:inherit;opacity:.6;cursor:pointer;font-size:11px;padding:2px 4px;border-radius:6px;}
+  .comp-chip-del:hover{opacity:1;color:var(--red);}
+  .comp-chip-sync:hover{opacity:1;color:var(--accent);}
+  .comp-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;}
+  .comp-badge{font-size:10px;font-weight:700;padding:3px 10px;border-radius:12px;white-space:nowrap;}
+  .comp-badge-green{background:var(--green-light);color:var(--green);}
+  .comp-badge-red{background:var(--red-light);color:var(--red);}
+  .comp-badge-yellow{background:rgba(234,88,12,.12);color:var(--orange);}
+  .comp-badge-neutral{background:var(--surface2);color:var(--muted);}
   .pub-progress-bar-wrap{height:7px;background:var(--surface2);border-radius:4px;overflow:hidden;border:1px solid var(--border);}
   .pub-progress-bar{height:100%;background:var(--accent);width:0%;transition:width .3s;}
   /* Panel de revisión pre-publicación */
@@ -644,6 +656,8 @@
     <button class="main-tab" id="tabVentas" onclick="switchTab('ventas')">💰 Ventas</button>
     <button class="main-tab" id="tabPublicar" onclick="switchTab('publicar')">🚀 Publicar</button>
     <button class="main-tab" id="tabPublicarTN" onclick="switchTab('publicartn')">📤 Publicar TN</button>
+    <button class="main-tab" id="tabComparar" onclick="switchTab('comparar')">⚔️ Comparar</button>
+    <button class="main-tab" id="tabOportunidades" onclick="switchTab('oportunidades')">🎯 Oportunidades</button>
     <button class="main-tab-cfg" onclick="openConfig()" title="Configuración">⚙️</button>
   </div>
 
@@ -1258,6 +1272,49 @@
       <div id="pubtnProgressBar" class="pub-progress-bar"></div>
     </div>
     <div id="pubtnLog" class="pub-log"></div>
+  </div>
+</div>
+
+<!-- ── COMPETIDORES: barra de selección compartida (Comparar / Oportunidades) ── -->
+<div id="compSelectorBar" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 20px;border-bottom:1px solid var(--border);">
+  <span style="font-size:11px;color:var(--muted);white-space:nowrap;">Competidores:</span>
+  <div id="compChipsList" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+  <input id="compNicknameInput" class="pub-search" type="text" placeholder="nickname de ML…" style="width:160px;" onkeydown="if(event.key==='Enter')compAddCompetidor();">
+  <button class="pub-btn" onclick="compAddCompetidor()">+ Agregar</button>
+  <span id="compAddStatus" style="font-size:11px;color:var(--muted);"></span>
+</div>
+
+<!-- ── COMPARAR ── -->
+<div id="compararContent" style="display:none;">
+  <div style="padding:14px 20px 10px;border-bottom:1px solid var(--border);">
+    <div style="font-family:var(--font-head);font-size:15px;font-weight:700;color:var(--text);">⚔️ Comparar contra competidores</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:2px;">Elegí competidores arriba. Se compara el snapshot más reciente de cada uno contra tus productos.</div>
+  </div>
+  <div id="compararCards" style="padding:16px 20px;display:flex;flex-direction:column;gap:12px;">
+    <div style="text-align:center;padding:28px;color:var(--muted2);">Seleccioná al menos un competidor para comparar</div>
+  </div>
+</div>
+
+<!-- ── OPORTUNIDADES ── -->
+<div id="oportunidadesContent" style="display:none;">
+  <div style="padding:14px 20px 10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--border);">
+    <div>
+      <div style="font-family:var(--font-head);font-size:15px;font-weight:700;color:var(--text);">🎯 Oportunidades</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px;">Productos de los competidores seleccionados que vos no vendés, ordenados por ventas</div>
+    </div>
+    <div style="margin-left:auto;">
+      <select id="oportRubroFilter" class="pub-select" onchange="oportRenderList()">
+        <option value="">Todos los rubros</option>
+        <option value="japones">Japonés</option>
+        <option value="coreano">Coreano</option>
+        <option value="thai">Thai</option>
+        <option value="chino">Chino</option>
+        <option value="otro">Otro</option>
+      </select>
+    </div>
+  </div>
+  <div id="oportList" style="padding:16px 20px;display:flex;flex-direction:column;gap:8px;">
+    <div style="text-align:center;padding:28px;color:var(--muted2);">Seleccioná al menos un competidor para ver oportunidades</div>
   </div>
 </div>
 
@@ -2466,6 +2523,8 @@ function switchTab(tab) {
   document.getElementById('tabVentas').classList.toggle('active', tab === 'ventas');
   document.getElementById('tabPublicar').classList.toggle('active', tab === 'publicar');
   document.getElementById('tabPublicarTN').classList.toggle('active', tab === 'publicartn');
+  document.getElementById('tabComparar').classList.toggle('active', tab === 'comparar');
+  document.getElementById('tabOportunidades').classList.toggle('active', tab === 'oportunidades');
   document.getElementById('panelContent').style.display = tab === 'publicaciones' ? 'block' : 'none';
   document.getElementById('metricasContent').style.display = tab === 'metricas' ? 'block' : 'none';
   document.getElementById('flexContent').style.display = tab === 'flex' ? 'block' : 'none';
@@ -2474,6 +2533,9 @@ function switchTab(tab) {
   document.getElementById('ventasContent').style.display = tab === 'ventas' ? 'block' : 'none';
   document.getElementById('publicarContent').style.display = tab === 'publicar' ? 'block' : 'none';
   document.getElementById('publicartnContent').style.display = tab === 'publicartn' ? 'block' : 'none';
+  document.getElementById('compararContent').style.display = tab === 'comparar' ? 'block' : 'none';
+  document.getElementById('oportunidadesContent').style.display = tab === 'oportunidades' ? 'block' : 'none';
+  document.getElementById('compSelectorBar').style.display = (tab === 'comparar' || tab === 'oportunidades') ? 'flex' : 'none';
   if (tab === 'metricas' && !metLoaded) document.getElementById('metEmpty').style.display = 'block';
   if (tab === 'flex') {
     setTimeout(() => { initFlexMap(); if (!flexLoaded) loadFlex(false); else if (flexMap) flexMap.invalidateSize(); }, 100);
@@ -2483,6 +2545,8 @@ function switchTab(tab) {
   if (tab === 'ventas') ventasInit();
   if (tab === 'publicar') pubInit();
   if (tab === 'publicartn') pubtnInit();
+  if (tab === 'comparar') compararInit();
+  if (tab === 'oportunidades') oportunidadesInit();
 }
 
 // ── MÉTRICAS ──────────────────────────────────────────
@@ -5687,6 +5751,306 @@ function cfgRecalcProducts() {
     p.mayoristas = calcMayoristas(p.precio_ml_calc);
   });
   doFilter();
+}
+
+// ── COMPETENCIA ML (Comparar / Oportunidades) ────────────
+const COMP_STOPWORDS = new Set(['de','del','la','el','los','las','y','con','para','en','a','un','una','x','the','of']);
+
+function compNormalizeTitle(str) {
+  return String(str || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(t => t.length > 1 && !COMP_STOPWORDS.has(t));
+}
+
+function compJaccard(tokensA, tokensB) {
+  const a = new Set(tokensA), b = new Set(tokensB);
+  let inter = 0;
+  for (const t of a) if (b.has(t)) inter++;
+  const union = a.size + b.size - inter;
+  return union === 0 ? 0 : inter / union;
+}
+
+function compSuggestMatches(productTitle, competidorItems, { threshold = 0.28, topN = 5 } = {}) {
+  const prodTokens = compNormalizeTitle(productTitle);
+  return competidorItems
+    .map(item => ({ item, score: compJaccard(prodTokens, compNormalizeTitle(item.titulo)) }))
+    .filter(x => x.score >= threshold)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topN);
+}
+
+function compPriceBadge(ownPrice, competitorPrices) {
+  if (!competitorPrices.length) return { label: '—', cls: 'neutral' };
+  const min = Math.min(...competitorPrices), max = Math.max(...competitorPrices);
+  const n = competitorPrices.length;
+  if (ownPrice < min) return { label: `🟢 más barato de ${n}`, cls: 'green' };
+  if (ownPrice > max) return { label: `🔴 más caro de ${n}`, cls: 'red' };
+  return { label: `🟡 precio medio de ${n}`, cls: 'yellow' };
+}
+
+const RUBRO_KEYWORDS = {
+  japones: ['ramen','yakisoba','wasabi','miso','nori','sushi','soba','udon','matcha','dashi','katsu','mochi','sake','tempura','shoyu','furikake','onigiri','yuzu'],
+  coreano: ['kimchi','gochujang','tteok','bulgogi','ramyun','samgyeopsal','doenjang','soju','bibimbap','gochugaru'],
+  thai:    ['pad thai','tom yum','sriracha','curry thai','galanga','kaffir','tamarindo'],
+  chino:   ['wok','dim sum','wonton','fideos chinos','sichuan','szechuan','hoisin','salsa de ostras','shiitake','tofu'],
+};
+
+function compInferRubro(titulo) {
+  const t = compNormalizeTitle(titulo).join(' ');
+  for (const [rubro, kws] of Object.entries(RUBRO_KEYWORDS)) {
+    if (kws.some(k => t.includes(k))) return rubro;
+  }
+  return 'otro';
+}
+
+let compCompetidores = [];
+let compSelectedIds = JSON.parse(localStorage.getItem('comp_selected_ids') || '[]');
+let compItemsCache = [];
+let compMatches = [];
+let compCompetidoresLoaded = false;
+
+async function compFetchCompetidores() {
+  compCompetidores = await fetch('/api/competidores').then(r => r.json());
+  compCompetidoresLoaded = true;
+  const validIds = new Set(compCompetidores.map(c => c.id));
+  compSelectedIds = compSelectedIds.filter(id => validIds.has(id));
+  localStorage.setItem('comp_selected_ids', JSON.stringify(compSelectedIds));
+}
+
+async function compFetchItemsForSelected() {
+  compItemsCache = compSelectedIds.length
+    ? await fetch('/api/competidores/items?ids=' + compSelectedIds.join(',')).then(r => r.json())
+    : [];
+}
+
+async function compFetchMatches() {
+  compMatches = await fetch('/api/matches').then(r => r.json());
+}
+
+function compRenderChips() {
+  const cont = document.getElementById('compChipsList');
+  if (!compCompetidores.length) {
+    cont.innerHTML = '<span style="font-size:11px;color:var(--muted2);">Sin competidores cargados todavía</span>';
+    return;
+  }
+  cont.innerHTML = compCompetidores.map(c => {
+    const active = compSelectedIds.includes(c.id);
+    const nick = c.nickname.replace(/'/g, "\\'");
+    return `<span class="comp-chip ${active ? 'active' : ''}" onclick="compToggleCompetidor('${c.id}')">
+      ${c.nickname}
+      <button class="comp-chip-sync" onclick="event.stopPropagation();compSyncCompetidor('${c.id}')" title="Sincronizar ahora">↺</button>
+      <button class="comp-chip-del" onclick="event.stopPropagation();compDeleteCompetidor('${c.id}','${nick}')" title="Eliminar">✕</button>
+    </span>`;
+  }).join('');
+}
+
+async function compRefreshCurrentTab() {
+  await compFetchItemsForSelected();
+  await compFetchMatches();
+  if (currentTab === 'comparar') compararRenderCards();
+  if (currentTab === 'oportunidades') oportRenderList();
+}
+
+async function compToggleCompetidor(id) {
+  const idx = compSelectedIds.indexOf(id);
+  if (idx >= 0) compSelectedIds.splice(idx, 1); else compSelectedIds.push(id);
+  localStorage.setItem('comp_selected_ids', JSON.stringify(compSelectedIds));
+  compRenderChips();
+  await compRefreshCurrentTab();
+}
+
+async function compAddCompetidor() {
+  const input = document.getElementById('compNicknameInput');
+  const statusEl = document.getElementById('compAddStatus');
+  const nickname = input.value.trim();
+  if (!nickname) return;
+  statusEl.textContent = 'Buscando...';
+  try {
+    const r = await fetch('/api/competidores', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nickname })
+    });
+    const data = await r.json();
+    if (!r.ok) { statusEl.textContent = '❌ ' + (data.error || 'Error'); return; }
+    compCompetidores.push(data);
+    compSelectedIds.push(data.id);
+    localStorage.setItem('comp_selected_ids', JSON.stringify(compSelectedIds));
+    input.value = '';
+    statusEl.textContent = '✅ agregado, sincronizando…';
+    compRenderChips();
+    await compSyncCompetidor(data.id);
+    statusEl.textContent = '';
+  } catch (e) {
+    statusEl.textContent = '❌ ' + e.message;
+  }
+}
+
+async function compDeleteCompetidor(id, nickname) {
+  if (!confirm(`¿Eliminar competidor "${nickname}" y todo su historial?`)) return;
+  await fetch(`/api/competidores/${id}`, { method: 'DELETE' });
+  compCompetidores = compCompetidores.filter(c => c.id !== id);
+  compSelectedIds = compSelectedIds.filter(x => x !== id);
+  localStorage.setItem('comp_selected_ids', JSON.stringify(compSelectedIds));
+  compRenderChips();
+  await compRefreshCurrentTab();
+}
+
+async function compSyncCompetidor(id) {
+  try {
+    const r = await fetch(`/api/competidores/${id}/sync`, { method: 'POST' });
+    const data = await r.json();
+    if (!r.ok) { showToast('❌ Error al sincronizar: ' + (data.error || ''), 'error'); return; }
+    showToast(`✅ ${data.competidor}: ${data.items} publicaciones sincronizadas`, 'success');
+    await compRefreshCurrentTab();
+  } catch (e) {
+    showToast('❌ Error al sincronizar: ' + e.message, 'error');
+  }
+}
+
+async function compEnsureBase() {
+  if (!compCompetidoresLoaded) await compFetchCompetidores();
+  compRenderChips();
+}
+
+async function compConfirmMatch(sku, competidorId, itemId) {
+  await fetch('/api/matches', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ producto_sku: sku, competidor_id: competidorId, competidor_item_id: itemId })
+  });
+  await compFetchMatches();
+  compararRenderCards();
+  oportRenderList();
+}
+
+async function compUnmatch(sku, competidorId) {
+  await fetch(`/api/matches?producto_sku=${encodeURIComponent(sku)}&competidor_id=${encodeURIComponent(competidorId)}`, { method: 'DELETE' });
+  await compFetchMatches();
+  compararRenderCards();
+  oportRenderList();
+}
+
+function compBuildCardsData() {
+  const selected = compCompetidores.filter(c => compSelectedIds.includes(c.id));
+  if (!selected.length) return [];
+  const itemsByCompetidor = {};
+  compItemsCache.forEach(it => { (itemsByCompetidor[it.competidor_id] ||= []).push(it); });
+  const matchMap = {};
+  compMatches.forEach(m => { matchMap[m.producto_sku + '|' + m.competidor_id] = m.competidor_item_id; });
+
+  const cards = [];
+  products.forEach(p => {
+    const rows = [];
+    selected.forEach(c => {
+      const items = itemsByCompetidor[c.id] || [];
+      if (!items.length) return;
+      const matchedItemId = matchMap[p.sku + '|' + c.id];
+      if (matchedItemId) {
+        const item = items.find(i => i.item_id === matchedItemId);
+        if (item) { rows.push({ competidor: c, item, confirmed: true, score: 1 }); return; }
+      }
+      const sugg = compSuggestMatches(p.name, items, { threshold: 0.28, topN: 1 });
+      if (sugg.length) rows.push({ competidor: c, item: sugg[0].item, confirmed: false, score: sugg[0].score });
+    });
+    if (rows.length) cards.push({ product: p, rows });
+  });
+  return cards;
+}
+
+function compCardHtml({ product, rows }) {
+  const ownPrice = product.precio_ml_real || product.precio_ml_calc || 0;
+  const compPrices = rows.map(r => r.item.precio).filter(p => p > 0);
+  const badge = compPriceBadge(ownPrice, compPrices);
+  const rowsHtml = rows.map(r => {
+    const action = r.confirmed
+      ? `<button class="pub-btn" style="font-size:10px;padding:2px 8px;" onclick="compUnmatch('${product.sku}','${r.competidor.id}')">✕ quitar match</button>`
+      : `<button class="pub-btn" style="font-size:10px;padding:2px 8px;" onclick="compConfirmMatch('${product.sku}','${r.competidor.id}','${r.item.item_id}')">✔ confirmar (${Math.round(r.score * 100)}%)</button>`;
+    return `<tr>
+      <td>${r.competidor.nickname}</td>
+      <td>$${Math.round(r.item.precio || 0).toLocaleString('es-AR')}</td>
+      <td>${r.item.envio_tipo || '-'}</td>
+      <td>${r.item.sold_quantity ?? '-'}</td>
+      <td>${action}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="comp-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+      <div style="font-weight:600;font-size:13px;color:var(--text);">${product.name}</div>
+      <span class="comp-badge comp-badge-${badge.cls}">${badge.label}</span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="pub-tbl" style="margin-top:8px;">
+        <thead><tr><th>Vendedor</th><th>Precio</th><th>Envío</th><th>Vendidos</th><th></th></tr></thead>
+        <tbody>
+          <tr><td><b>Vos</b></td><td>$${Math.round(ownPrice).toLocaleString('es-AR')}</td><td>${product.tipo}</td><td>-</td><td></td></tr>
+          ${rowsHtml}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function compararRenderCards() {
+  const cont = document.getElementById('compararCards');
+  const selected = compCompetidores.filter(c => compSelectedIds.includes(c.id));
+  if (!selected.length) {
+    cont.innerHTML = '<div style="text-align:center;padding:28px;color:var(--muted2);">Seleccioná al menos un competidor para comparar</div>';
+    return;
+  }
+  const cards = compBuildCardsData();
+  if (!cards.length) {
+    cont.innerHTML = '<div style="text-align:center;padding:28px;color:var(--muted2);">No se encontraron matches razonables todavía</div>';
+    return;
+  }
+  cont.innerHTML = cards.map(compCardHtml).join('');
+}
+
+function oportRenderList() {
+  const cont = document.getElementById('oportList');
+  const selected = compCompetidores.filter(c => compSelectedIds.includes(c.id));
+  if (!selected.length) {
+    cont.innerHTML = '<div style="text-align:center;padding:28px;color:var(--muted2);">Seleccioná al menos un competidor para ver oportunidades</div>';
+    return;
+  }
+  const matchedKeys = new Set(compMatches.map(m => m.competidor_id + '|' + m.competidor_item_id));
+  const rubroFilter = document.getElementById('oportRubroFilter').value;
+  let items = compItemsCache.filter(it => !matchedKeys.has(it.competidor_id + '|' + it.item_id));
+  if (rubroFilter) items = items.filter(it => compInferRubro(it.titulo) === rubroFilter);
+  items = items.slice().sort((a, b) => (b.sold_quantity || 0) - (a.sold_quantity || 0));
+  if (!items.length) {
+    cont.innerHTML = '<div style="text-align:center;padding:28px;color:var(--muted2);">No hay oportunidades con ese filtro</div>';
+    return;
+  }
+  const byId = {};
+  compCompetidores.forEach(c => { byId[c.id] = c; });
+  cont.innerHTML = items.map(it => {
+    const c = byId[it.competidor_id];
+    return `<div class="comp-card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+      <div>
+        <div style="font-weight:600;font-size:13px;color:var(--text);">${it.titulo}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">${c ? c.nickname : '—'} · ${it.envio_tipo || '-'}</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-weight:700;color:var(--text);">$${Math.round(it.precio || 0).toLocaleString('es-AR')}</div>
+        <div style="font-size:11px;color:var(--muted);">${it.sold_quantity ?? 0} vendidos</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function compararInit() {
+  await compEnsureBase();
+  await compFetchItemsForSelected();
+  await compFetchMatches();
+  compararRenderCards();
+}
+
+async function oportunidadesInit() {
+  await compEnsureBase();
+  await compFetchItemsForSelected();
+  await compFetchMatches();
+  oportRenderList();
 }
 </script>
 </body>
