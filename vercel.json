@@ -2,6 +2,6 @@
   "functions": {
     "api/publish-item.js": { "maxDuration": 60 },
     "api/drive.js":        { "maxDuration": 30 },
-    "api/competidores/[id]/sync.js": { "maxDuration": 60 }
+    "api/competidores/[...rest].js": { "maxDuration": 60 }
   }
 }
