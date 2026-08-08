@@ -4408,9 +4408,7 @@ async function pubPrepare() {
   const body = document.getElementById('pubReviewBody');
   body.innerHTML = items.map((p, idx) => {
     const autoFam  = pubAutoFamily(p.title);
-    const autoDesc = p.needsML ? pubAutoDescMl(p.title) : pubAutoDescTn(p.title);
     const { catId = '', required = [] } = catData[p.sku] || {};
-    const price = p.priceTn > 0 ? p.priceTn : p.priceMl;
     const reqAttrsHtml = required.length ? `
       <div class="pub-review-field" style="grid-column:1/-1;">
         <label style="color:var(--orange);">⚠️ Atributos requeridos por ML para esta categoría</label>
@@ -4430,6 +4428,10 @@ async function pubPrepare() {
 
     const mlSection = p.needsML ? `
         <div class="pub-section-title">Mercado Libre</div>
+        <div class="pub-review-field">
+          <label>Precio ML ($ARS)</label>
+          <input type="number" data-field="priceMl" value="${p.priceMl || p.priceTn || 0}">
+        </div>
         <div class="pub-review-field">
           <label>Nombre de familia <span style="color:var(--muted)">(agrupa variantes — ej: "Soda Lima")</span></label>
           <input type="text" data-field="familyName" maxlength="60" value="${autoFam}" placeholder="Ej: Soda Lima, Marshmallows Glico, Pocky…">
@@ -4480,15 +4482,27 @@ async function pubPrepare() {
           <label>Arancel importación (IMPORT_DUTY)</label>
           <input type="text" data-field="importDuty" value="0%" placeholder="0%">
         </div>
-        ${reqAttrsHtml}` : '';
+        ${reqAttrsHtml}
+        <div class="pub-review-field" style="grid-column:1/-1;">
+          <label>Descripción ML</label>
+          <textarea data-field="descriptionMl" rows="3" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:11px;color:var(--text);width:100%;resize:vertical;">${pubAutoDescMl(p.title)}</textarea>
+        </div>` : '';
 
     const tnSection = p.needsTN ? `
         <div class="pub-section-title">Tienda Nube</div>
+        <div class="pub-review-field">
+          <label>Precio TN ($ARS)</label>
+          <input type="number" data-field="priceTn" step="0.01" value="${p.priceTn > 0 ? p.priceTn : p.priceMl}">
+        </div>
         <div class="pub-review-field" style="grid-column:1/-1;">
           <label>Categoría en Tienda Nube</label>
           <select data-field="categoryId" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:12px;color:var(--text);">
             ${catOptions}
           </select>
+        </div>
+        <div class="pub-review-field" style="grid-column:1/-1;">
+          <label>Descripción TN</label>
+          <textarea data-field="descriptionTn" rows="3" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:11px;color:var(--text);width:100%;resize:vertical;">${pubAutoDescTn(p.title)}</textarea>
         </div>` : '';
 
     return `<div class="pub-review-card" data-sku="${p.sku}" data-idx="${idx}" data-needs-ml="${p.needsML}" data-needs-tn="${p.needsTN}">
@@ -4502,10 +4516,6 @@ async function pubPrepare() {
         <div class="pub-review-field" style="grid-column:1/-1;">
           <label>Título <span style="color:var(--muted)">(máx 100 caracteres)</span></label>
           <input type="text" data-field="title" maxlength="100" value="${p.title.replace(/"/g, '&quot;').slice(0, 100)}">
-        </div>
-        <div class="pub-review-field">
-          <label>Precio ($ARS)</label>
-          <input type="number" data-field="price" value="${price}">
         </div>
         <div class="pub-review-field">
           <label>Stock disponible</label>
@@ -4526,10 +4536,6 @@ async function pubPrepare() {
         </div>
         ${mlSection}
         ${tnSection}
-        <div class="pub-review-field" style="grid-column:1/-1;">
-          <label>Descripción</label>
-          <textarea data-field="description" rows="3" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:11px;color:var(--text);width:100%;resize:vertical;">${autoDesc}</textarea>
-        </div>
       </div>
     </div>`;
   }).join('');
@@ -4614,10 +4620,12 @@ async function pubPublishFromReview() {
     queue.push({
       sku, needsML, needsTN, dims,
       title:       get('title'),
-      price:       get('price'),
+      priceMl:     get('priceMl'),
+      priceTn:     get('priceTn'),
       stock:       get('stock') || '3',
       brand:       get('brand'),
-      description: get('description'),
+      descriptionMl: get('descriptionMl'),
+      descriptionTn: get('descriptionTn'),
       familyName:  get('familyName'),
       condition:   get('condition') || 'not_specified',
       warranty:     get('warranty') || 'Sin garantía',
@@ -4661,7 +4669,7 @@ async function pubPublishFromReview() {
           body: JSON.stringify({
             sku:         item.sku,
             title:       item.title,
-            price:       item.price,
+            price:       item.priceMl,
             familyName:  item.familyName,
             brand:       item.brand,
             stock:       item.stock,
@@ -4674,7 +4682,7 @@ async function pubPublishFromReview() {
             pkgWeight:    item.dims.ml.pkgWeight,
             vat:          item.vat,
             importDuty:   item.importDuty,
-            description: item.description,
+            description: item.descriptionMl,
             listingType,
             categoryDefault,
             fileId:          pubDriveMap[item.sku.toUpperCase()] || null,
@@ -4715,8 +4723,8 @@ async function pubPublishFromReview() {
             body: JSON.stringify({
               sku:         item.sku,
               title:       item.title,
-              description: item.description,
-              price:       item.price,
+              description: item.descriptionTn,
+              price:       item.priceTn,
               stock:       item.stock,
               brand:       item.brand,
               weight:      item.dims.tn.weight,
@@ -4735,14 +4743,14 @@ async function pubPublishFromReview() {
               product_id: data.productId,
               variant_id: data.variantId,
               sku: item.sku,
-              precio_tn: parseFloat(item.price) || 0,
+              precio_tn: parseFloat(item.priceTn) || 0,
               stock_tn:  parseInt(item.stock) || 0
             };
             const prodGlobal = products.find(x => x.sku === item.sku);
             if (prodGlobal) {
               prodGlobal.tn_product_id = data.productId;
               prodGlobal.tn_variant_id = data.variantId;
-              prodGlobal.precio_tn     = parseFloat(item.price) || 0;
+              prodGlobal.precio_tn     = parseFloat(item.priceTn) || 0;
               prodGlobal.stock_tn      = parseInt(item.stock) || 0;
             }
           } else {
