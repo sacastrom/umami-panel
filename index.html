@@ -494,9 +494,16 @@
   .pub-radio{display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;}
   .pub-progress-bar-wrap{height:7px;background:var(--surface2);border-radius:4px;overflow:hidden;border:1px solid var(--border);}
   .pub-progress-bar{height:100%;background:var(--accent);width:0%;transition:width .3s;}
+  .pub-badge{font-size:10px;padding:2px 7px;border-radius:8px;font-weight:600;white-space:nowrap;}
+  .pub-badge-new{background:var(--accent-light);color:var(--accent);}
+  .pub-badge-tn{background:var(--green-light);color:var(--green);}
+  .pub-badge-ml{background:rgba(234,88,12,.1);color:var(--orange);}
+  .pub-count-chip{font-size:11px;color:var(--muted);white-space:nowrap;}
+  .pub-tn-banner{margin:0 20px 10px;padding:8px 12px;border-radius:8px;background:rgba(234,88,12,.08);color:var(--orange);font-size:11px;border:1px solid rgba(234,88,12,.25);}
+  .pub-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--accent);grid-column:1/-1;margin-top:4px;padding-top:8px;border-top:1px dashed var(--border);}
   /* Panel de revisión pre-publicación */
-  #pubReviewPanel,#pubtnReviewPanel{display:none;position:fixed;inset:0;background:rgba(26,27,46,.5);z-index:350;backdrop-filter:blur(5px);align-items:flex-start;justify-content:center;padding:20px;}
-  #pubReviewPanel.open,#pubtnReviewPanel.open{display:flex;}
+  #pubReviewPanel{display:none;position:fixed;inset:0;background:rgba(26,27,46,.5);z-index:350;backdrop-filter:blur(5px);align-items:flex-start;justify-content:center;padding:20px;}
+  #pubReviewPanel.open{display:flex;}
   .pub-review-drawer{background:var(--surface);border:1px solid var(--border);border-radius:18px;width:100%;max-width:720px;max-height:calc(100vh - 40px);display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-md);}
   .pub-review-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0;}
   .pub-review-body{overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:14px;}
@@ -643,7 +650,6 @@
     <button class="main-tab" id="tabOficina" onclick="switchTab('oficina')">🏢 Stock oficina</button>
     <button class="main-tab" id="tabVentas" onclick="switchTab('ventas')">💰 Ventas</button>
     <button class="main-tab" id="tabPublicar" onclick="switchTab('publicar')">🚀 Publicar</button>
-    <button class="main-tab" id="tabPublicarTN" onclick="switchTab('publicartn')">📤 Publicar TN</button>
     <button class="main-tab-cfg" onclick="openConfig()" title="Configuración">⚙️</button>
   </div>
 
@@ -1139,28 +1145,37 @@
   </div>
 </div>
 
-<!-- ── PUBLICAR ── -->
+<!-- ── PUBLICAR (ML + TN unificado) ── -->
 <div id="publicarContent">
   <!-- Header -->
   <div style="padding:14px 20px 10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--border);">
     <div>
-      <div style="font-family:var(--font-head);font-size:15px;font-weight:700;color:var(--text);">🚀 Sin publicar en Mercado Libre</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:2px;">Productos de la Sheet sin código MLA asignado</div>
+      <div style="font-family:var(--font-head);font-size:15px;font-weight:700;color:var(--text);">🚀 Publicar en Mercado Libre y Tienda Nube</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px;">Productos sin MLA, sin SKU en Tienda Nube, o ambos</div>
     </div>
     <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <span class="pub-count-chip" id="pubStatusCounts"></span>
+      <select id="pubStatusFilter" class="pub-select" onchange="pubStatusFilter=this.value;pubRenderTable()">
+        <option value="">Todos</option>
+        <option value="new">🆕 Solo nuevos (ML+TN)</option>
+        <option value="tn-only">📤 Solo falta TN</option>
+        <option value="ml-only">🚀 Solo falta ML</option>
+      </select>
       <select id="pubGondolaFilter" class="pub-select" onchange="pubSelectedGondola=this.value;pubRenderTable()">
         <option value="">Todas las góndolas</option>
       </select>
       <input id="pubSearchInput" class="pub-search" type="text" placeholder="Buscar SKU o título…" oninput="pubSearchText=this.value;pubRenderTable()" style="width:180px;">
-      <button class="pub-btn" onclick="pubReload()" title="Recargar desde la Sheet">↺ Recargar</button>
+      <button class="pub-btn" onclick="pubReload()" title="Recargar desde la Sheet y Tienda Nube">↺ Recargar</button>
     </div>
   </div>
+  <!-- Banner TN no conectada -->
+  <div id="pubTnBanner" class="pub-tn-banner" style="display:none;">⚠️ Conectá Tienda Nube (botón en el header) para poder publicar ahí también — por ahora solo se evalúa el estado en Mercado Libre.</div>
   <!-- Controls -->
   <div class="pub-controls">
     <label class="pub-radio"><input type="radio" name="pubListingType" value="gold_special" checked> Clásica (gold_special)</label>
     <label class="pub-radio"><input type="radio" name="pubListingType" value="gold_premium"> Premium (gold_premium)</label>
     <div style="display:flex;align-items:center;gap:6px;margin-left:8px;">
-      <span style="font-size:11px;color:var(--muted);">Categoría fallback:</span>
+      <span style="font-size:11px;color:var(--muted);">Categoría fallback ML:</span>
       <input id="pubCategoryDefault" class="pub-search" type="text" value="MLA5726" style="width:100px;">
     </div>
     <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
@@ -1178,14 +1193,15 @@
         <tr>
           <th style="width:32px;"><input type="checkbox" id="pubChkAll" onchange="pubSelectAll(this.checked)"></th>
           <th style="width:28px;" title="Imagen en Drive">📷</th>
+          <th>Estado</th>
           <th>SKU</th>
-          <th>Título ML</th>
-          <th>Precio ML</th>
+          <th>Título</th>
+          <th>Precio</th>
           <th>Góndola</th>
         </tr>
       </thead>
       <tbody id="pubTbody">
-        <tr><td colspan="6" style="text-align:center;padding:28px;color:var(--muted2);">Hacé click en el tab para cargar los productos</td></tr>
+        <tr><td colspan="7" style="text-align:center;padding:28px;color:var(--muted2);">Hacé click en el tab para cargar los productos</td></tr>
       </tbody>
     </table>
   </div>
@@ -1202,90 +1218,13 @@
   </div>
 </div>
 
-<!-- ── PUBLICAR TIENDA NUBE ── -->
-<div id="publicartnContent" style="display:none;">
-  <!-- Header -->
-  <div style="padding:14px 20px 10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--border);">
-    <div>
-      <div style="font-family:var(--font-head);font-size:15px;font-weight:700;color:var(--text);">📤 Sin publicar en Tienda Nube</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:2px;">Productos con MLA en la Sheet que aún no existen en TN (matcheado por SKU)</div>
-    </div>
-    <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-      <select id="pubtnGondolaFilter" class="pub-select" onchange="pubtnSelectedGondola=this.value;pubtnRenderTable()">
-        <option value="">Todas las góndolas</option>
-      </select>
-      <input id="pubtnSearchInput" class="pub-search" type="text" placeholder="Buscar SKU o título…" oninput="pubtnSearchText=this.value;pubtnRenderTable()" style="width:180px;">
-      <button class="pub-btn" onclick="pubtnReload()" title="Recargar">↺ Recargar</button>
-    </div>
-  </div>
-  <!-- Controls -->
-  <div class="pub-controls">
-    <div style="font-size:11px;color:var(--muted);">Las categorías de tu tienda se eligen por producto en el panel de revisión.</div>
-    <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
-      <button class="pub-btn" onclick="pubtnSelectAll(true)">☑ Todo</button>
-      <button class="pub-btn" onclick="pubtnSelectAll(false)">☐ Ninguno</button>
-      <button id="pubtnBtnPublish" class="pub-btn-primary" onclick="pubtnPrepare()" disabled>
-        ✏️ Preparar seleccionados (<span id="pubtnCount">0</span>)
-      </button>
-    </div>
-  </div>
-  <!-- Table -->
-  <div style="overflow-x:auto;">
-    <table class="pub-tbl">
-      <thead>
-        <tr>
-          <th style="width:32px;"><input type="checkbox" id="pubtnChkAll" onchange="pubtnSelectAll(this.checked)"></th>
-          <th style="width:28px;" title="Imagen en Drive">📷</th>
-          <th>SKU</th>
-          <th>Título</th>
-          <th>Precio TN sugerido</th>
-          <th>Stock ML</th>
-          <th>Góndola</th>
-        </tr>
-      </thead>
-      <tbody id="pubtnTbody">
-        <tr><td colspan="7" style="text-align:center;padding:28px;color:var(--muted2);">Conectá Tienda Nube y hacé click en el tab para cargar</td></tr>
-      </tbody>
-    </table>
-  </div>
-  <!-- Progress -->
-  <div id="pubtnProgressSection" style="display:none;padding:14px 20px 20px;">
-    <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-      <span style="font-size:12px;font-weight:600;color:var(--text);">Publicando en TN…</span>
-      <span id="pubtnProgressText" style="font-size:12px;color:var(--muted);">0 / 0</span>
-    </div>
-    <div class="pub-progress-bar-wrap">
-      <div id="pubtnProgressBar" class="pub-progress-bar"></div>
-    </div>
-    <div id="pubtnLog" class="pub-log"></div>
-  </div>
-</div>
-
-<!-- ── PANEL REVISIÓN PRE-PUBLICACIÓN TN ── -->
-<div id="pubtnReviewPanel">
-  <div class="pub-review-drawer">
-    <div class="pub-review-header">
-      <div>
-        <div style="font-family:var(--font-head);font-weight:700;font-size:15px;">✏️ Revisión antes de publicar en TN</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Revisá título, precio, categoría y descripción antes de crear cada producto.</div>
-      </div>
-      <button class="cfg-close" onclick="pubtnCloseReview()">✕</button>
-    </div>
-    <div class="pub-review-body" id="pubtnReviewBody"></div>
-    <div class="pub-review-footer">
-      <button class="pub-btn" onclick="pubtnCloseReview()">Cancelar</button>
-      <button class="pub-btn-primary" onclick="pubtnPublishFromReview()">📤 Publicar todos en TN</button>
-    </div>
-  </div>
-</div>
-
 <!-- ── PANEL REVISIÓN PRE-PUBLICACIÓN ── -->
 <div id="pubReviewPanel">
   <div class="pub-review-drawer">
     <div class="pub-review-header">
       <div>
         <div style="font-family:var(--font-head);font-weight:700;font-size:15px;">✏️ Revisión antes de publicar</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Completá el <strong>Family Name</strong> de cada producto — descripción genérica que agrupa variantes (ej: "Soda Lima")</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Completá los datos de cada producto. Los que son nuevos se publican en ML y TN; los que ya tienen ML solo se completan en TN.</div>
       </div>
       <button class="cfg-close" onclick="pubCloseReview()">✕</button>
     </div>
@@ -2465,7 +2404,6 @@ function switchTab(tab) {
   document.getElementById('tabOficina').classList.toggle('active', tab === 'oficina');
   document.getElementById('tabVentas').classList.toggle('active', tab === 'ventas');
   document.getElementById('tabPublicar').classList.toggle('active', tab === 'publicar');
-  document.getElementById('tabPublicarTN').classList.toggle('active', tab === 'publicartn');
   document.getElementById('panelContent').style.display = tab === 'publicaciones' ? 'block' : 'none';
   document.getElementById('metricasContent').style.display = tab === 'metricas' ? 'block' : 'none';
   document.getElementById('flexContent').style.display = tab === 'flex' ? 'block' : 'none';
@@ -2473,7 +2411,6 @@ function switchTab(tab) {
   document.getElementById('oficinaContent').style.display = tab === 'oficina' ? 'block' : 'none';
   document.getElementById('ventasContent').style.display = tab === 'ventas' ? 'block' : 'none';
   document.getElementById('publicarContent').style.display = tab === 'publicar' ? 'block' : 'none';
-  document.getElementById('publicartnContent').style.display = tab === 'publicartn' ? 'block' : 'none';
   if (tab === 'metricas' && !metLoaded) document.getElementById('metEmpty').style.display = 'block';
   if (tab === 'flex') {
     setTimeout(() => { initFlexMap(); if (!flexLoaded) loadFlex(false); else if (flexMap) flexMap.invalidateSize(); }, 100);
@@ -2482,7 +2419,6 @@ function switchTab(tab) {
   if (tab === 'oficina') oficinaInit();
   if (tab === 'ventas') ventasInit();
   if (tab === 'publicar') pubInit();
-  if (tab === 'publicartn') pubtnInit();
 }
 
 // ── MÉTRICAS ──────────────────────────────────────────
@@ -4242,55 +4178,77 @@ function ofiRender() {
   }
 }
 
-// ── PUBLICAR ──────────────────────────────────────────
-let pubProductos    = [];   // { rowNum, sku, title, price, gondola }
+// ── PUBLICAR (ML + TN unificado) ──────────────────────
+let pubItems        = [];   // { rowNum, sku, title, mla, priceMl, priceTn, stock, gondola, thumbnail, needsML, needsTN }
 let pubDriveMap     = {};   // { SKU_UPPERCASE: fileId }
 let pubDriveLoaded  = false;
 let pubLoaded       = false;
+let pubTnConnected  = false;
+let pubTnCategories = [];   // { id, name }
 let pubSelectedGondola = '';
 let pubSearchText      = '';
+let pubStatusFilter    = ''; // '' | 'new' | 'tn-only' | 'ml-only'
+let pubDetectedCat     = new Map(); // sku -> catId detectado en pubPrepare (reemplaza el catData que quedaba fuera de scope)
 
 async function pubInit() {
   if (pubLoaded) return;
   pubLoaded = true;
   pubSetLoading(true);
-  await Promise.all([pubLoadProducts(), pubLoadDrive()]);
+  pubTnConnected = !!(tnToken && tnStoreId);
+  const tasks = [pubLoadItems(), pubLoadDrive()];
+  if (pubTnConnected) tasks.push(pubLoadTnCategories());
+  await Promise.all(tasks);
   pubRenderTable();
 }
 
 async function pubReload() {
-  pubLoaded = false; pubProductos = [];
+  pubLoaded = false; pubItems = [];
   pubDriveLoaded = false; pubDriveMap = {};
+  pubTnCategories = [];
   document.getElementById('pubSearchInput').value = '';
   pubSearchText = ''; pubSelectedGondola = '';
   document.getElementById('pubGondolaFilter').value = '';
+  document.getElementById('pubStatusFilter').value = '';
+  pubStatusFilter = '';
   pubSetLoading(true);
-  await Promise.all([pubLoadProducts(), pubLoadDrive()]);
-  pubRenderTable();
+  await pubInit();
 }
 
-async function pubLoadProducts() {
+// Clasifica una fila de la Sheet según lo que le falta publicar
+function pubClassify(mla, sku) {
+  const hasMla = mla.startsWith('MLA');
+  // Sin TN conectada no podemos saber si falta ahí — se asume completo para no inundar la lista.
+  const needsTN = pubTnConnected ? !tnBySku[sku] : false;
+  return { needsML: !hasMla, needsTN };
+}
+
+async function pubLoadItems() {
   try {
     const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
     const text = await (await fetch(url)).text();
     const json = JSON.parse(text.replace(/^[^(]+\(/, '').replace(/\);?$/, ''));
-    pubProductos = json.table.rows.map((row, idx) => {
+    pubItems = json.table.rows.map((row, idx) => {
       const c   = row.c;
       const get = (i) => c[i]?.v ?? '';
-      const mla = String(get(0)).trim();
-      if (mla.startsWith('MLA')) return null;
+      const mla   = String(get(0)).trim();
       const sku   = String(get(1)).trim();
       const title = String(get(2)).trim();
       if (!sku && !title) return null;
+      const { needsML, needsTN } = pubClassify(mla, sku);
+      if (!needsML && !needsTN) return null; // ya completo en ambos
+      const prod = products.find(p => (mla && p.mla === mla) || p.sku === sku);
       return {
-        rowNum:  idx + 2,
-        sku,
-        title,
-        price:   typeof get(9) === 'number' ? get(9) : 0,
-        gondola: String(get(13) || '').trim().toUpperCase()
+        rowNum: idx + 2,
+        sku, title, mla,
+        priceMl: typeof get(9) === 'number' ? get(9) : 0,
+        priceTn: typeof get(4) === 'number' ? get(4) : 0,
+        stock:   prod?.stock ?? 3,
+        gondola: String(get(13) || '').trim().toUpperCase(),
+        thumbnail: prod?.thumbnail || '',
+        needsML, needsTN
       };
     }).filter(Boolean);
-  } catch (e) { console.warn('pubLoadProducts:', e.message); }
+  } catch (e) { console.warn('pubLoadItems:', e.message); }
 }
 
 async function pubLoadDrive() {
@@ -4301,17 +4259,38 @@ async function pubLoadDrive() {
   } catch (_) {}
 }
 
+async function pubLoadTnCategories() {
+  try {
+    pubTnCategories = [];
+    let page = 1;
+    while (true) {
+      const items = await tnFetch(`/categories?per_page=200&page=${page}&fields=id,name,parent`);
+      if (!Array.isArray(items) || !items.length) break;
+      items.forEach(c => {
+        const name = c.name?.es || c.name?.pt || Object.values(c.name || {})[0] || `Cat ${c.id}`;
+        pubTnCategories.push({ id: c.id, name, parent: c.parent || null });
+      });
+      if (items.length < 200) break;
+      page++;
+    }
+    pubTnCategories.sort((a, b) => a.name.localeCompare(b.name));
+  } catch (e) { console.warn('pubLoadTnCategories:', e.message); }
+}
+
 function pubSetLoading(on) {
   if (on) {
     document.getElementById('pubTbody').innerHTML =
-      `<tr><td colspan="6" style="text-align:center;padding:28px;color:var(--muted);">
+      `<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--muted);">
         <div class="loader" style="display:inline-block;margin-right:8px;"></div>Cargando…
       </td></tr>`;
   }
 }
 
 function pubFiltered() {
-  return pubProductos.filter(p => {
+  return pubItems.filter(p => {
+    if (pubStatusFilter === 'new'     && !(p.needsML && p.needsTN)) return false;
+    if (pubStatusFilter === 'tn-only' && !(!p.needsML && p.needsTN)) return false;
+    if (pubStatusFilter === 'ml-only' && !(p.needsML && !p.needsTN)) return false;
     if (pubSelectedGondola && p.gondola !== pubSelectedGondola) return false;
     const q = pubSearchText.toLowerCase();
     if (q && !p.sku.toLowerCase().includes(q) && !p.title.toLowerCase().includes(q)) return false;
@@ -4319,34 +4298,50 @@ function pubFiltered() {
   });
 }
 
+function pubBadge(p) {
+  if (p.needsML && p.needsTN) return `<span class="pub-badge pub-badge-new">🆕 Nuevo</span>`;
+  if (!p.needsML && p.needsTN) return `<span class="pub-badge pub-badge-tn">📤 Falta TN</span>`;
+  return `<span class="pub-badge pub-badge-ml">🚀 Falta ML</span>`;
+}
+
 function pubRenderTable() {
+  document.getElementById('pubTnBanner').style.display = pubTnConnected ? 'none' : 'block';
+
   const list  = pubFiltered();
   const tbody = document.getElementById('pubTbody');
   document.getElementById('pubChkAll').checked = false;
   pubUpdateCount();
 
+  // Contadores por estado (sobre el total, no sobre el filtrado)
+  const nNew    = pubItems.filter(p => p.needsML && p.needsTN).length;
+  const nTnOnly = pubItems.filter(p => !p.needsML && p.needsTN).length;
+  const nMlOnly = pubItems.filter(p => p.needsML && !p.needsTN).length;
+  document.getElementById('pubStatusCounts').textContent = `🆕 ${nNew} · 📤 ${nTnOnly}${nMlOnly ? ' · 🚀 ' + nMlOnly : ''}`;
+
   // Rebuild gondola filter
-  const gondolas = [...new Set(pubProductos.map(p => p.gondola).filter(Boolean))].sort();
+  const gondolas = [...new Set(pubItems.map(p => p.gondola).filter(Boolean))].sort();
   const sel = document.getElementById('pubGondolaFilter');
   const cur = sel.value;
   sel.innerHTML = `<option value="">Todas las góndolas</option>` +
     gondolas.map(g => `<option value="${g}" ${g === cur ? 'selected' : ''}>${g}</option>`).join('');
 
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:28px;color:var(--muted2);">
-      ${pubProductos.length ? 'Sin resultados para el filtro actual' : '✅ Todos los productos tienen MLA asignado'}
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--muted2);">
+      ${pubItems.length ? 'Sin resultados para el filtro actual' : '✅ Todos los productos están completos en ML y TN'}
     </td></tr>`;
     return;
   }
 
   tbody.innerHTML = list.map(p => {
     const hasImg = !!pubDriveMap[p.sku.toUpperCase()];
+    const price  = p.priceTn > 0 ? p.priceTn : p.priceMl;
     return `<tr id="pub-row-${CSS.escape(p.sku)}">
       <td><input type="checkbox" class="pub-chk" data-sku="${p.sku}" onchange="pubUpdateCount()"></td>
       <td style="text-align:center;" title="${hasImg ? 'Imagen disponible en Drive' : 'Sin imagen en Drive'}">${hasImg ? '🖼️' : '<span style="color:var(--muted2)">—</span>'}</td>
+      <td>${pubBadge(p)}</td>
       <td class="sku-code">${p.sku || '—'}</td>
       <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.title}">${p.title || '<span style="color:var(--muted2)">sin título</span>'}</td>
-      <td style="color:var(--blue);font-weight:600;">${p.price ? fmt(p.price) : '<span style="color:var(--muted2)">—</span>'}</td>
+      <td style="color:var(--blue);font-weight:600;">${price ? fmt(price) : '<span style="color:var(--muted2)">—</span>'}</td>
       <td><span style="font-size:10px;background:var(--accent-light);color:var(--accent);padding:2px 6px;border-radius:8px;">${p.gondola || '—'}</span></td>
     </tr>`;
   }).join('');
@@ -4373,39 +4368,49 @@ function pubAutoFamily(title) {
     .slice(0, 60);
 }
 
+function pubAutoDescMl(title) {
+  return `${title}.\n\nProducto importado. Excelente calidad y relación precio-producto.`;
+}
+
+function pubAutoDescTn(title) {
+  return `${title}.\n\nProducto importado de Asia. Calidad premium y sabor auténtico.\n\nUMAMI — sabores únicos de Japón, Corea, Tailandia y China.`;
+}
+
 async function pubPrepare() {
   const checks = Array.from(document.querySelectorAll('.pub-chk:checked'));
   if (!checks.length) { showToast('Seleccioná al menos un producto', 'error'); return; }
-  const skus = checks.map(cb => cb.dataset.sku);
+  const items = checks.map(cb => pubItems.find(x => x.sku === cb.dataset.sku)).filter(Boolean);
 
-  // Detectar categoría y atributos requeridos para cada producto
+  // Detectar categoría y atributos requeridos de ML — solo para los que necesitan ML
+  pubDetectedCat.clear();
   const catData = {};
-  await Promise.all(skus.map(async sku => {
-    const p = pubProductos.find(x => x.sku === sku);
-    if (!p) return;
+  await Promise.all(items.filter(p => p.needsML).map(async p => {
     try {
       const q = p.title.replace(/[.!?,;:]+$/, '').replace(/\s+\d+\s*(ml|gr|kg|g|l|cc)\.?\s*$/i, '').trim();
       const disc = await fetch(`/api/ml?path=${encodeURIComponent('/sites/MLA/domain_discovery/search?q=' + encodeURIComponent(q) + '&limit=1')}`,
         { headers: { Authorization: 'Bearer ' + accessToken } }).then(r => r.json());
       const catId = Array.isArray(disc) && disc[0]?.category_id ? disc[0].category_id : null;
       if (catId) {
+        pubDetectedCat.set(p.sku, catId);
         const attrs = await fetch(`/api/ml?path=${encodeURIComponent('/categories/' + catId + '/attributes')}`,
           { headers: { Authorization: 'Bearer ' + accessToken } }).then(r => r.json());
         const required = (Array.isArray(attrs) ? attrs : [])
           .filter(a => a.tags?.required || a.tags?.catalog_required)
           .filter(a => !['GTIN','BRAND','seller_package_height','seller_package_width','seller_package_length','seller_package_weight','VALUE_ADDED_TAX','IMPORT_DUTY'].includes(a.id));
-        catData[sku] = { catId, required };
+        catData[p.sku] = { catId, required };
       }
     } catch(_) {}
   }));
 
+  const catOptions = `<option value="">— sin categoría —</option>` +
+    pubTnCategories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+
   const body = document.getElementById('pubReviewBody');
-  body.innerHTML = skus.map((sku, idx) => {
-    const p = pubProductos.find(x => x.sku === sku);
-    if (!p) return '';
-    const autoFam = pubAutoFamily(p.title);
-    const autoDesc = `${p.title}.\n\nProducto importado. Excelente calidad y relación precio-producto.`;
-    const { catId = '', required = [] } = catData[sku] || {};
+  body.innerHTML = items.map((p, idx) => {
+    const autoFam  = pubAutoFamily(p.title);
+    const autoDesc = p.needsML ? pubAutoDescMl(p.title) : pubAutoDescTn(p.title);
+    const { catId = '', required = [] } = catData[p.sku] || {};
+    const price = p.priceTn > 0 ? p.priceTn : p.priceMl;
     const reqAttrsHtml = required.length ? `
       <div class="pub-review-field" style="grid-column:1/-1;">
         <label style="color:var(--orange);">⚠️ Atributos requeridos por ML para esta categoría</label>
@@ -4422,41 +4427,20 @@ async function pubPrepare() {
           </div>`).join('')}
       </div>` : '';
     const detectedCatHtml = catId ? `<span style="font-size:10px;color:var(--accent);background:var(--accent-light);padding:2px 7px;border-radius:8px;margin-left:6px;">${catId}</span>` : '';
-    return `<div class="pub-review-card" data-sku="${sku}" data-idx="${idx}">
-      <div class="pub-review-card-title">
-        <span class="sku-code">${sku}</span>
-        <span style="color:var(--muted);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.title}</span>
-        ${detectedCatHtml}
-        <span style="margin-left:auto;font-size:10px;background:var(--accent-light);color:var(--accent);padding:2px 6px;border-radius:8px;flex-shrink:0;">${p.gondola || '—'}</span>
-      </div>
-      <div class="pub-review-grid">
-        <div class="pub-review-field" style="grid-column:1/-1;">
-          <label>Título en ML <span style="color:var(--muted)">(máx 60 caracteres)</span></label>
-          <input type="text" data-field="title" maxlength="60" value="${p.title.slice(0, 60)}">
-        </div>
+
+    const mlSection = p.needsML ? `
+        <div class="pub-section-title">Mercado Libre</div>
         <div class="pub-review-field">
-          <label>Nombre de familia <span style="color:var(--muted)">(agrupa variantes — ej: "Soda Lima" para todos los sabores)</span></label>
+          <label>Nombre de familia <span style="color:var(--muted)">(agrupa variantes — ej: "Soda Lima")</span></label>
           <input type="text" data-field="familyName" maxlength="60" value="${autoFam}" placeholder="Ej: Soda Lima, Marshmallows Glico, Pocky…">
         </div>
-        <div class="pub-review-field">
-          <label>Marca / Brand</label>
-          <input type="text" data-field="brand" placeholder="Ej: Glico, OKF, Lotte…">
-        </div>
         <div class="pub-review-field" style="grid-column:1/-1;">
-          <label>Categoría ML <span style="color:var(--muted)">(dejá vacío para auto-detectar, o buscá abajo)</span></label>
+          <label>Categoría ML <span style="color:var(--muted)">(dejá vacío para auto-detectar, o buscá abajo)</span> ${detectedCatHtml}</label>
           <div style="display:flex;gap:6px;">
             <input type="text" data-field="categoryOverride" placeholder="Auto-detectada · ej: MLA114011" style="flex:1;">
-            <input type="text" id="catSearch-${sku}" placeholder="Buscar categoría…" oninput="pubSearchCat(this,'${sku}')" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:12px;">
+            <input type="text" id="catSearch-${p.sku}" placeholder="Buscar categoría…" oninput="pubSearchCat(this,'${p.sku}')" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:12px;">
           </div>
-          <div id="catResults-${sku}" style="display:none;border:1px solid var(--border);border-radius:8px;background:var(--surface);max-height:140px;overflow-y:auto;font-size:11px;"></div>
-        </div>
-        <div class="pub-review-field">
-          <label>Precio ($ARS)</label>
-          <input type="number" data-field="price" value="${p.price}">
-        </div>
-        <div class="pub-review-field">
-          <label>Stock disponible</label>
-          <input type="number" data-field="stock" value="3" min="1">
+          <div id="catResults-${p.sku}" style="display:none;border:1px solid var(--border);border-radius:8px;background:var(--surface);max-height:140px;overflow-y:auto;font-size:11px;"></div>
         </div>
         <div class="pub-review-field">
           <label>Condición</label>
@@ -4484,15 +4468,6 @@ async function pubPrepare() {
             <option value="2 años">2 años</option>
           </select>
         </div>
-        <div class="pub-review-field" style="grid-column:1/-1;">
-          <label>Dimensiones del paquete</label>
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
-            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Alto (cm)</span><input type="number" data-field="pkgHeight" value="12" min="1"></div>
-            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Ancho (cm)</span><input type="number" data-field="pkgWidth" value="6" min="1"></div>
-            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Largo (cm)</span><input type="number" data-field="pkgLength" value="6" min="1"></div>
-            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Peso (g)</span><input type="number" data-field="pkgWeight" value="400" min="1"></div>
-          </div>
-        </div>
         <div class="pub-review-field">
           <label>IVA (VALUE_ADDED_TAX)</label>
           <select data-field="vat" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:12px;color:var(--text);">
@@ -4505,7 +4480,52 @@ async function pubPrepare() {
           <label>Arancel importación (IMPORT_DUTY)</label>
           <input type="text" data-field="importDuty" value="0%" placeholder="0%">
         </div>
-        ${reqAttrsHtml}
+        ${reqAttrsHtml}` : '';
+
+    const tnSection = p.needsTN ? `
+        <div class="pub-section-title">Tienda Nube</div>
+        <div class="pub-review-field" style="grid-column:1/-1;">
+          <label>Categoría en Tienda Nube</label>
+          <select data-field="categoryId" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:12px;color:var(--text);">
+            ${catOptions}
+          </select>
+        </div>` : '';
+
+    return `<div class="pub-review-card" data-sku="${p.sku}" data-idx="${idx}" data-needs-ml="${p.needsML}" data-needs-tn="${p.needsTN}">
+      <div class="pub-review-card-title">
+        <span class="sku-code">${p.sku}</span>
+        <span style="color:var(--muted);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.title}</span>
+        ${pubBadge(p)}
+        <span style="margin-left:auto;font-size:10px;background:var(--accent-light);color:var(--accent);padding:2px 6px;border-radius:8px;flex-shrink:0;">${p.gondola || '—'}</span>
+      </div>
+      <div class="pub-review-grid">
+        <div class="pub-review-field" style="grid-column:1/-1;">
+          <label>Título <span style="color:var(--muted)">(máx 100 caracteres)</span></label>
+          <input type="text" data-field="title" maxlength="100" value="${p.title.replace(/"/g, '&quot;').slice(0, 100)}">
+        </div>
+        <div class="pub-review-field">
+          <label>Precio ($ARS)</label>
+          <input type="number" data-field="price" value="${price}">
+        </div>
+        <div class="pub-review-field">
+          <label>Stock disponible</label>
+          <input type="number" data-field="stock" value="${p.stock || 3}" min="0">
+        </div>
+        <div class="pub-review-field">
+          <label>Marca / Brand</label>
+          <input type="text" data-field="brand" placeholder="Ej: Glico, OKF, Lotte…">
+        </div>
+        <div class="pub-review-field" style="grid-column:1/-1;">
+          <label>Dimensiones del paquete <span style="color:var(--muted)">(cm y kg — se convierten para cada plataforma)</span></label>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
+            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Alto (cm)</span><input type="number" data-field="dimHeight" value="12" min="0"></div>
+            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Ancho (cm)</span><input type="number" data-field="dimWidth" value="6" min="0"></div>
+            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Prof./Largo (cm)</span><input type="number" data-field="dimDepth" value="6" min="0"></div>
+            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Peso (kg)</span><input type="number" data-field="dimWeightKg" value="0.4" step="0.01" min="0"></div>
+          </div>
+        </div>
+        ${mlSection}
+        ${tnSection}
         <div class="pub-review-field" style="grid-column:1/-1;">
           <label>Descripción</label>
           <textarea data-field="description" rows="3" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:11px;color:var(--text);width:100%;resize:vertical;">${autoDesc}</textarea>
@@ -4558,6 +4578,23 @@ function pubCloseReview() {
   panel.style.display = 'none';
 }
 
+// Convierte las dimensiones comunes (cm/kg) a lo que espera cada API.
+// "Largo" de ML se mapea a "profundidad" de TN — no son idénticos pero
+// es la única correspondencia razonable sin agregar un 5º campo.
+function pubConvertDims(dimHeight, dimWidth, dimDepth, dimWeightKg) {
+  const h = dimHeight || '12', w = dimWidth || '6', d = dimDepth || '6', kg = dimWeightKg || '0.4';
+  return {
+    ml: { pkgHeight: h, pkgWidth: w, pkgLength: d, pkgWeight: String(Math.round(Number(kg) * 1000) || 400) },
+    tn: { height: h, width: w, depth: d, weight: kg }
+  };
+}
+
+async function pubSafeJson(res) {
+  const rawText = await res.text();
+  try { return JSON.parse(rawText); }
+  catch (_) { return { ok: false, error: 'Server error: ' + rawText.slice(0, 120) }; }
+}
+
 async function pubPublishFromReview() {
   const listingType     = document.querySelector('input[name="pubListingType"]:checked')?.value || 'gold_special';
   const categoryDefault = document.getElementById('pubCategoryDefault').value.trim() || 'MLA5726';
@@ -4566,39 +4603,36 @@ async function pubPublishFromReview() {
   const cards = document.querySelectorAll('#pubReviewBody .pub-review-card');
   const queue = [];
   cards.forEach(card => {
-    const sku = card.dataset.sku;
+    const sku     = card.dataset.sku;
+    const needsML = card.dataset.needsMl === 'true';
+    const needsTN = card.dataset.needsTn === 'true';
     const get = (field) => {
       const el = card.querySelector(`[data-field="${field}"]`);
       return el ? el.value.trim() : '';
     };
+    const dims = pubConvertDims(get('dimHeight'), get('dimWidth'), get('dimDepth'), get('dimWeightKg'));
     queue.push({
-      sku,
+      sku, needsML, needsTN, dims,
       title:       get('title'),
       price:       get('price'),
-      familyName:  get('familyName'),
-      brand:       get('brand'),
       stock:       get('stock') || '3',
+      brand:       get('brand'),
+      description: get('description'),
+      familyName:  get('familyName'),
       condition:   get('condition') || 'not_specified',
       warranty:     get('warranty') || 'Sin garantía',
       warrantyTime: get('warrantyTime') || '',
-      categoryOverride: get('categoryOverride') || (catData[sku]?.catId || ''),
+      vat:          get('vat') || '21%',
+      importDuty:   get('importDuty') || '0%',
+      categoryOverride: get('categoryOverride') || pubDetectedCat.get(sku) || '',
       extraAttrs: Array.from(card.querySelectorAll('[data-catattr]'))
         .map(el => ({ id: el.dataset.catattr, value_name: el.value.trim() }))
         .filter(a => a.value_name),
-      pkgHeight:    get('pkgHeight')   || '12',
-      pkgWidth:     get('pkgWidth')    || '6',
-      pkgLength:    get('pkgLength')   || '6',
-      pkgWeight:    get('pkgWeight')   || '400',
-      vat:          get('vat')         || '21%',
-      importDuty:   get('importDuty')  || '0%',
-      description: get('description')
+      categoryId: get('categoryId')
     });
   });
 
-  // family_name es opcional en el formulario — el backend lo maneja
-
   pubCloseReview();
-  const skus = queue.map(q => q.sku);
 
   document.getElementById('pubProgressSection').style.display = 'block';
   document.getElementById('pubLog').innerHTML = '';
@@ -4606,75 +4640,139 @@ async function pubPublishFromReview() {
   document.getElementById('pubProgressBar').style.width = '0%';
 
   let done = 0, errors = 0;
-  pubProgressUpdate(0, skus.length);
+  pubProgressUpdate(0, queue.length);
 
   for (const item of queue) {
-    const { sku, title: itemTitle, price: itemPrice, familyName: itemFamily } = item;
-    const p = pubProductos.find(x => x.sku === sku);
+    const p = pubItems.find(x => x.sku === item.sku);
     if (!p) continue;
 
-    pubLogAdd(`⏳ <strong>${sku}</strong> — ${itemTitle.slice(0, 50)}…`);
-    const rowEl = document.getElementById(`pub-row-${CSS.escape(sku)}`);
+    pubLogAdd(`⏳ <strong>${item.sku}</strong> — ${item.title.slice(0, 50)}…`);
+    const rowEl = document.getElementById(`pub-row-${CSS.escape(item.sku)}`);
     if (rowEl) rowEl.style.opacity = '0.4';
 
-    try {
-      const res = await fetch('/api/publish-item', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
-        body: JSON.stringify({
-          sku,
-          title:       item.title,
-          price:       item.price,
-          familyName:  item.familyName,
-          brand:       item.brand,
-          stock:       item.stock,
-          condition:   item.condition,
-          warranty:     item.warranty,
-          warrantyTime: item.warrantyTime,
-          pkgHeight:    item.pkgHeight,
-          pkgWidth:     item.pkgWidth,
-          pkgLength:    item.pkgLength,
-          pkgWeight:    item.pkgWeight,
-          vat:          item.vat,
-          importDuty:   item.importDuty,
-          description: item.description,
-          listingType,
-          categoryDefault,
-          fileId:          pubDriveMap[p.sku.toUpperCase()] || null,
-          categoryOverride: item.categoryOverride || '',
-          extraAttrs:       item.extraAttrs || [],
-          sheetRow:    p.rowNum,
-          sheetId:     SHEET_ID
-        })
-      });
-      const rawText = await res.text();
-      let data;
-      try { data = JSON.parse(rawText); }
-      catch (_) { data = { ok: false, error: 'Server error: ' + rawText.slice(0, 120) }; }
+    let mlOk = !item.needsML;
+    let newMla = p.mla;
 
-      if (data.ok) {
-        done++;
-        pubLogAdd(`✅ <strong>${sku}</strong> → <a href="https://articulo.mercadolibre.com.ar/${data.mla}" target="_blank" style="color:var(--accent)">${data.mla}</a>${data.pictureId ? ' 🖼️' : ''}${data.pictureWarn ? ` ⚠️ ${data.pictureWarn}` : ''}`);
-        if (rowEl) rowEl.classList.add('pub-done');
-        // Actualizar lista local para que no aparezca si se recarga
-        const idx = pubProductos.findIndex(x => x.sku === sku);
-        if (idx !== -1) pubProductos.splice(idx, 1);
-      } else {
-        errors++;
-        pubLogAdd(`❌ <strong>${sku}</strong> — ${data.error || 'error desconocido'}`);
-        if (rowEl) rowEl.style.opacity = '1';
+    if (item.needsML) {
+      try {
+        const res = await fetch('/api/publish-item', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+          body: JSON.stringify({
+            sku:         item.sku,
+            title:       item.title,
+            price:       item.price,
+            familyName:  item.familyName,
+            brand:       item.brand,
+            stock:       item.stock,
+            condition:   item.condition,
+            warranty:     item.warranty,
+            warrantyTime: item.warrantyTime,
+            pkgHeight:    item.dims.ml.pkgHeight,
+            pkgWidth:     item.dims.ml.pkgWidth,
+            pkgLength:    item.dims.ml.pkgLength,
+            pkgWeight:    item.dims.ml.pkgWeight,
+            vat:          item.vat,
+            importDuty:   item.importDuty,
+            description: item.description,
+            listingType,
+            categoryDefault,
+            fileId:          pubDriveMap[item.sku.toUpperCase()] || null,
+            categoryOverride: item.categoryOverride || '',
+            extraAttrs:       item.extraAttrs || [],
+            sheetRow:    p.rowNum,
+            sheetId:     SHEET_ID
+          })
+        });
+        const data = await pubSafeJson(res);
+        if (data.ok) {
+          mlOk = true; newMla = data.mla;
+          pubLogAdd(`✅ <strong>${item.sku}</strong> → ML: <a href="https://articulo.mercadolibre.com.ar/${data.mla}" target="_blank" style="color:var(--accent)">${data.mla}</a>${data.pictureId ? ' 🖼️' : ''}${data.pictureWarn ? ` ⚠️ ${data.pictureWarn}` : ''}`);
+        } else {
+          pubLogAdd(`❌ <strong>${item.sku}</strong> → ML: ${data.error || 'error desconocido'}`);
+        }
+      } catch (e) {
+        pubLogAdd(`❌ <strong>${item.sku}</strong> → ML: ${e.message}`);
       }
-    } catch (e) {
+      await new Promise(r => setTimeout(r, 380)); // rate limit ML ~2.6/s
+    }
+
+    let tnOk = !item.needsTN;
+    if (item.needsTN) {
+      if (item.needsML && !mlOk) {
+        // Nuevo = ambos a la vez. Si falló ML, abortamos TN para no dejar
+        // un estado híbrido confuso (SKU en TN sin MLA correspondiente).
+        pubLogAdd(`⏭️ <strong>${item.sku}</strong> → TN: abortado (falló ML)`);
+      } else {
+        try {
+          const res = await fetch('/api/publish-tn-item', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${tnToken}`,
+              'X-Store-Id': tnStoreId
+            },
+            body: JSON.stringify({
+              sku:         item.sku,
+              title:       item.title,
+              description: item.description,
+              price:       item.price,
+              stock:       item.stock,
+              brand:       item.brand,
+              weight:      item.dims.tn.weight,
+              depth:       item.dims.tn.depth,
+              width:       item.dims.tn.width,
+              height:      item.dims.tn.height,
+              categoryId:  item.categoryId,
+              fileId:      pubDriveMap[item.sku.toUpperCase()] || null
+            })
+          });
+          const data = await pubSafeJson(res);
+          if (data.ok) {
+            tnOk = true;
+            pubLogAdd(`✅ <strong>${item.sku}</strong> → TN: producto ${data.productId}${data.imageId ? ' 🖼️' : ''}${data.imageWarn ? ` ⚠️ ${data.imageWarn}` : ''}`);
+            tnBySku[item.sku] = {
+              product_id: data.productId,
+              variant_id: data.variantId,
+              sku: item.sku,
+              precio_tn: parseFloat(item.price) || 0,
+              stock_tn:  parseInt(item.stock) || 0
+            };
+            const prodGlobal = products.find(x => x.sku === item.sku);
+            if (prodGlobal) {
+              prodGlobal.tn_product_id = data.productId;
+              prodGlobal.tn_variant_id = data.variantId;
+              prodGlobal.precio_tn     = parseFloat(item.price) || 0;
+              prodGlobal.stock_tn      = parseInt(item.stock) || 0;
+            }
+          } else {
+            pubLogAdd(`❌ <strong>${item.sku}</strong> → TN: ${data.error || 'error desconocido'}`);
+          }
+        } catch (e) {
+          pubLogAdd(`❌ <strong>${item.sku}</strong> → TN: ${e.message}`);
+        }
+        await new Promise(r => setTimeout(r, 450)); // rate limit TN
+      }
+    }
+
+    const stillNeedsML = item.needsML && !mlOk;
+    const stillNeedsTN = item.needsTN && !tnOk;
+    if (!stillNeedsML && !stillNeedsTN) {
+      done++;
+      if (rowEl) rowEl.classList.add('pub-done');
+      const idx = pubItems.findIndex(x => x.sku === item.sku);
+      if (idx !== -1) pubItems.splice(idx, 1);
+    } else {
       errors++;
-      pubLogAdd(`❌ <strong>${sku}</strong> — ${e.message}`);
+      p.needsML = stillNeedsML; p.needsTN = stillNeedsTN;
+      if (newMla) p.mla = newMla;
       if (rowEl) rowEl.style.opacity = '1';
     }
 
-    pubProgressUpdate(done + errors, skus.length);
-    await new Promise(r => setTimeout(r, 380)); // rate limit ~2.6/s
+    pubProgressUpdate(done + errors, queue.length);
   }
 
-  pubLogAdd(`<strong>Resumen: ${done} publicado${done !== 1 ? 's' : ''}, ${errors} error${errors !== 1 ? 'es' : ''}</strong>`);
+  pubLogAdd(`<strong>Resumen: ${done} completado${done !== 1 ? 's' : ''}, ${errors} con pendiente${errors !== 1 ? 's' : ''}</strong>`);
   document.getElementById('pubBtnPublish').disabled = false;
   pubRenderTable();
 }
@@ -4687,355 +4785,6 @@ function pubProgressUpdate(current, total) {
 
 function pubLogAdd(html) {
   const log = document.getElementById('pubLog');
-  const d = document.createElement('div');
-  d.className = 'pub-log-entry';
-  d.innerHTML = html;
-  log.appendChild(d);
-  log.scrollTop = log.scrollHeight;
-}
-
-// ── PUBLICAR TIENDA NUBE ─────────────────────────────
-let pubtnProductos    = [];   // { rowNum, sku, title, price, gondola, mla, fileId, thumbnail }
-let pubtnCategories   = [];   // { id, name }
-let pubtnLoaded       = false;
-let pubtnSelectedGondola = '';
-let pubtnSearchText      = '';
-
-async function pubtnInit() {
-  if (pubtnLoaded) return;
-  if (!tnToken || !tnStoreId) {
-    document.getElementById('pubtnTbody').innerHTML =
-      `<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--orange);">⚠️ Conectá Tienda Nube primero (botón en el header)</td></tr>`;
-    return;
-  }
-  pubtnLoaded = true;
-  pubtnSetLoading(true);
-  await Promise.all([pubtnLoadProducts(), pubLoadDrive(), pubtnLoadCategories()]);
-  pubtnRenderTable();
-}
-
-async function pubtnReload() {
-  pubtnLoaded = false;
-  pubtnProductos = [];
-  pubtnCategories = [];
-  pubDriveLoaded = false; pubDriveMap = {};
-  document.getElementById('pubtnSearchInput').value = '';
-  pubtnSearchText = ''; pubtnSelectedGondola = '';
-  document.getElementById('pubtnGondolaFilter').value = '';
-  await pubtnInit();
-}
-
-async function pubtnLoadProducts() {
-  // Leer Sheet directamente para obtener rowNum y filtrar por SKU no presente en TN
-  try {
-    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
-    const text = await (await fetch(url)).text();
-    const json = JSON.parse(text.replace(/^[^(]+\(/, '').replace(/\);?$/, ''));
-    pubtnProductos = json.table.rows.map((row, idx) => {
-      const c = row.c;
-      const get = (i) => c[i]?.v ?? '';
-      const mla = String(get(0)).trim();
-      const sku = String(get(1)).trim();
-      const title = String(get(2)).trim();
-      // Sólo los que tienen MLA y NO están en TN
-      if (!mla.startsWith('MLA')) return null;
-      if (!sku) return null;
-      if (tnBySku[sku]) return null; // ya está en TN
-      const precioTnSheet = typeof get(4) === 'number' ? get(4) : 0;
-      const precioMl      = typeof get(9) === 'number' ? get(9) : 0;
-      // Tomar thumbnail desde el array products si está cargado
-      const prod = products.find(p => p.mla === mla);
-      return {
-        rowNum: idx + 2,
-        sku, title, mla,
-        price:   precioTnSheet > 0 ? precioTnSheet : (prod?.precio_ml_real || precioMl || 0),
-        stock:   prod?.stock ?? 3,
-        gondola: String(get(13) || '').trim().toUpperCase(),
-        thumbnail: prod?.thumbnail || ''
-      };
-    }).filter(Boolean);
-  } catch (e) { console.warn('pubtnLoadProducts:', e.message); }
-}
-
-async function pubtnLoadCategories() {
-  try {
-    pubtnCategories = [];
-    let page = 1;
-    while (true) {
-      const items = await tnFetch(`/categories?per_page=200&page=${page}&fields=id,name,parent`);
-      if (!Array.isArray(items) || !items.length) break;
-      items.forEach(c => {
-        const name = c.name?.es || c.name?.pt || Object.values(c.name || {})[0] || `Cat ${c.id}`;
-        pubtnCategories.push({ id: c.id, name, parent: c.parent || null });
-      });
-      if (items.length < 200) break;
-      page++;
-    }
-    pubtnCategories.sort((a, b) => a.name.localeCompare(b.name));
-  } catch (e) { console.warn('pubtnLoadCategories:', e.message); }
-}
-
-function pubtnSetLoading(on) {
-  if (on) {
-    document.getElementById('pubtnTbody').innerHTML =
-      `<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--muted);">
-        <div class="loader" style="display:inline-block;margin-right:8px;"></div>Cargando…
-      </td></tr>`;
-  }
-}
-
-function pubtnFiltered() {
-  return pubtnProductos.filter(p => {
-    if (pubtnSelectedGondola && p.gondola !== pubtnSelectedGondola) return false;
-    const q = pubtnSearchText.toLowerCase();
-    if (q && !p.sku.toLowerCase().includes(q) && !p.title.toLowerCase().includes(q)) return false;
-    return true;
-  });
-}
-
-function pubtnRenderTable() {
-  const list  = pubtnFiltered();
-  const tbody = document.getElementById('pubtnTbody');
-  document.getElementById('pubtnChkAll').checked = false;
-  pubtnUpdateCount();
-
-  const gondolas = [...new Set(pubtnProductos.map(p => p.gondola).filter(Boolean))].sort();
-  const sel = document.getElementById('pubtnGondolaFilter');
-  const cur = sel.value;
-  sel.innerHTML = `<option value="">Todas las góndolas</option>` +
-    gondolas.map(g => `<option value="${g}" ${g === cur ? 'selected' : ''}>${g}</option>`).join('');
-
-  if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--muted2);">
-      ${pubtnProductos.length ? 'Sin resultados para el filtro actual' : '✅ Todos los productos con MLA ya están en TN'}
-    </td></tr>`;
-    return;
-  }
-
-  tbody.innerHTML = list.map(p => {
-    const hasImg = !!pubDriveMap[p.sku.toUpperCase()];
-    return `<tr id="pubtn-row-${CSS.escape(p.sku)}">
-      <td><input type="checkbox" class="pubtn-chk" data-sku="${p.sku}" onchange="pubtnUpdateCount()"></td>
-      <td style="text-align:center;" title="${hasImg ? 'Imagen disponible en Drive' : 'Sin imagen en Drive'}">${hasImg ? '🖼️' : '<span style="color:var(--muted2)">—</span>'}</td>
-      <td class="sku-code">${p.sku || '—'}</td>
-      <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.title}">${p.title || '<span style="color:var(--muted2)">sin título</span>'}</td>
-      <td style="color:var(--accent);font-weight:600;">${p.price ? fmt(p.price) : '<span style="color:var(--muted2)">—</span>'}</td>
-      <td style="text-align:center;color:var(--muted);">${p.stock}</td>
-      <td><span style="font-size:10px;background:var(--accent-light);color:var(--accent);padding:2px 6px;border-radius:8px;">${p.gondola || '—'}</span></td>
-    </tr>`;
-  }).join('');
-}
-
-function pubtnUpdateCount() {
-  const n = document.querySelectorAll('.pubtn-chk:checked').length;
-  document.getElementById('pubtnCount').textContent = n;
-  document.getElementById('pubtnBtnPublish').disabled = n === 0;
-}
-
-function pubtnSelectAll(checked) {
-  document.querySelectorAll('.pubtn-chk').forEach(cb => { cb.checked = checked; });
-  if (document.getElementById('pubtnChkAll')) document.getElementById('pubtnChkAll').checked = checked;
-  pubtnUpdateCount();
-}
-
-function pubtnAutoDesc(title) {
-  return `${title}.\n\nProducto importado de Asia. Calidad premium y sabor auténtico.\n\nUMAMI — sabores únicos de Japón, Corea, Tailandia y China.`;
-}
-
-function pubtnPrepare() {
-  const checks = Array.from(document.querySelectorAll('.pubtn-chk:checked'));
-  if (!checks.length) { showToast('Seleccioná al menos un producto', 'error'); return; }
-  const skus = checks.map(cb => cb.dataset.sku);
-
-  const catOptions = `<option value="">— sin categoría —</option>` +
-    pubtnCategories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-
-  const body = document.getElementById('pubtnReviewBody');
-  body.innerHTML = skus.map(sku => {
-    const p = pubtnProductos.find(x => x.sku === sku);
-    if (!p) return '';
-    const autoDesc = pubtnAutoDesc(p.title);
-    return `<div class="pub-review-card" data-sku="${sku}">
-      <div class="pub-review-card-title">
-        <span class="sku-code">${sku}</span>
-        <span style="color:var(--muted);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.title}</span>
-        <span style="margin-left:auto;font-size:10px;background:var(--accent-light);color:var(--accent);padding:2px 6px;border-radius:8px;flex-shrink:0;">${p.gondola || '—'}</span>
-      </div>
-      <div class="pub-review-grid">
-        <div class="pub-review-field" style="grid-column:1/-1;">
-          <label>Nombre del producto en TN <span style="color:var(--muted)">(máx 100 caracteres)</span></label>
-          <input type="text" data-field="title" maxlength="100" value="${p.title.replace(/"/g, '&quot;').slice(0, 100)}">
-        </div>
-        <div class="pub-review-field">
-          <label>Precio ($ARS)</label>
-          <input type="number" data-field="price" step="0.01" value="${p.price}">
-        </div>
-        <div class="pub-review-field">
-          <label>Stock</label>
-          <input type="number" data-field="stock" value="${p.stock}" min="0">
-        </div>
-        <div class="pub-review-field">
-          <label>Marca / Brand</label>
-          <input type="text" data-field="brand" placeholder="Ej: Glico, OKF, Lotte…">
-        </div>
-        <div class="pub-review-field" style="grid-column:1/-1;">
-          <label>Peso y dimensiones del paquete</label>
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
-            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Peso (kg)</span><input type="number" data-field="weight" step="0.01" value="0.4" min="0"></div>
-            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Profundidad (cm)</span><input type="number" data-field="depth" step="0.1" value="10" min="0"></div>
-            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Ancho (cm)</span><input type="number" data-field="width" step="0.1" value="10" min="0"></div>
-            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Alto (cm)</span><input type="number" data-field="height" step="0.1" value="10" min="0"></div>
-          </div>
-        </div>
-        <div class="pub-review-field" style="grid-column:1/-1;">
-          <label>Categoría en Tienda Nube</label>
-          <select data-field="categoryId" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:12px;color:var(--text);">
-            ${catOptions}
-          </select>
-        </div>
-        <div class="pub-review-field" style="grid-column:1/-1;">
-          <label>Descripción</label>
-          <textarea data-field="description" rows="4" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:11px;color:var(--text);width:100%;resize:vertical;">${autoDesc}</textarea>
-        </div>
-      </div>
-    </div>`;
-  }).join('');
-
-  const panel = document.getElementById('pubtnReviewPanel');
-  panel.classList.add('open');
-  panel.style.display = 'flex';
-}
-
-function pubtnCloseReview() {
-  const panel = document.getElementById('pubtnReviewPanel');
-  panel.classList.remove('open');
-  panel.style.display = 'none';
-}
-
-async function pubtnPublishFromReview() {
-  if (!tnToken || !tnStoreId) { showToast('⚠️ Conectá Tienda Nube primero', 'error'); return; }
-
-  const cards = document.querySelectorAll('#pubtnReviewBody .pub-review-card');
-  const queue = [];
-  cards.forEach(card => {
-    const sku = card.dataset.sku;
-    const get = (field) => {
-      const el = card.querySelector(`[data-field="${field}"]`);
-      return el ? el.value.trim() : '';
-    };
-    queue.push({
-      sku,
-      title:       get('title'),
-      price:       get('price'),
-      stock:       get('stock') || '3',
-      brand:       get('brand'),
-      weight:      get('weight') || '0.4',
-      depth:       get('depth')  || '',
-      width:       get('width')  || '',
-      height:      get('height') || '',
-      categoryId:  get('categoryId'),
-      description: get('description')
-    });
-  });
-
-  pubtnCloseReview();
-  const skus = queue.map(q => q.sku);
-
-  document.getElementById('pubtnProgressSection').style.display = 'block';
-  document.getElementById('pubtnLog').innerHTML = '';
-  document.getElementById('pubtnBtnPublish').disabled = true;
-  document.getElementById('pubtnProgressBar').style.width = '0%';
-
-  let done = 0, errors = 0;
-  pubtnProgressUpdate(0, skus.length);
-
-  for (const item of queue) {
-    const { sku, title: itemTitle } = item;
-    const p = pubtnProductos.find(x => x.sku === sku);
-    if (!p) continue;
-
-    pubtnLogAdd(`⏳ <strong>${sku}</strong> — ${itemTitle.slice(0, 50)}…`);
-    const rowEl = document.getElementById(`pubtn-row-${CSS.escape(sku)}`);
-    if (rowEl) rowEl.style.opacity = '0.4';
-
-    try {
-      const res = await fetch('/api/publish-tn-item', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${tnToken}`,
-          'X-Store-Id': tnStoreId
-        },
-        body: JSON.stringify({
-          sku,
-          title:       item.title,
-          description: item.description,
-          price:       item.price,
-          stock:       item.stock,
-          brand:       item.brand,
-          weight:      item.weight,
-          depth:       item.depth,
-          width:       item.width,
-          height:      item.height,
-          categoryId:  item.categoryId,
-          fileId:      pubDriveMap[sku.toUpperCase()] || null
-        })
-      });
-      const rawText = await res.text();
-      let data;
-      try { data = JSON.parse(rawText); }
-      catch (_) { data = { ok: false, error: 'Server error: ' + rawText.slice(0, 120) }; }
-
-      if (data.ok) {
-        done++;
-        const tnUrl = `https://${tnStoreId ? 'umamishopba.mitiendanube.com' : ''}/admin/products/${data.productId}`;
-        pubtnLogAdd(`✅ <strong>${sku}</strong> → <a href="${tnUrl}" target="_blank" style="color:var(--accent)">producto ${data.productId}</a>${data.imageId ? ' 🖼️' : ''}${data.imageWarn ? ` ⚠️ ${data.imageWarn}` : ''}`);
-        if (rowEl) rowEl.classList.add('pub-done');
-        const idx = pubtnProductos.findIndex(x => x.sku === sku);
-        if (idx !== -1) pubtnProductos.splice(idx, 1);
-        // Sincronizar al cache local para que el resto del panel sepa que ya está en TN
-        tnBySku[sku] = {
-          product_id: data.productId,
-          variant_id: data.variantId,
-          sku,
-          precio_tn: parseFloat(item.price) || 0,
-          stock_tn:  parseInt(item.stock) || 0
-        };
-        const prod = products.find(x => x.sku === sku);
-        if (prod) {
-          prod.tn_product_id = data.productId;
-          prod.tn_variant_id = data.variantId;
-          prod.precio_tn     = parseFloat(item.price) || 0;
-          prod.stock_tn      = parseInt(item.stock) || 0;
-        }
-      } else {
-        errors++;
-        pubtnLogAdd(`❌ <strong>${sku}</strong> — ${data.error || 'error desconocido'}`);
-        if (rowEl) rowEl.style.opacity = '1';
-      }
-    } catch (e) {
-      errors++;
-      pubtnLogAdd(`❌ <strong>${sku}</strong> — ${e.message}`);
-      if (rowEl) rowEl.style.opacity = '1';
-    }
-
-    pubtnProgressUpdate(done + errors, skus.length);
-    await new Promise(r => setTimeout(r, 450)); // rate limit TN
-  }
-
-  pubtnLogAdd(`<strong>Resumen: ${done} publicado${done !== 1 ? 's' : ''}, ${errors} error${errors !== 1 ? 'es' : ''}</strong>`);
-  document.getElementById('pubtnBtnPublish').disabled = false;
-  pubtnRenderTable();
-}
-
-function pubtnProgressUpdate(current, total) {
-  const pct = total ? Math.round(current / total * 100) : 0;
-  document.getElementById('pubtnProgressBar').style.width = `${pct}%`;
-  document.getElementById('pubtnProgressText').textContent = `${current} / ${total}`;
-}
-
-function pubtnLogAdd(html) {
-  const log = document.getElementById('pubtnLog');
   const d = document.createElement('div');
   d.className = 'pub-log-entry';
   d.innerHTML = html;
