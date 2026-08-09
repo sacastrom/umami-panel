@@ -504,6 +504,14 @@
   /* Panel de revisión pre-publicación */
   #pubReviewPanel{display:none;position:fixed;inset:0;background:rgba(26,27,46,.5);z-index:350;backdrop-filter:blur(5px);align-items:flex-start;justify-content:center;padding:20px;}
   #pubReviewPanel.open{display:flex;}
+  /* Precio Asia por foto */
+  #priceOcrPanel{display:none;position:fixed;inset:0;background:rgba(26,27,46,.5);z-index:350;backdrop-filter:blur(5px);align-items:flex-start;justify-content:center;padding:20px;}
+  #priceOcrPanel.open{display:flex;}
+  .ocr-drop{display:block;border:2px dashed var(--border);border-radius:12px;padding:28px;text-align:center;color:var(--muted);cursor:pointer;font-size:12px;}
+  .ocr-drop:hover{border-color:var(--accent);color:var(--accent);}
+  .ocr-thumbs{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
+  .ocr-thumb{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border);}
+  .ocr-row-nomatch td{opacity:.55;}
   .pub-review-drawer{background:var(--surface);border:1px solid var(--border);border-radius:18px;width:100%;max-width:720px;max-height:calc(100vh - 40px);display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-md);}
   .pub-review-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0;}
   .pub-review-body{overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:14px;}
@@ -548,6 +556,9 @@
       <button class="btn-sinstock" onclick="openTNHuerfanos()" id="btnTNHuerfanos" style="border-color:rgba(108,99,255,.4);color:var(--accent);background:var(--accent-light);display:none;">
         🛍️ Sin match TN
         <span class="ss-count" id="tnHuerfanosCount" style="background:var(--accent);"></span>
+      </button>
+      <button class="btn-sinstock" onclick="openPriceOcr()" id="btnPriceOcr" style="border-color:rgba(22,163,74,.4);color:var(--green);background:var(--green-light);">
+        📷 Precio Asia
       </button>
       <div class="user-badge" style="gap:6px;">
         <div class="user-dot" id="tnDot" style="background:var(--muted2);"></div>
@@ -1232,6 +1243,70 @@
     <div class="pub-review-footer">
       <button class="pub-btn" onclick="pubCloseReview()">Cancelar</button>
       <button class="pub-btn-primary" onclick="pubPublishFromReview()">🚀 Publicar todos</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── PRECIO ASIA POR FOTO ── -->
+<div id="priceOcrPanel">
+  <div class="pub-review-drawer" style="max-width:820px;">
+    <div class="pub-review-header">
+      <div>
+        <div style="font-family:var(--font-head);font-weight:700;font-size:15px;">📷 Actualizar Precio Asia por foto</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Subí una o más fotos con código de barras + precio. Se lee con OCR en el navegador — revisá cada fila antes de aplicar.</div>
+      </div>
+      <button class="cfg-close" onclick="closePriceOcr()">✕</button>
+    </div>
+    <div class="pub-review-body">
+
+      <!-- Paso 1: subir fotos -->
+      <div id="ocrStepUpload">
+        <label class="ocr-drop" for="ocrFileInput">
+          📁 Hacé click para elegir fotos (o sacá una con la cámara)<br>
+          <span style="font-size:10px;">Podés seleccionar varias a la vez</span>
+        </label>
+        <input type="file" id="ocrFileInput" accept="image/*" capture="environment" multiple style="display:none;" onchange="priceOcrOnFiles(this.files)">
+        <div class="ocr-thumbs" id="ocrThumbs"></div>
+        <div style="margin-top:14px;display:flex;justify-content:flex-end;">
+          <button class="pub-btn-primary" id="ocrBtnProcess" onclick="priceOcrProcessAll()" disabled>🔎 Procesar fotos</button>
+        </div>
+      </div>
+
+      <!-- Paso 2: progreso -->
+      <div id="ocrStepProgress" style="display:none;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+          <span style="font-size:12px;font-weight:600;color:var(--text);" id="ocrProgressLabel">Leyendo fotos…</span>
+          <span id="ocrProgressText" style="font-size:12px;color:var(--muted);">0 / 0</span>
+        </div>
+        <div class="pub-progress-bar-wrap">
+          <div id="ocrProgressBar" class="pub-progress-bar"></div>
+        </div>
+      </div>
+
+      <!-- Paso 3: revisión -->
+      <div id="ocrStepReview" style="display:none;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Corregí lo que haga falta y desmarcá lo que no quieras actualizar.</div>
+        <div style="overflow-x:auto;">
+          <table class="pub-tbl">
+            <thead>
+              <tr>
+                <th style="width:32px;"><input type="checkbox" id="ocrChkAll" onchange="priceOcrSelectAll(this.checked)"></th>
+                <th>Código detectado</th>
+                <th>Precio detectado</th>
+                <th>Producto</th>
+                <th>Precio Asia actual</th>
+              </tr>
+            </thead>
+            <tbody id="ocrReviewTbody"></tbody>
+          </table>
+        </div>
+        <div id="ocrApplyLog" class="pub-log" style="display:none;"></div>
+      </div>
+
+    </div>
+    <div class="pub-review-footer">
+      <button class="pub-btn" onclick="closePriceOcr()">Cerrar</button>
+      <button class="pub-btn-primary" id="ocrBtnApply" onclick="priceOcrApplyUpdates()" style="display:none;">💾 Actualizar seleccionados (<span id="ocrApplyCount">0</span>)</button>
     </div>
   </div>
 </div>
@@ -4798,6 +4873,242 @@ function pubLogAdd(html) {
   d.innerHTML = html;
   log.appendChild(d);
   log.scrollTop = log.scrollHeight;
+}
+
+// ── PRECIO ASIA POR FOTO ──────────────────────────────
+let priceOcrFiles = [];
+let priceOcrRows   = [];
+let priceOcrWorker = null;
+
+function openPriceOcr() {
+  priceOcrFiles = [];
+  priceOcrRows  = [];
+  document.getElementById('ocrFileInput').value = '';
+  document.getElementById('ocrThumbs').innerHTML = '';
+  document.getElementById('ocrBtnProcess').disabled = true;
+  document.getElementById('ocrStepUpload').style.display = 'block';
+  document.getElementById('ocrStepProgress').style.display = 'none';
+  document.getElementById('ocrStepReview').style.display = 'none';
+  document.getElementById('ocrApplyLog').style.display = 'none';
+  document.getElementById('ocrApplyLog').innerHTML = '';
+  document.getElementById('ocrBtnApply').style.display = 'none';
+  const panel = document.getElementById('priceOcrPanel');
+  panel.classList.add('open');
+  panel.style.display = 'flex';
+}
+
+function closePriceOcr() {
+  const panel = document.getElementById('priceOcrPanel');
+  panel.classList.remove('open');
+  panel.style.display = 'none';
+}
+
+function priceOcrOnFiles(fileList) {
+  priceOcrFiles = Array.from(fileList || []);
+  const thumbs = document.getElementById('ocrThumbs');
+  thumbs.innerHTML = priceOcrFiles.map(f => `<img class="ocr-thumb" src="${URL.createObjectURL(f)}" alt="">`).join('');
+  document.getElementById('ocrBtnProcess').disabled = priceOcrFiles.length === 0;
+}
+
+async function loadTesseract() {
+  if (window.Tesseract) return;
+  await new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('No se pudo cargar el motor de OCR'));
+    document.head.appendChild(s);
+  });
+}
+
+function priceOcrProgressUpdate(current, total, label) {
+  const pct = total ? Math.round(current / total * 100) : 0;
+  document.getElementById('ocrProgressBar').style.width = `${pct}%`;
+  document.getElementById('ocrProgressText').textContent = `${current} / ${total}`;
+  if (label) document.getElementById('ocrProgressLabel').textContent = label;
+}
+
+// Heurísticas de parseo — aisladas para poder probarlas desde la consola
+const OCR_BARCODE_RE = /\b\d{8,14}\b/;
+const OCR_PRICE_RE   = /\$\s?\d[\d.,]*/;
+
+function priceOcrParsePrice(str) {
+  let s = String(str).replace(/\$/g, '').replace(/\s+/g, '').trim();
+  const lastDot   = s.lastIndexOf('.');
+  const lastComma = s.lastIndexOf(',');
+  const lastSep   = Math.max(lastDot, lastComma);
+  if (lastSep === -1) return parseFloat(s) || 0;
+  const intPart = s.slice(0, lastSep).replace(/[.,]/g, '');
+  const decPart = s.slice(lastSep + 1).replace(/[^\d]/g, '');
+  if (decPart.length !== 2) return parseFloat((intPart + decPart)) || 0; // separador de miles, no decimal
+  return parseFloat(`${intPart}.${decPart}`) || 0;
+}
+
+// Empareja cada línea con código de barras (8-14 dígitos) con la línea de precio
+// más cercana por arriba que se solape horizontalmente (para no mezclar columnas
+// en layouts de grilla con varios productos por foto).
+function priceOcrExtractPairs(lines) {
+  const enriched = (lines || []).map(l => {
+    // Colapsar espacios entre dígitos: el OCR (o la propia etiqueta) a veces separa
+    // el código de barras en grupos, ej. "6 942032700494" → "6942032700494"
+    const joined     = l.text.replace(/(\d)\s+(?=\d)/g, '$1');
+    const bcMatch    = joined.match(OCR_BARCODE_RE);
+    const priceMatch = !/impuesto/i.test(l.text) ? l.text.match(OCR_PRICE_RE) : null;
+    return { bbox: l.bbox, barcode: bcMatch ? bcMatch[0] : null, priceRaw: priceMatch ? priceMatch[0] : null };
+  });
+  const barcodeLines = enriched.filter(l => l.barcode && l.bbox);
+  const priceLines   = enriched.filter(l => l.priceRaw && l.bbox);
+
+  const pairs = [];
+  barcodeLines.forEach(bl => {
+    let best = null, bestDist = Infinity;
+    priceLines.forEach(pl => {
+      const vertDist = bl.bbox.y0 - pl.bbox.y1; // positivo = precio arriba del código
+      // Sin tolerancia negativa: una línea que "se solapa" con el código casi
+      // seguro pertenece a otro bloque/columna — mejor no emparejar que emparejar mal.
+      if (vertDist < 0 || vertDist > 200) return;
+      const overlap = Math.min(bl.bbox.x1, pl.bbox.x1) - Math.max(bl.bbox.x0, pl.bbox.x0);
+      if (overlap <= 0) return;
+      if (vertDist < bestDist) { bestDist = vertDist; best = pl; }
+    });
+    if (best) pairs.push({ barcode: bl.barcode, price: priceOcrParsePrice(best.priceRaw) });
+  });
+  return pairs;
+}
+
+function priceOcrMatchProducts(pairs) {
+  const bySku = {};
+  pairs.forEach(p => { bySku[p.barcode] = p.price; }); // si se repite, se queda con el último
+  return Object.entries(bySku).map(([barcode, price]) => {
+    const product = products.find(x => x.sku === barcode) || null;
+    return { barcode, price, product, selected: !!product };
+  });
+}
+
+async function priceOcrProcessAll() {
+  if (!priceOcrFiles.length) return;
+  document.getElementById('ocrStepUpload').style.display = 'none';
+  document.getElementById('ocrStepProgress').style.display = 'block';
+  priceOcrProgressUpdate(0, priceOcrFiles.length, 'Cargando motor de OCR…');
+
+  try {
+    await loadTesseract();
+    priceOcrWorker = await Tesseract.createWorker('eng');
+  } catch (e) {
+    showToast('❌ ' + e.message, 'error');
+    document.getElementById('ocrStepUpload').style.display = 'block';
+    document.getElementById('ocrStepProgress').style.display = 'none';
+    return;
+  }
+
+  let allPairs = [];
+  for (let i = 0; i < priceOcrFiles.length; i++) {
+    priceOcrProgressUpdate(i, priceOcrFiles.length, `Leyendo imagen ${i + 1}/${priceOcrFiles.length}…`);
+    try {
+      const { data } = await priceOcrWorker.recognize(priceOcrFiles[i]);
+      const lines = (data.lines || []).map(l => ({ text: l.text, bbox: l.bbox }));
+      allPairs = allPairs.concat(priceOcrExtractPairs(lines));
+    } catch (e) {
+      console.warn('OCR error en imagen', i, e.message);
+    }
+  }
+  try { await priceOcrWorker.terminate(); } catch(_) {}
+  priceOcrProgressUpdate(priceOcrFiles.length, priceOcrFiles.length, 'Listo');
+
+  const rows = priceOcrMatchProducts(allPairs);
+  priceOcrRenderReview(rows);
+
+  document.getElementById('ocrStepProgress').style.display = 'none';
+  document.getElementById('ocrStepReview').style.display = 'block';
+  document.getElementById('ocrBtnApply').style.display = 'inline-block';
+}
+
+function priceOcrRenderReview(rows) {
+  priceOcrRows = rows;
+  const tbody = document.getElementById('ocrReviewTbody');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted2);">No se detectó ningún código con precio en las fotos subidas</td></tr>`;
+    priceOcrUpdateApplyCount();
+    return;
+  }
+  tbody.innerHTML = rows.map((r, idx) => {
+    const noMatch = !r.product;
+    return `<tr class="${noMatch ? 'ocr-row-nomatch' : ''}">
+      <td><input type="checkbox" class="ocr-chk" data-idx="${idx}" ${r.selected ? 'checked' : ''} onchange="priceOcrUpdateApplyCount()"></td>
+      <td><input type="text" class="pub-search" value="${r.barcode}" style="width:130px;" oninput="priceOcrRows[${idx}].barcode=this.value.trim()" onblur="priceOcrRecheckRow(${idx})"></td>
+      <td><input type="number" class="pub-search" value="${r.price}" style="width:100px;" oninput="priceOcrRows[${idx}].price=parseFloat(this.value)||0"></td>
+      <td>${r.product ? `<span class="sku-code">${r.product.sku}</span> ${(r.product.name || '').slice(0, 40)}` : '<span style="color:var(--orange);">⚠️ sin coincidencia</span>'}</td>
+      <td>${r.product ? fmt(r.product.precio_asia || 0) : '—'}</td>
+    </tr>`;
+  }).join('');
+  priceOcrUpdateApplyCount();
+}
+
+function priceOcrRecheckRow(idx) {
+  const r = priceOcrRows[idx];
+  if (!r) return;
+  r.product = products.find(x => x.sku === r.barcode) || null;
+  if (r.product) r.selected = true;
+  priceOcrRenderReview(priceOcrRows);
+}
+
+function priceOcrSelectAll(checked) {
+  document.querySelectorAll('.ocr-chk').forEach(cb => { cb.checked = checked; });
+  priceOcrUpdateApplyCount();
+}
+
+function priceOcrUpdateApplyCount() {
+  const n = document.querySelectorAll('.ocr-chk:checked').length;
+  document.getElementById('ocrApplyCount').textContent = n;
+}
+
+function priceOcrLogAdd(html) {
+  const log = document.getElementById('ocrApplyLog');
+  const d = document.createElement('div');
+  d.className = 'pub-log-entry';
+  d.innerHTML = html;
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function priceOcrApplyUpdates() {
+  const checks = Array.from(document.querySelectorAll('.ocr-chk:checked'));
+  if (!checks.length) { showToast('Seleccioná al menos un producto', 'error'); return; }
+  const idxs = checks.map(cb => parseInt(cb.dataset.idx));
+
+  const logEl = document.getElementById('ocrApplyLog');
+  logEl.style.display = 'block';
+  logEl.innerHTML = '';
+  document.getElementById('ocrBtnApply').disabled = true;
+
+  let done = 0, errors = 0;
+  for (const idx of idxs) {
+    const r = priceOcrRows[idx];
+    if (!r.product) { errors++; priceOcrLogAdd(`❌ <strong>${r.barcode}</strong> — sin producto para actualizar`); continue; }
+    if (!r.price || r.price <= 0) { errors++; priceOcrLogAdd(`❌ <strong>${r.barcode}</strong> — precio inválido`); continue; }
+    try {
+      await sheetUpdatePrecioAsia(r.product.mla, r.price);
+      const p = r.product;
+      p.precio_asia = r.price;
+      const desc = V.descuentos[p.descuento] ?? 0;
+      p.costo = r.price * (1 - desc);
+      p.precio_ml_calc = calcPrecioML(p.costo, p.margen, p.tipo);
+      const pr = p.precio_ml_real || p.precio_ml_calc;
+      p.gan_pesos = calcGanReal(pr, p.costo, p.tipo);
+      p.gan_pct   = calcGanPct(pr, p.costo, p.tipo);
+      p.semaforo  = p.gan_pct >= 30 ? '🟢' : p.gan_pct >= 15 ? '🟡' : '🔴';
+      p.mayoristas = calcMayoristas(p.precio_ml_calc);
+      done++;
+      priceOcrLogAdd(`✅ <strong>${p.sku}</strong> — Precio Asia: ${fmt(r.price)}`);
+    } catch (e) {
+      errors++;
+      priceOcrLogAdd(`❌ <strong>${r.barcode}</strong> — ${e.message}`);
+    }
+    await new Promise(res => setTimeout(res, 200));
+  }
+  doFilter();
+  priceOcrLogAdd(`<strong>Resumen: ${done} actualizado${done !== 1 ? 's' : ''}, ${errors} error${errors !== 1 ? 'es' : ''}</strong>`);
+  document.getElementById('ocrBtnApply').disabled = false;
 }
 
 // ── VENTAS / GANANCIAS ────────────────────────────────
