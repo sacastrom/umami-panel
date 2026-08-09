@@ -1285,7 +1285,10 @@
 
       <!-- Paso 3: revisión -->
       <div id="ocrStepReview" style="display:none;">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Corregí lo que haga falta y desmarcá lo que no quieras actualizar.</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div style="font-size:11px;color:var(--muted);">Corregí lo que haga falta y desmarcá lo que no quieras actualizar.</div>
+          <button class="pub-btn" onclick="priceOcrAddManualRow()">+ Agregar fila</button>
+        </div>
         <div style="overflow-x:auto;">
           <table class="pub-tbl">
             <thead>
@@ -4970,17 +4973,29 @@ function priceOcrCanvasToImage(canvas) {
 // fotos "acostadas" con un flag de rotación, y pasarle el archivo crudo a
 // Tesseract ignora ese flag y lee el texto de costado, dando basura). De paso
 // achica fotos gigantes de celular (varios MP) a un tamaño manejable.
+// Devuelve DOS canvas: uno a resolución completa (para el decodificador de
+// código de barras, que necesita el máximo detalle posible ya que el código
+// suele ocupar una fracción chica de la foto) y otro achicado (para Tesseract,
+// que es mucho más lento/pesado en imágenes de varios MP y no gana precisión
+// con resolución de más). Achicar ANTES de recortar la zona del código le
+// hacía perder demasiado detalle al código de barras — por eso van separados.
 async function priceOcrPrepareCanvas(file, maxDim = 2000) {
   const { img, url } = await priceOcrLoadImage(file);
   try {
     const w = img.naturalWidth || img.width;
     const h = img.naturalHeight || img.height;
+
+    const fullCanvas = document.createElement('canvas');
+    fullCanvas.width = w; fullCanvas.height = h;
+    fullCanvas.getContext('2d').drawImage(img, 0, 0);
+
     const scale = Math.min(1, maxDim / Math.max(w, h));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.round(w * scale);
-    canvas.height = Math.round(h * scale);
-    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-    return canvas;
+    const ocrCanvas = document.createElement('canvas');
+    ocrCanvas.width = Math.round(w * scale);
+    ocrCanvas.height = Math.round(h * scale);
+    ocrCanvas.getContext('2d').drawImage(img, 0, 0, ocrCanvas.width, ocrCanvas.height);
+
+    return { fullCanvas, ocrCanvas };
   } finally {
     URL.revokeObjectURL(url);
   }
@@ -5151,16 +5166,17 @@ async function priceOcrProcessAll() {
   for (let i = 0; i < priceOcrFiles.length; i++) {
     priceOcrProgressUpdate(i, priceOcrFiles.length, `Leyendo imagen ${i + 1}/${priceOcrFiles.length}…`);
     try {
-      const canvas = await priceOcrPrepareCanvas(priceOcrFiles[i]);
-      const { data } = await priceOcrWorker.recognize(canvas);
+      const { fullCanvas, ocrCanvas } = await priceOcrPrepareCanvas(priceOcrFiles[i]);
+      const { data } = await priceOcrWorker.recognize(ocrCanvas);
       const lines = (data.lines || []).map(l => ({ text: l.text, bbox: l.bbox }));
       rawTexts.push(data.text || '');
       let imgPairs = priceOcrExtractPairs(lines);
 
       // El decodificador de barras es mucho más confiable que leer los dígitos
       // impresos vía OCR — si encuentra un único código, lo usamos en vez del
-      // (o además del) leído por texto.
-      const decoded = await priceOcrDecodeBarcodeFromCanvas(canvas);
+      // (o además del) leído por texto. Se le pasa la imagen a resolución
+      // completa (no la achicada de OCR) para no perder detalle del código.
+      const decoded = await priceOcrDecodeBarcodeFromCanvas(fullCanvas);
       if (decoded) {
         if (imgPairs.length === 0) {
           // Aunque el OCR no haya encontrado ningún precio, no descartamos el
@@ -5196,7 +5212,7 @@ function priceOcrRenderReview(rows) {
   priceOcrRows = rows;
   const tbody = document.getElementById('ocrReviewTbody');
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted2);">No se detectó ningún código con precio en las fotos subidas</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted2);">No se detectó ningún código con precio en las fotos subidas — usá "+ Agregar fila" para cargarlo a mano</td></tr>`;
     priceOcrUpdateApplyCount();
     return;
   }
@@ -5211,6 +5227,16 @@ function priceOcrRenderReview(rows) {
     </tr>`;
   }).join('');
   priceOcrUpdateApplyCount();
+}
+
+// Red de seguridad: si la detección automática no encontró nada (o falta un
+// producto puntual), el usuario puede cargar código+precio a mano sin salir
+// del panel ni tener que ir directo a la Sheet.
+function priceOcrAddManualRow() {
+  document.getElementById('ocrStepReview').style.display = 'block';
+  document.getElementById('ocrBtnApply').style.display = 'inline-block';
+  priceOcrRows.push({ barcode: '', price: 0, product: null, selected: false });
+  priceOcrRenderReview(priceOcrRows);
 }
 
 function priceOcrRenderDebug(rawTexts, imgErrors, foundNothing) {
