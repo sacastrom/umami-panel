@@ -4965,16 +4965,33 @@ function priceOcrCanvasToImage(canvas) {
   });
 }
 
+// Convierte el archivo a un canvas UNA sola vez, pasando por <img> (así el
+// navegador aplica la rotación EXIF de la foto — los celulares guardan las
+// fotos "acostadas" con un flag de rotación, y pasarle el archivo crudo a
+// Tesseract ignora ese flag y lee el texto de costado, dando basura). De paso
+// achica fotos gigantes de celular (varios MP) a un tamaño manejable.
+async function priceOcrPrepareCanvas(file, maxDim = 2000) {
+  const { img, url } = await priceOcrLoadImage(file);
+  try {
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    const scale = Math.min(1, maxDim / Math.max(w, h));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 // Recorta a la zona amarilla de la etiqueta (todas las fotos de góndola del
 // usuario usan ese fondo) — decodificar sobre una foto completa de varios MP
 // suele fallar porque el código ocupa una fracción chica del cuadro; recortado
 // ocupa casi toda la imagen y decodifica mucho mejor.
-function priceOcrFindYellowCrop(img) {
-  const canvas = document.createElement('canvas');
-  canvas.width = img.naturalWidth || img.width;
-  canvas.height = img.naturalHeight || img.height;
+function priceOcrFindYellowCrop(canvas) {
   const ctx = canvas.getContext('2d');
-  ctx.drawImage(img, 0, 0);
   const { width, height } = canvas;
   const step = 4;
   const data = ctx.getImageData(0, 0, width, height).data;
@@ -5000,17 +5017,16 @@ function priceOcrFindYellowCrop(img) {
   return out;
 }
 
-async function priceOcrDecodeBarcode(file) {
-  let loaded = null;
+async function priceOcrDecodeBarcodeFromCanvas(canvas) {
+  const reader = new ZXing.BrowserMultiFormatReader();
   try {
-    loaded = await priceOcrLoadImage(file);
-    const reader = new ZXing.BrowserMultiFormatReader();
+    const img = await priceOcrCanvasToImage(canvas);
     try {
-      const result = await reader.decodeFromImageElement(loaded.img);
+      const result = await reader.decodeFromImageElement(img);
       if (result) return result.getText();
     } catch (_) {} // normal: no se encontró código legible en la foto completa
 
-    const crop = priceOcrFindYellowCrop(loaded.img);
+    const crop = priceOcrFindYellowCrop(canvas);
     if (crop) {
       try {
         const cropImg = await priceOcrCanvasToImage(crop);
@@ -5021,8 +5037,6 @@ async function priceOcrDecodeBarcode(file) {
     return null;
   } catch (_) {
     return null;
-  } finally {
-    if (loaded) URL.revokeObjectURL(loaded.url);
   }
 }
 
@@ -5137,7 +5151,8 @@ async function priceOcrProcessAll() {
   for (let i = 0; i < priceOcrFiles.length; i++) {
     priceOcrProgressUpdate(i, priceOcrFiles.length, `Leyendo imagen ${i + 1}/${priceOcrFiles.length}…`);
     try {
-      const { data } = await priceOcrWorker.recognize(priceOcrFiles[i]);
+      const canvas = await priceOcrPrepareCanvas(priceOcrFiles[i]);
+      const { data } = await priceOcrWorker.recognize(canvas);
       const lines = (data.lines || []).map(l => ({ text: l.text, bbox: l.bbox }));
       rawTexts.push(data.text || '');
       let imgPairs = priceOcrExtractPairs(lines);
@@ -5145,11 +5160,14 @@ async function priceOcrProcessAll() {
       // El decodificador de barras es mucho más confiable que leer los dígitos
       // impresos vía OCR — si encuentra un único código, lo usamos en vez del
       // (o además del) leído por texto.
-      const decoded = await priceOcrDecodeBarcode(priceOcrFiles[i]);
+      const decoded = await priceOcrDecodeBarcodeFromCanvas(canvas);
       if (decoded) {
         if (imgPairs.length === 0) {
+          // Aunque el OCR no haya encontrado ningún precio, no descartamos el
+          // código ya decodificado — se muestra igual con precio 0 para que
+          // el usuario lo complete a mano en la revisión.
           const priceGuess = priceOcrFindBestPrice(lines);
-          if (priceGuess != null) imgPairs = [{ barcode: decoded, price: priceGuess }];
+          imgPairs = [{ barcode: decoded, price: priceGuess != null ? priceGuess : 0 }];
         } else if (imgPairs.length === 1) {
           imgPairs[0].barcode = decoded;
         }
