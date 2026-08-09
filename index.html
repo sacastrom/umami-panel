@@ -1300,6 +1300,7 @@
             <tbody id="ocrReviewTbody"></tbody>
           </table>
         </div>
+        <div id="ocrDebugBox" style="display:none;margin-top:10px;"></div>
         <div id="ocrApplyLog" class="pub-log" style="display:none;"></div>
       </div>
 
@@ -4891,6 +4892,8 @@ function openPriceOcr() {
   document.getElementById('ocrStepReview').style.display = 'none';
   document.getElementById('ocrApplyLog').style.display = 'none';
   document.getElementById('ocrApplyLog').innerHTML = '';
+  document.getElementById('ocrDebugBox').style.display = 'none';
+  document.getElementById('ocrDebugBox').innerHTML = '';
   document.getElementById('ocrBtnApply').style.display = 'none';
   const panel = document.getElementById('priceOcrPanel');
   panel.classList.add('open');
@@ -4947,14 +4950,24 @@ function priceOcrParsePrice(str) {
 // Empareja cada línea con código de barras (8-14 dígitos) con la línea de precio
 // más cercana por arriba que se solape horizontalmente (para no mezclar columnas
 // en layouts de grilla con varios productos por foto).
+// Busca el código de barras probando primero el texto tal cual (así corta bien
+// cuando el código comparte línea con la fecha, ej. "6902902007122 08/06/2026" —
+// unir dígitos a ciegas ahí fusionaría código+fecha en un solo bloque inválido).
+// Solo si eso falla, intenta unir espacios sueltos entre dígitos (caso raro:
+// el propio OCR separa el código en grupos, ej. "6 942032700494").
+function priceOcrFindBarcode(text) {
+  const direct = text.match(OCR_BARCODE_RE);
+  if (direct) return direct[0];
+  const joined = text.replace(/(\d)\s+(?=\d)/g, '$1');
+  const fallback = joined.match(OCR_BARCODE_RE);
+  return fallback ? fallback[0] : null;
+}
+
 function priceOcrExtractPairs(lines) {
   const enriched = (lines || []).map(l => {
-    // Colapsar espacios entre dígitos: el OCR (o la propia etiqueta) a veces separa
-    // el código de barras en grupos, ej. "6 942032700494" → "6942032700494"
-    const joined     = l.text.replace(/(\d)\s+(?=\d)/g, '$1');
-    const bcMatch    = joined.match(OCR_BARCODE_RE);
-    const priceMatch = !/impuesto/i.test(l.text) ? l.text.match(OCR_PRICE_RE) : null;
-    return { bbox: l.bbox, barcode: bcMatch ? bcMatch[0] : null, priceRaw: priceMatch ? priceMatch[0] : null };
+    const barcode     = priceOcrFindBarcode(l.text);
+    const priceMatch  = !/impuesto/i.test(l.text) ? l.text.match(OCR_PRICE_RE) : null;
+    return { bbox: l.bbox, barcode, priceRaw: priceMatch ? priceMatch[0] : null };
   });
   const barcodeLines = enriched.filter(l => l.barcode && l.bbox);
   const priceLines   = enriched.filter(l => l.priceRaw && l.bbox);
@@ -5002,13 +5015,17 @@ async function priceOcrProcessAll() {
   }
 
   let allPairs = [];
+  const rawTexts = [];
+  const imgErrors = [];
   for (let i = 0; i < priceOcrFiles.length; i++) {
     priceOcrProgressUpdate(i, priceOcrFiles.length, `Leyendo imagen ${i + 1}/${priceOcrFiles.length}…`);
     try {
       const { data } = await priceOcrWorker.recognize(priceOcrFiles[i]);
       const lines = (data.lines || []).map(l => ({ text: l.text, bbox: l.bbox }));
+      rawTexts.push(data.text || '');
       allPairs = allPairs.concat(priceOcrExtractPairs(lines));
     } catch (e) {
+      imgErrors.push(`Imagen ${i + 1}: ${e.message}`);
       console.warn('OCR error en imagen', i, e.message);
     }
   }
@@ -5017,6 +5034,7 @@ async function priceOcrProcessAll() {
 
   const rows = priceOcrMatchProducts(allPairs);
   priceOcrRenderReview(rows);
+  priceOcrRenderDebug(rawTexts, imgErrors, rows.length === 0);
 
   document.getElementById('ocrStepProgress').style.display = 'none';
   document.getElementById('ocrStepReview').style.display = 'block';
@@ -5042,6 +5060,26 @@ function priceOcrRenderReview(rows) {
     </tr>`;
   }).join('');
   priceOcrUpdateApplyCount();
+}
+
+function priceOcrRenderDebug(rawTexts, imgErrors, foundNothing) {
+  const box = document.getElementById('ocrDebugBox');
+  if (!box) return;
+  const parts = [];
+  if (imgErrors && imgErrors.length) {
+    parts.push(`<div style="color:var(--red);font-size:11px;margin-bottom:6px;">${imgErrors.map(e => `⚠️ ${e}`).join('<br>')}</div>`);
+  }
+  if (rawTexts && rawTexts.length) {
+    const label = foundNothing
+      ? '🔍 No se detectó nada — ver texto leído por el OCR (para diagnosticar)'
+      : '🔍 Ver texto leído por el OCR (por si falta alguna foto)';
+    parts.push(`<details style="font-size:11px;color:var(--muted);">
+      <summary style="cursor:pointer;">${label}</summary>
+      <pre style="white-space:pre-wrap;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:6px;max-height:200px;overflow-y:auto;">${rawTexts.map((t, i) => `── Imagen ${i + 1} ──\n${t}`).join('\n')}</pre>
+    </details>`);
+  }
+  box.innerHTML = parts.join('');
+  box.style.display = parts.length ? 'block' : 'none';
 }
 
 function priceOcrRecheckRow(idx) {
