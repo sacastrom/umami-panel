@@ -4931,9 +4931,126 @@ function priceOcrProgressUpdate(current, total, label) {
   if (label) document.getElementById('ocrProgressLabel').textContent = label;
 }
 
+async function loadZXing() {
+  if (window.ZXing) return;
+  await new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('No se pudo cargar el decodificador de código de barras'));
+    document.head.appendChild(s);
+  });
+}
+
+// Decodifica el código de barras real (las rayas), no los dígitos impresos.
+// Mucho más confiable que OCR de texto para esta parte específica: leer los
+// números chiquitos pegados a las barras es un caso débil para OCR genérico
+// (confirmado con fotos reales — el OCR inventa/pierde dígitos ahí).
+function priceOcrLoadImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => resolve({ img, url });
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo leer la imagen')); };
+    img.src = url;
+  });
+}
+
+function priceOcrCanvasToImage(canvas) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = canvas.toDataURL('image/png');
+  });
+}
+
+// Recorta a la zona amarilla de la etiqueta (todas las fotos de góndola del
+// usuario usan ese fondo) — decodificar sobre una foto completa de varios MP
+// suele fallar porque el código ocupa una fracción chica del cuadro; recortado
+// ocupa casi toda la imagen y decodifica mucho mejor.
+function priceOcrFindYellowCrop(img) {
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth || img.width;
+  canvas.height = img.naturalHeight || img.height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  const { width, height } = canvas;
+  const step = 4;
+  const data = ctx.getImageData(0, 0, width, height).data;
+  let minX = width, minY = height, maxX = 0, maxY = 0, found = false;
+  for (let y = 0; y < height; y += step) {
+    for (let x = 0; x < width; x += step) {
+      const i = (y * width + x) * 4;
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      if (r > 180 && g > 160 && b < 140 && (r - b) > 60 && (g - b) > 40) {
+        found = true;
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (!found || (maxX - minX) < 60 || (maxY - minY) < 30) return null;
+  const pad = 20;
+  const cx0 = Math.max(0, minX - pad), cy0 = Math.max(0, minY - pad);
+  const cx1 = Math.min(width, maxX + pad), cy1 = Math.min(height, maxY + pad);
+  const out = document.createElement('canvas');
+  out.width = cx1 - cx0; out.height = cy1 - cy0;
+  out.getContext('2d').drawImage(canvas, cx0, cy0, cx1 - cx0, cy1 - cy0, 0, 0, cx1 - cx0, cy1 - cy0);
+  return out;
+}
+
+async function priceOcrDecodeBarcode(file) {
+  let loaded = null;
+  try {
+    loaded = await priceOcrLoadImage(file);
+    const reader = new ZXing.BrowserMultiFormatReader();
+    try {
+      const result = await reader.decodeFromImageElement(loaded.img);
+      if (result) return result.getText();
+    } catch (_) {} // normal: no se encontró código legible en la foto completa
+
+    const crop = priceOcrFindYellowCrop(loaded.img);
+    if (crop) {
+      try {
+        const cropImg = await priceOcrCanvasToImage(crop);
+        const result2 = await reader.decodeFromImageElement(cropImg);
+        if (result2) return result2.getText();
+      } catch (_) {} // tampoco se encontró en el recorte — foto de grilla u otra variante
+    }
+    return null;
+  } catch (_) {
+    return null;
+  } finally {
+    if (loaded) URL.revokeObjectURL(loaded.url);
+  }
+}
+
 // Heurísticas de parseo — aisladas para poder probarlas desde la consola
-const OCR_BARCODE_RE = /\b\d{8,14}\b/;
-const OCR_PRICE_RE   = /\$\s?\d[\d.,]*/;
+const OCR_BARCODE_RE     = /\b\d{8,14}\b/;
+const OCR_PRICE_RE       = /\$\s?\d[\d.,]*/;
+const OCR_PRICE_LOOSE_RE = /\b\d{3,6}[.,]\d{2}\b/; // respaldo cuando el OCR se come el "$"
+
+function priceOcrFindPrice(text) {
+  const m = text.match(OCR_PRICE_RE);
+  if (m) return m[0];
+  const m2 = text.match(OCR_PRICE_LOOSE_RE);
+  return m2 ? m2[0] : null;
+}
+
+// Busca el precio más plausible en todo el texto de la imagen (sin requerir
+// que esté emparejado por posición con un código) — se usa cuando el código
+// de barras vino de ZXing y no del heurístico de líneas.
+function priceOcrFindBestPrice(lines) {
+  const candidates = [];
+  (lines || []).forEach(l => {
+    if (/impuesto/i.test(l.text)) return;
+    const raw = priceOcrFindPrice(l.text);
+    if (raw) candidates.push(priceOcrParsePrice(raw));
+  });
+  const valid = candidates.filter(v => v > 0);
+  return valid.length ? Math.max(...valid) : null;
+}
 
 function priceOcrParsePrice(str) {
   let s = String(str).replace(/\$/g, '').replace(/\s+/g, '').trim();
@@ -4965,9 +5082,9 @@ function priceOcrFindBarcode(text) {
 
 function priceOcrExtractPairs(lines) {
   const enriched = (lines || []).map(l => {
-    const barcode     = priceOcrFindBarcode(l.text);
-    const priceMatch  = !/impuesto/i.test(l.text) ? l.text.match(OCR_PRICE_RE) : null;
-    return { bbox: l.bbox, barcode, priceRaw: priceMatch ? priceMatch[0] : null };
+    const barcode  = priceOcrFindBarcode(l.text);
+    const priceRaw = !/impuesto/i.test(l.text) ? priceOcrFindPrice(l.text) : null;
+    return { bbox: l.bbox, barcode, priceRaw };
   });
   const barcodeLines = enriched.filter(l => l.barcode && l.bbox);
   const priceLines   = enriched.filter(l => l.priceRaw && l.bbox);
@@ -5005,7 +5122,7 @@ async function priceOcrProcessAll() {
   priceOcrProgressUpdate(0, priceOcrFiles.length, 'Cargando motor de OCR…');
 
   try {
-    await loadTesseract();
+    await Promise.all([loadTesseract(), loadZXing()]);
     priceOcrWorker = await Tesseract.createWorker('eng');
   } catch (e) {
     showToast('❌ ' + e.message, 'error');
@@ -5023,7 +5140,23 @@ async function priceOcrProcessAll() {
       const { data } = await priceOcrWorker.recognize(priceOcrFiles[i]);
       const lines = (data.lines || []).map(l => ({ text: l.text, bbox: l.bbox }));
       rawTexts.push(data.text || '');
-      allPairs = allPairs.concat(priceOcrExtractPairs(lines));
+      let imgPairs = priceOcrExtractPairs(lines);
+
+      // El decodificador de barras es mucho más confiable que leer los dígitos
+      // impresos vía OCR — si encuentra un único código, lo usamos en vez del
+      // (o además del) leído por texto.
+      const decoded = await priceOcrDecodeBarcode(priceOcrFiles[i]);
+      if (decoded) {
+        if (imgPairs.length === 0) {
+          const priceGuess = priceOcrFindBestPrice(lines);
+          if (priceGuess != null) imgPairs = [{ barcode: decoded, price: priceGuess }];
+        } else if (imgPairs.length === 1) {
+          imgPairs[0].barcode = decoded;
+        }
+        // si hay más de un par (foto de grilla), no se toca — ZXing decodifica un solo código por imagen
+      }
+
+      allPairs = allPairs.concat(imgPairs);
     } catch (e) {
       imgErrors.push(`Imagen ${i + 1}: ${e.message}`);
       console.warn('OCR error en imagen', i, e.message);
