@@ -5120,6 +5120,15 @@ function priceOcrExtractPairs(lines) {
 
   const pairs = [];
   barcodeLines.forEach(bl => {
+    // Caso factura/ticket: "1 X 9500.00 (21.00) /4710616620337" — código y
+    // precio unitario en la MISMA línea. Máxima prioridad si aparece: es la
+    // lectura más confiable posible, sin depender de la posición de otras líneas.
+    if (bl.priceRaw) {
+      pairs.push({ barcode: bl.barcode, price: priceOcrParsePrice(bl.priceRaw) });
+      return;
+    }
+    // Caso etiqueta de góndola: el precio está en una línea aparte, arriba
+    // del código, dentro del mismo bloque/columna.
     let best = null, bestDist = Infinity;
     priceLines.forEach(pl => {
       const vertDist = bl.bbox.y0 - pl.bbox.y1; // positivo = precio arriba del código
