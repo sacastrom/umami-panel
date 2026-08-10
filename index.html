@@ -1253,7 +1253,7 @@
     <div class="pub-review-header">
       <div>
         <div style="font-family:var(--font-head);font-weight:700;font-size:15px;">📷 Actualizar Precio Asia por foto</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Subí una o más fotos con código de barras + precio. Se lee con OCR en el navegador — revisá cada fila antes de aplicar.</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Subí fotos de góndola o un PDF escaneado de una factura. Se lee con OCR en el navegador — revisá cada fila antes de aplicar.</div>
       </div>
       <button class="cfg-close" onclick="closePriceOcr()">✕</button>
     </div>
@@ -1262,10 +1262,10 @@
       <!-- Paso 1: subir fotos -->
       <div id="ocrStepUpload">
         <label class="ocr-drop" for="ocrFileInput">
-          📁 Hacé click para elegir fotos (o sacá una con la cámara)<br>
-          <span style="font-size:10px;">Podés seleccionar varias a la vez</span>
+          📁 Hacé click para elegir fotos o un PDF escaneado (o sacá una foto con la cámara)<br>
+          <span style="font-size:10px;">Podés seleccionar varias a la vez — incluye facturas en PDF con varias páginas</span>
         </label>
-        <input type="file" id="ocrFileInput" accept="image/*" capture="environment" multiple style="display:none;" onchange="priceOcrOnFiles(this.files)">
+        <input type="file" id="ocrFileInput" accept="image/*,application/pdf" capture="environment" multiple style="display:none;" onchange="priceOcrOnFiles(this.files)">
         <div class="ocr-thumbs" id="ocrThumbs"></div>
         <div style="margin-top:14px;display:flex;justify-content:flex-end;">
           <button class="pub-btn-primary" id="ocrBtnProcess" onclick="priceOcrProcessAll()" disabled>🔎 Procesar fotos</button>
@@ -4912,7 +4912,12 @@ function closePriceOcr() {
 function priceOcrOnFiles(fileList) {
   priceOcrFiles = Array.from(fileList || []);
   const thumbs = document.getElementById('ocrThumbs');
-  thumbs.innerHTML = priceOcrFiles.map(f => `<img class="ocr-thumb" src="${URL.createObjectURL(f)}" alt="">`).join('');
+  thumbs.innerHTML = priceOcrFiles.map(f => {
+    if (priceOcrIsPdf(f)) {
+      return `<div class="ocr-thumb" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:9px;color:var(--muted);background:var(--surface2);text-align:center;padding:2px;">📄<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:56px;">${f.name}</span></div>`;
+    }
+    return `<img class="ocr-thumb" src="${URL.createObjectURL(f)}" alt="">`;
+  }).join('');
   document.getElementById('ocrBtnProcess').disabled = priceOcrFiles.length === 0;
 }
 
@@ -4943,6 +4948,42 @@ async function loadZXing() {
     s.onerror = () => reject(new Error('No se pudo cargar el decodificador de código de barras'));
     document.head.appendChild(s);
   });
+}
+
+async function loadPdfJs() {
+  if (window.pdfjsLib) return;
+  // Las versiones modernas de pdfjs-dist solo distribuyen módulos ES (.mjs),
+  // no un script clásico — se carga con import() dinámico en vez de <script src>.
+  try {
+    window.pdfjsLib = await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs');
+  } catch (_) {
+    throw new Error('No se pudo cargar el lector de PDF');
+  }
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
+}
+
+function priceOcrIsPdf(file) {
+  return file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
+}
+
+// Convierte una factura escaneada en PDF en un canvas por página, para
+// pasarla por el mismo pipeline de OCR que las fotos (un PDF escaneado no
+// tiene texto seleccionable, así que igual hace falta leerlo como imagen).
+async function priceOcrPdfToCanvases(file, scale = 2.5) {
+  await loadPdfJs();
+  const buf = await file.arrayBuffer();
+  const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+  const canvases = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    canvases.push(canvas);
+  }
+  return canvases;
 }
 
 // Decodifica el código de barras real (las rayas), no los dígitos impresos.
@@ -4979,6 +5020,17 @@ function priceOcrCanvasToImage(canvas) {
 // que es mucho más lento/pesado en imágenes de varios MP y no gana precisión
 // con resolución de más). Achicar ANTES de recortar la zona del código le
 // hacía perder demasiado detalle al código de barras — por eso van separados.
+function priceOcrDownscale(canvas, maxDim = 2000) {
+  const w = canvas.width, h = canvas.height;
+  const scale = Math.min(1, maxDim / Math.max(w, h));
+  if (scale === 1) return canvas;
+  const out = document.createElement('canvas');
+  out.width = Math.round(w * scale);
+  out.height = Math.round(h * scale);
+  out.getContext('2d').drawImage(canvas, 0, 0, out.width, out.height);
+  return out;
+}
+
 async function priceOcrPrepareCanvas(file, maxDim = 2000) {
   const { img, url } = await priceOcrLoadImage(file);
   try {
@@ -4989,16 +5041,29 @@ async function priceOcrPrepareCanvas(file, maxDim = 2000) {
     fullCanvas.width = w; fullCanvas.height = h;
     fullCanvas.getContext('2d').drawImage(img, 0, 0);
 
-    const scale = Math.min(1, maxDim / Math.max(w, h));
-    const ocrCanvas = document.createElement('canvas');
-    ocrCanvas.width = Math.round(w * scale);
-    ocrCanvas.height = Math.round(h * scale);
-    ocrCanvas.getContext('2d').drawImage(img, 0, 0, ocrCanvas.width, ocrCanvas.height);
-
-    return { fullCanvas, ocrCanvas };
+    return { fullCanvas, ocrCanvas: priceOcrDownscale(fullCanvas, maxDim) };
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+// Expande cada archivo en "páginas" a procesar: una foto es una sola página;
+// un PDF (ej. una factura escaneada) puede tener varias.
+async function priceOcrExpandFiles(files) {
+  const pages = [];
+  for (const file of files) {
+    if (priceOcrIsPdf(file)) {
+      try {
+        const canvases = await priceOcrPdfToCanvases(file);
+        canvases.forEach((canvas, idx) => pages.push({ label: `${file.name} (pág. ${idx + 1})`, canvas, fromPdf: true }));
+      } catch (e) {
+        pages.push({ label: file.name, error: e.message });
+      }
+    } else {
+      pages.push({ label: file.name || 'foto', file });
+    }
+  }
+  return pages;
 }
 
 // Recorta a la zona amarilla de la etiqueta (todas las fotos de góndola del
@@ -5157,9 +5222,11 @@ async function priceOcrProcessAll() {
   if (!priceOcrFiles.length) return;
   document.getElementById('ocrStepUpload').style.display = 'none';
   document.getElementById('ocrStepProgress').style.display = 'block';
-  priceOcrProgressUpdate(0, priceOcrFiles.length, 'Cargando motor de OCR…');
+  priceOcrProgressUpdate(0, priceOcrFiles.length, 'Preparando archivos…');
 
+  let pages;
   try {
+    pages = await priceOcrExpandFiles(priceOcrFiles);
     await Promise.all([loadTesseract(), loadZXing()]);
     priceOcrWorker = await Tesseract.createWorker('eng');
   } catch (e) {
@@ -5172,10 +5239,14 @@ async function priceOcrProcessAll() {
   let allPairs = [];
   const rawTexts = [];
   const imgErrors = [];
-  for (let i = 0; i < priceOcrFiles.length; i++) {
-    priceOcrProgressUpdate(i, priceOcrFiles.length, `Leyendo imagen ${i + 1}/${priceOcrFiles.length}…`);
+  for (let i = 0; i < pages.length; i++) {
+    const page = pages[i];
+    priceOcrProgressUpdate(i, pages.length, `Leyendo ${page.label} (${i + 1}/${pages.length})…`);
+    if (page.error) { imgErrors.push(`${page.label}: ${page.error}`); continue; }
     try {
-      const { fullCanvas, ocrCanvas } = await priceOcrPrepareCanvas(priceOcrFiles[i]);
+      const { fullCanvas, ocrCanvas } = page.canvas
+        ? { fullCanvas: page.canvas, ocrCanvas: priceOcrDownscale(page.canvas) }
+        : await priceOcrPrepareCanvas(page.file);
       const { data } = await priceOcrWorker.recognize(ocrCanvas);
       const lines = (data.lines || []).map(l => ({ text: l.text, bbox: l.bbox }));
       rawTexts.push(data.text || '');
@@ -5185,28 +5256,32 @@ async function priceOcrProcessAll() {
       // impresos vía OCR — si encuentra un único código, lo usamos en vez del
       // (o además del) leído por texto. Se le pasa la imagen a resolución
       // completa (no la achicada de OCR) para no perder detalle del código.
-      const decoded = await priceOcrDecodeBarcodeFromCanvas(fullCanvas);
-      if (decoded) {
-        if (imgPairs.length === 0) {
-          // Aunque el OCR no haya encontrado ningún precio, no descartamos el
-          // código ya decodificado — se muestra igual con precio 0 para que
-          // el usuario lo complete a mano en la revisión.
-          const priceGuess = priceOcrFindBestPrice(lines);
-          imgPairs = [{ barcode: decoded, price: priceGuess != null ? priceGuess : 0 }];
-        } else if (imgPairs.length === 1) {
-          imgPairs[0].barcode = decoded;
+      // Las páginas de PDF (facturas) no tienen código de barras real — se
+      // saltea para no perder tiempo buscando algo que no existe.
+      if (!page.fromPdf) {
+        const decoded = await priceOcrDecodeBarcodeFromCanvas(fullCanvas);
+        if (decoded) {
+          if (imgPairs.length === 0) {
+            // Aunque el OCR no haya encontrado ningún precio, no descartamos el
+            // código ya decodificado — se muestra igual con precio 0 para que
+            // el usuario lo complete a mano en la revisión.
+            const priceGuess = priceOcrFindBestPrice(lines);
+            imgPairs = [{ barcode: decoded, price: priceGuess != null ? priceGuess : 0 }];
+          } else if (imgPairs.length === 1) {
+            imgPairs[0].barcode = decoded;
+          }
+          // si hay más de un par (foto de grilla), no se toca — ZXing decodifica un solo código por imagen
         }
-        // si hay más de un par (foto de grilla), no se toca — ZXing decodifica un solo código por imagen
       }
 
       allPairs = allPairs.concat(imgPairs);
     } catch (e) {
-      imgErrors.push(`Imagen ${i + 1}: ${e.message}`);
-      console.warn('OCR error en imagen', i, e.message);
+      imgErrors.push(`${page.label}: ${e.message}`);
+      console.warn('OCR error en', page.label, e.message);
     }
   }
   try { await priceOcrWorker.terminate(); } catch(_) {}
-  priceOcrProgressUpdate(priceOcrFiles.length, priceOcrFiles.length, 'Listo');
+  priceOcrProgressUpdate(pages.length, pages.length, 'Listo');
 
   const rows = priceOcrMatchProducts(allPairs);
   priceOcrRenderReview(rows);
