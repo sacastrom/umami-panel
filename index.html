@@ -1515,6 +1515,19 @@ function buildMayoristaBody(p) {
   };
 }
 
+// Chequea contra ML si la publicación YA tiene precios por cantidad (mayoristas) cargados.
+// Se usa para que "Actualizar ML" sólo actualice mayoristas si ya existían — nunca los crea de cero.
+async function mlItemHasMayoristas(mla) {
+  try {
+    const data = await mlFetch(`/items/${mla}/prices`);
+    const prices = Array.isArray(data?.prices) ? data.prices : [];
+    return prices.some(pr => pr?.conditions?.min_purchase_unit && pr.conditions.min_purchase_unit > 1);
+  } catch (e) {
+    console.warn('[mayorista-check]', mla, e.message);
+    return false; // ante la duda, no tocamos mayoristas si no pudimos confirmar el estado en ML
+  }
+}
+
 async function pushMayorista(id) {
   const p = products.find(x => x.id === id);
   if (!p) return;
@@ -1892,7 +1905,7 @@ async function updateDiffPrices() {
   modal.classList.add('show');
   const btn = document.getElementById('btnUpdate');
   btn.disabled = true; btn.classList.add('loading');
-  let ok = 0, errors = 0, mayOk = 0, mayErr = 0;
+  let ok = 0, errors = 0, mayOk = 0, mayErr = 0, maySkip = 0;
   for (let i = 0; i < toUpdate.length; i++) {
     const p = toUpdate[i];
     const pct = ((i + 1) / toUpdate.length) * 100;
@@ -1903,14 +1916,21 @@ async function updateDiffPrices() {
       await mlPut(`/items/${p.mla}`, { price: p.precio_ml_calc });
       p.precio_ml_real = p.precio_ml_calc;
       ok++;
-      // recalcular y publicar mayoristas con el precio nuevo
-      p.mayoristas = calcMayoristas(p.precio_ml_calc);
-      const body = buildMayoristaBody(p);
-      try {
-        const { status, data } = await mlPost(`/items/${p.mla}/prices/standard/quantity`, body);
-        if (status >= 200 && status < 300) mayOk++;
-        else { mayErr++; console.error('[mayorista]', p.mla, status, data); }
-      } catch(em) { mayErr++; console.error('[mayorista]', p.mla, em); }
+      // Sólo tocamos mayoristas si la publicación YA los tenía cargados en ML.
+      // Si no los tenía, no se crean acá — para cargarlos por primera vez se usa
+      // el botón "📦 Mayoristas filtrados" o el "📦 Publicar" de la fila.
+      const yaTeniaMayoristas = await mlItemHasMayoristas(p.mla);
+      if (yaTeniaMayoristas) {
+        p.mayoristas = calcMayoristas(p.precio_ml_calc);
+        const body = buildMayoristaBody(p);
+        try {
+          const { status, data } = await mlPost(`/items/${p.mla}/prices/standard/quantity`, body);
+          if (status >= 200 && status < 300) mayOk++;
+          else { mayErr++; console.error('[mayorista]', p.mla, status, data); }
+        } catch(em) { mayErr++; console.error('[mayorista]', p.mla, em); }
+      } else {
+        maySkip++;
+      }
     }
     catch(e) { errors++; console.error(p.mla, e); }
     await new Promise(r => setTimeout(r, 80));
@@ -1918,7 +1938,7 @@ async function updateDiffPrices() {
   modal.classList.remove('show');
   btn.classList.remove('loading');
   doFilter();
-  const mayStr = ` · mayoristas: ${mayOk} OK${mayErr ? ' · ' + mayErr + ' err' : ''}`;
+  const mayStr = ` · mayoristas: ${mayOk} OK${maySkip ? ' · ' + maySkip + ' sin mayoristas (no tocados)' : ''}${mayErr ? ' · ' + mayErr + ' err' : ''}`;
   if (errors === 0 && mayErr === 0) showToast(`✅ ${ok} precios actualizados en ML${mayStr}`, 'success');
   else showToast(`⚠️ precio: ${ok} OK · ${errors} err${mayStr}`, 'error');
   btn.disabled = products.filter(p => hasDiff(p)).length === 0;
