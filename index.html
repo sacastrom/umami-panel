@@ -1430,7 +1430,7 @@ const V = {
     { qty: 15, pct: 0.15 },
   ],
   nf: [
-    { hasta: 15999, cf: 1275 },
+    { hasta: 14999, cf: 1275 },
     { hasta: 23999, cf: 2500 },
     { hasta: 32999, cf: 3030 },
     { hasta: Infinity, cf: 0 }
@@ -1439,7 +1439,7 @@ const V = {
     { hasta: 3499,  cf: 290  },
     { hasta: 4999,  cf: 550  },
     { hasta: 7999,  cf: 750  },
-    { hasta: 15999, cf: 1000 },
+    { hasta: 14999, cf: 1000 },
     { hasta: 32999, cf: 1750 },
     { hasta: Infinity, cf: 0 }
   ]
@@ -5839,14 +5839,14 @@ async function loadVariablesFromSheet() {
     if (g('COMISIÓN %')          != null) V.comision          = g('COMISIÓN %');
     if (g('PRECIO ENVÍO GRATIS') != null) V.precioEnvioGratis = g('PRECIO ENVÍO GRATIS');
     if (g('COSTO ENVÍO GRATIS')  != null) V.costoEnvioGratis  = g('COSTO ENVÍO GRATIS');
-    if (g('Hasta $15.999')       != null) V.nf[0].cf          = g('Hasta $15.999');
-    if (g('$16.000 a $23.999')   != null) V.nf[1].cf          = g('$16.000 a $23.999');
+    if (g('Hasta $14.999')       != null) V.nf[0].cf          = g('Hasta $14.999');
+    if (g('$15.000 a $23.999')   != null) V.nf[1].cf          = g('$15.000 a $23.999');
     if (g('$24.000 a $32.999')   != null) V.nf[2].cf          = g('$24.000 a $32.999');
     if (g('Hasta $3.499')        != null) V.full[0].cf        = g('Hasta $3.499');
     if (g('$3.500 a $4.999')     != null) V.full[1].cf        = g('$3.500 a $4.999');
     if (g('$5.000 a $7.999')     != null) V.full[2].cf        = g('$5.000 a $7.999');
-    if (g('$8.000 a $15.999')    != null) V.full[3].cf        = g('$8.000 a $15.999');
-    if (g('$16.000 a $32.999')   != null) V.full[4].cf        = g('$16.000 a $32.999');
+    if (g('$8.000 a $14.999')    != null) V.full[3].cf        = g('$8.000 a $14.999');
+    if (g('$15.000 a $32.999')   != null) V.full[4].cf        = g('$15.000 a $32.999');
     if (g('F')                   != null) V.descuentos.F      = g('F');
     if (g('I')                   != null) V.descuentos.I      = g('I');
     if (g('N')                   != null) V.descuentos.N      = g('N');
@@ -5889,13 +5889,13 @@ const CFG_DEF = {
     { qty: 10, pct: 0.10 },
     { qty: 15, pct: 0.15 },
   ],
-  nf:   [{ hasta:15999,cf:1275},{hasta:23999,cf:2500},{hasta:32999,cf:3030},{hasta:Infinity,cf:0}],
-  full: [{ hasta:3499,cf:290},{hasta:4999,cf:550},{hasta:7999,cf:750},{hasta:15999,cf:1000},{hasta:32999,cf:1750},{hasta:Infinity,cf:0}],
+  nf:   [{ hasta:14999,cf:1275},{hasta:23999,cf:2500},{hasta:32999,cf:3030},{hasta:Infinity,cf:0}],
+  full: [{ hasta:3499,cf:290},{hasta:4999,cf:550},{hasta:7999,cf:750},{hasta:14999,cf:1000},{hasta:32999,cf:1750},{hasta:Infinity,cf:0}],
   gondolas: ['BAZAR','BEBIDAS','CONDIMENTOS ORIENTALES','COREANO','EXLIN','FIDEOS','FRESCO','GOLOSINAS','ICHIBAN','NACIONAL','ONCE','PICKLES','SALSAS','SNACKS','SOJU','TE','VALLE IMPERIAL','VALLE IMPERIAL CONDIMENTOS','CASA CHINA'],
 };
 
-const NF_LABELS   = ['Hasta $15.999', '$16.000 a $23.999', '$24.000 a $32.999', 'Desde $33.000'];
-const FULL_LABELS = ['Hasta $3.499', '$3.500 a $4.999', '$5.000 a $7.999', '$8.000 a $15.999', '$16.000 a $32.999', 'Desde $33.000'];
+const NF_LABELS   = ['Hasta $14.999', '$15.000 a $23.999', '$24.000 a $32.999', 'Desde $33.000'];
+const FULL_LABELS = ['Hasta $3.499', '$3.500 a $4.999', '$5.000 a $7.999', '$8.000 a $14.999', '$15.000 a $32.999', 'Desde $33.000'];
 
 function openConfig() {
   cfgRenderUI();
