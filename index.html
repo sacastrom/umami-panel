@@ -1679,10 +1679,17 @@ async function fetchMLData(rows) {
   const mlMap = {};
   for (let i = 0; i < rows.length; i += 20) {
     const batch = rows.slice(i, i + 20).map(r => r.mla).join(',');
-    try {
-      const items = await mlFetch(`/items?ids=${batch}&attributes=id,price,available_quantity,status,thumbnail`);
+    let items = null;
+    for (let attempt = 0; attempt < 4 && !Array.isArray(items); attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 500 * attempt));
+      try { items = await mlFetch(`/items?ids=${batch}&attributes=id,price,available_quantity,status,thumbnail`); }
+      catch(e) { console.error('batch error', e); }
+    }
+    if (Array.isArray(items)) {
       items.forEach(it => { if (it.code === 200) mlMap[it.body.id] = { precio_ml_real: it.body.price || 0, stock: it.body.available_quantity || 0, status: it.body.status === 'active' ? 'active' : 'paused', thumbnail: it.body.thumbnail || '' }; });
-    } catch(e) { console.error('batch error', e); }
+    } else {
+      console.error('batch failed after retries, dropping', batch);
+    }
     const pct = 50 + ((i + 20) / rows.length) * 45;
     showLoading(`Consultando ML... ${Math.min(i + 20, rows.length)}/${rows.length}`, Math.min(pct, 95));
   }
