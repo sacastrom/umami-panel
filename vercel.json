@@ -1,6 +1,7 @@
 {
   "functions": {
-    "api/publish-item.js": { "maxDuration": 60 },
-    "api/drive.js":        { "maxDuration": 30 }
+    "api/publish-item.js":     { "maxDuration": 60 },
+    "api/drive.js":            { "maxDuration": 30 },
+    "api/tn-update-image.js":  { "maxDuration": 30 }
   }
 }

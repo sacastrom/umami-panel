@@ -2243,9 +2243,11 @@ async function updateImagesTN() {
   await pubLoadDrive();
   if (!pubDriveLoaded) { showToast('⚠️ No se pudo leer la carpeta de Drive', 'error'); return; }
 
-  const toUpdate = products.filter(p => p.tn_product_id && pubDriveMap[p.sku.toUpperCase()]);
-  if (!toUpdate.length) { showToast('No hay productos publicados en TN con imagen en Drive', 'info'); return; }
-  if (!confirm(`¿Reemplazar la foto de ${toUpdate.length} producto${toUpdate.length === 1 ? '' : 's'} ya publicados en Tienda Nube por la versión de Drive?`)) return;
+  // Respeta el filtro/búsqueda que tengas puesto en pantalla — si no filtraste nada, toma todo.
+  const base = (filtered && filtered.length ? filtered : products);
+  const toUpdate = base.filter(p => p.tn_product_id && pubDriveMap[p.sku.toUpperCase()]);
+  if (!toUpdate.length) { showToast('No hay productos publicados en TN con imagen en Drive (en lo filtrado)', 'info'); return; }
+  if (!confirm(`¿Reemplazar la foto de ${toUpdate.length} producto${toUpdate.length === 1 ? '' : 's'} ya publicados en Tienda Nube por la versión de Drive?\n\nTiendanube limita la cantidad de pedidos por segundo, así que con muchos productos puede tardar varios minutos — no cierres la pestaña.`)) return;
 
   const modal = document.getElementById('updateModal');
   const title = document.querySelector('#updateModal .modal-title');
@@ -2255,6 +2257,7 @@ async function updateImagesTN() {
   const btn = document.getElementById('btnUpdateImagesTN');
   if (btn) btn.disabled = true;
   let ok = 0, errors = 0;
+  const errorLines = [];
   for (let i = 0; i < toUpdate.length; i++) {
     const p = toUpdate[i];
     const pct = ((i + 1) / toUpdate.length) * 100;
@@ -2269,15 +2272,21 @@ async function updateImagesTN() {
       });
       const data = await res.json();
       if (data.ok) ok++;
-      else { errors++; console.error('[img-tn]', p.sku, data.error); }
-    } catch (e) { errors++; console.error('[img-tn]', p.sku, e); }
-    await new Promise(r => setTimeout(r, 250));
+      else { errors++; errorLines.push(`${p.sku}: ${data.error || 'error desconocido'}`); console.error('[img-tn]', p.sku, data.error); }
+    } catch (e) { errors++; errorLines.push(`${p.sku}: ${e.message}`); console.error('[img-tn]', p.sku, e); }
+    // TN limita ~2 pedidos/seg — dejamos aire entre producto y producto además
+    // del retry ante 429 que ya hace el endpoint.
+    await new Promise(r => setTimeout(r, 500));
   }
   modal.classList.remove('show');
   if (title && prevTitle) title.textContent = prevTitle;
   if (btn) btn.disabled = false;
-  if (errors === 0) showToast(`✅ ${ok} imágenes actualizadas en TN`, 'success');
-  else showToast(`⚠️ ${ok} OK · ${errors} errores — ver consola`, 'error');
+  if (errors === 0) {
+    showToast(`✅ ${ok} imágenes actualizadas en TN`, 'success');
+  } else {
+    showToast(`⚠️ ${ok} OK · ${errors} errores`, 'error');
+    alert(`Hubo ${errors} error(es) actualizando imágenes en TN:\n\n${errorLines.slice(0, 15).join('\n')}${errorLines.length > 15 ? `\n… y ${errorLines.length - 15} más (ver consola)` : ''}`);
+  }
 }
 
 async function toggleStatus(id) {

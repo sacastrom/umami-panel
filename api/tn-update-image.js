@@ -43,7 +43,11 @@ export default async function handler(req, res) {
     if (!productId) return res.status(400).json({ ok: false, error: 'Falta productId' });
     if (!fileId)    return res.status(400).json({ ok: false, error: 'Falta fileId' });
 
-    const tn = async (path, method = 'GET', body) => {
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+    // TN limita a ~2 req/s (bucket de 40) — ante 429 esperamos y reintentamos
+    // en vez de dar la operación por perdida (mismo criterio que el retry de ML).
+    const tn = async (path, method = 'GET', body, attempt = 0) => {
       const r = await fetch(`https://api.tiendanube.com/v1/${storeId}${path}`, {
         method,
         headers: {
@@ -53,6 +57,11 @@ export default async function handler(req, res) {
         },
         ...(body ? { body: JSON.stringify(body) } : {})
       });
+      if (r.status === 429 && attempt < 5) {
+        const retryAfter = parseFloat(r.headers.get('retry-after'));
+        await sleep(Number.isFinite(retryAfter) ? retryAfter * 1000 : 800 * (attempt + 1));
+        return tn(path, method, body, attempt + 1);
+      }
       const text = await r.text();
       try { return { status: r.status, data: JSON.parse(text) }; }
       catch (_) { return { status: r.status, data: { error: 'parse_error', raw: text.slice(0, 200) } }; }
@@ -82,6 +91,7 @@ export default async function handler(req, res) {
     if (Array.isArray(existing.data)) {
       for (const img of existing.data) {
         await tn(`/products/${productId}/images/${img.id}`, 'DELETE');
+        await sleep(300);
       }
     }
 
@@ -94,7 +104,7 @@ export default async function handler(req, res) {
     if (!imgPost.data?.id) {
       return res.status(200).json({
         ok: false,
-        error: imgPost.data?.description || imgPost.data?.message || 'no se pudo subir la imagen'
+        error: `TN ${imgPost.status}: ${imgPost.data?.description || imgPost.data?.message || JSON.stringify(imgPost.data).slice(0, 200)}`
       });
     }
 
