@@ -4478,12 +4478,16 @@ function pubAutoFamily(title) {
     .slice(0, 60);
 }
 
-function pubAutoDescMl(title) {
-  return `${title}.\n\nProducto importado. Excelente calidad y relación precio-producto.`;
+function pubAutoDescMl(title, gondola) {
+  const origen = gondola === 'NACIONAL' ? 'Producto nacional.' : 'Producto importado.';
+  return `${title}.\n\n${origen} Excelente calidad y relación precio-producto.`;
 }
 
-function pubAutoDescTn(title) {
-  return `${title}.\n\nProducto importado de Asia. Calidad premium y sabor auténtico.\n\nUMAMI — sabores únicos de Japón, Corea, Tailandia y China.`;
+function pubAutoDescTn(title, gondola) {
+  const origen = gondola === 'NACIONAL'
+    ? 'Producto nacional. Calidad premium y sabor auténtico.'
+    : 'Producto importado. Calidad premium y sabor auténtico.';
+  return `${title}.\n\n${origen}\n\nUMAMI — sabores únicos de Japón, Corea, Tailandia, China y los mejores productos nacionales.`;
 }
 
 async function pubPrepare() {
@@ -4595,7 +4599,7 @@ async function pubPrepare() {
         ${reqAttrsHtml}
         <div class="pub-review-field" style="grid-column:1/-1;">
           <label>Descripción ML</label>
-          <textarea data-field="descriptionMl" rows="3" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:11px;color:var(--text);width:100%;resize:vertical;">${pubAutoDescMl(p.title)}</textarea>
+          <textarea data-field="descriptionMl" rows="3" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:11px;color:var(--text);width:100%;resize:vertical;">${pubAutoDescMl(p.title, p.gondola)}</textarea>
         </div>` : '';
 
     const tnSection = p.needsTN ? `
@@ -4612,7 +4616,7 @@ async function pubPrepare() {
         </div>
         <div class="pub-review-field" style="grid-column:1/-1;">
           <label>Descripción TN</label>
-          <textarea data-field="descriptionTn" rows="3" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:11px;color:var(--text);width:100%;resize:vertical;">${pubAutoDescTn(p.title)}</textarea>
+          <textarea data-field="descriptionTn" rows="3" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-family:var(--font-mono);font-size:11px;color:var(--text);width:100%;resize:vertical;">${pubAutoDescTn(p.title, p.gondola)}</textarea>
         </div>` : '';
 
     return `<div class="pub-review-card" data-sku="${p.sku}" data-idx="${idx}" data-needs-ml="${p.needsML}" data-needs-tn="${p.needsTN}">
