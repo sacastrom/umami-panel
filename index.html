@@ -611,6 +611,9 @@
       <button class="btn-update" id="btnPushMayoristas" onclick="pushMayoristasFiltered()" style="background:var(--green,#16a34a);box-shadow:0 2px 8px rgba(22,163,74,.25);" title="Publica precios mayoristas x3/x5/x10 en los productos que ves filtrados en pantalla">
         <span class="sync-icon">📦</span> Mayoristas filtrados
       </button>
+      <button class="btn-update" id="btnUpdateImagesTN" onclick="updateImagesTN()" style="background:var(--accent);box-shadow:0 2px 8px rgba(108,99,255,.25);" title="Reemplaza la foto de los productos ya publicados en Tienda Nube por la imagen de Drive con el mismo SKU">
+        <span class="sync-icon">🖼️</span> Imágenes TN
+      </button>
     </div>
   </div>
 
@@ -2231,6 +2234,50 @@ async function syncStockToTN() {
   renderStats();
   if (errors === 0) showToast(`✅ ${ok} stocks sincronizados a TN`, 'success');
   else showToast(`⚠️ ${ok} OK · ${errors} errores`, 'error');
+}
+
+// Reemplaza la foto de los productos ya publicados en TN por la imagen de
+// Drive que coincide con su SKU (mismo matching que usa Publicar → fileId).
+async function updateImagesTN() {
+  if (!tnToken) { showToast('⚠️ Conectá Tienda Nube primero', 'error'); return; }
+  await pubLoadDrive();
+  if (!pubDriveLoaded) { showToast('⚠️ No se pudo leer la carpeta de Drive', 'error'); return; }
+
+  const toUpdate = products.filter(p => p.tn_product_id && pubDriveMap[p.sku.toUpperCase()]);
+  if (!toUpdate.length) { showToast('No hay productos publicados en TN con imagen en Drive', 'info'); return; }
+  if (!confirm(`¿Reemplazar la foto de ${toUpdate.length} producto${toUpdate.length === 1 ? '' : 's'} ya publicados en Tienda Nube por la versión de Drive?`)) return;
+
+  const modal = document.getElementById('updateModal');
+  const title = document.querySelector('#updateModal .modal-title');
+  const prevTitle = title ? title.textContent : '';
+  if (title) title.textContent = '🖼️ Actualizando imágenes en TN';
+  modal.classList.add('show');
+  const btn = document.getElementById('btnUpdateImagesTN');
+  if (btn) btn.disabled = true;
+  let ok = 0, errors = 0;
+  for (let i = 0; i < toUpdate.length; i++) {
+    const p = toUpdate[i];
+    const pct = ((i + 1) / toUpdate.length) * 100;
+    document.getElementById('modalBar').style.width = pct + '%';
+    document.getElementById('modalSub').textContent = `${p.sku} — ${p.name.slice(0, 40)}...`;
+    document.getElementById('modalCount').textContent = `${i + 1} / ${toUpdate.length}`;
+    try {
+      const res = await fetch('/api/tn-update-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tnToken}`, 'X-Store-Id': tnStoreId },
+        body: JSON.stringify({ productId: p.tn_product_id, fileId: pubDriveMap[p.sku.toUpperCase()], sku: p.sku })
+      });
+      const data = await res.json();
+      if (data.ok) ok++;
+      else { errors++; console.error('[img-tn]', p.sku, data.error); }
+    } catch (e) { errors++; console.error('[img-tn]', p.sku, e); }
+    await new Promise(r => setTimeout(r, 250));
+  }
+  modal.classList.remove('show');
+  if (title && prevTitle) title.textContent = prevTitle;
+  if (btn) btn.disabled = false;
+  if (errors === 0) showToast(`✅ ${ok} imágenes actualizadas en TN`, 'success');
+  else showToast(`⚠️ ${ok} OK · ${errors} errores — ver consola`, 'error');
 }
 
 async function toggleStatus(id) {
