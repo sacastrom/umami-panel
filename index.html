@@ -4351,6 +4351,10 @@ async function pubLoadItems() {
         stock:   prod?.stock ?? 3,
         gondola: String(get(13) || '').trim().toUpperCase(),
         thumbnail: prod?.thumbnail || '',
+        dimWidth:  typeof get(20) === 'number' ? get(20) : null, // U: ANCHO
+        dimHeight: typeof get(21) === 'number' ? get(21) : null, // V: ALTO
+        dimDepth:  typeof get(22) === 'number' ? get(22) : null, // W: PROFUNDO
+        dimWeight: typeof get(23) === 'number' ? get(23) : null, // X: PESO (kg)
         needsML, needsTN
       };
     }).filter(Boolean);
@@ -4634,10 +4638,10 @@ async function pubPrepare() {
         <div class="pub-review-field" style="grid-column:1/-1;">
           <label>Dimensiones del paquete <span style="color:var(--muted)">(cm y kg — se convierten para cada plataforma)</span></label>
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
-            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Alto (cm)</span><input type="number" data-field="dimHeight" value="12" min="0"></div>
-            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Ancho (cm)</span><input type="number" data-field="dimWidth" value="6" min="0"></div>
-            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Prof./Largo (cm)</span><input type="number" data-field="dimDepth" value="6" min="0"></div>
-            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Peso (kg)</span><input type="number" data-field="dimWeightKg" value="0.4" step="0.01" min="0"></div>
+            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Alto (cm)</span><input type="number" data-field="dimHeight" value="${p.dimHeight ?? 12}" min="0"></div>
+            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Ancho (cm)</span><input type="number" data-field="dimWidth" value="${p.dimWidth ?? 6}" min="0"></div>
+            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Prof./Largo (cm)</span><input type="number" data-field="dimDepth" value="${p.dimDepth ?? 6}" min="0"></div>
+            <div style="display:flex;flex-direction:column;gap:3px;"><span style="font-size:9px;color:var(--muted);">Peso (kg)</span><input type="number" data-field="dimWeightKg" value="${p.dimWeight ?? 0.4}" step="0.01" min="0"></div>
           </div>
         </div>
         ${mlSection}
